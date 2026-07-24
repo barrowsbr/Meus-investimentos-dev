@@ -1,10 +1,9 @@
 "use client";
 
-// Tela inicial "GAME SELECT" — hub pós-login (ativável em Configurações).
-// Os 4 cartuchos (Investimentos / Finanças / Barroots / Config) ficam DENTRO do
-// cubo 3D: cada um tem uma âncora no espaço da sala e é reprojetado a cada frame
-// pela MESMA projeção off-axis do wireframe — então fazem paralaxe junto com o
-// quarto (parecem objetos flutuando no meio da sala). Reage a mouse e giroscópio.
+// Tela inicial — hub pós-login (ativável em Configurações). Minimalista: só o
+// fundo 3D (quarto wireframe, perspectiva off-axis) + os 4 cartuchos DENTRO do
+// cubo (reprojetados pela mesma projeção → paralaxe junto com a sala). Sem
+// textos de topo/rodapé. Reage a mouse e giroscópio (ativado automaticamente).
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -55,27 +54,12 @@ export default function InicioPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const enableGyroRef = useRef<() => void>(() => {});
-  const [showGyroBtn, setShowGyroBtn] = useState(false);
-  const [clock, setClock] = useState("—");
   const [mounted, setMounted] = useState(false);
 
-  // Portal só depois de montar (document existe) — evita SSR e o containing-block
-  // do shell (transform) que espremia o fixed numa caixinha.
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
-    const tick = () => {
-      const d = new Date();
-      setClock(`${dias[d.getDay()]} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
-    };
-    tick();
-    const id = setInterval(tick, 15000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
+    if (!mounted) return;
     const cv = canvasRef.current;
     if (!cv) return;
     const ctx = cv.getContext("2d");
@@ -84,11 +68,11 @@ export default function InicioPage() {
 
     let W = 1, H = 1;
     const D = 3.9, EYE_D = 1.3, NX = 8, NY = 5, NZ = 10;
-    const Z_CART = 0.95;         // profundidade das cartelas dentro da sala
+    const Z_CART = 0.95;
     let segs: number[][] = [];
     function buildRoom() {
       segs = [];
-      const L = (a: number, b: number, c: number, d: number, e: number, f: number, g?: number) => segs.push([a, b, c, d, e, f, g ?? 0]);
+      const L = (a: number, b: number, c: number, d: number, e: number, f: number) => segs.push([a, b, c, d, e, f]);
       let i: number, a: number, b: number;
       for (i = 0; i <= NX; i++) { a = -W + 2 * W * i / NX; L(a, -H, D, a, H, D); }
       for (i = 0; i <= NY; i++) { b = -H + 2 * H * i / NY; L(-W, b, D, W, b, D); }
@@ -99,8 +83,6 @@ export default function InicioPage() {
         for (i = 0; i <= NY; i++) { b = -H + 2 * H * i / NY; L(x, b, 0, x, b, D); }
         for (i = 0; i <= NZ; i++) { const z2 = D * i / NZ; L(x, -H, z2, x, H, z2); } }
     }
-
-    // Âncora 3D de cada cartela (grade 2×2 no meio da sala).
     function anchor(i: number): [number, number, number] {
       const col = (i % 2) === 0 ? -1 : 1;
       const row = i < 2 ? 1 : -1;
@@ -122,7 +104,6 @@ export default function InicioPage() {
       return [ox + (eye.x + t * (x - eye.x)) * scale, oy - (eye.y + t * (y - eye.y)) * scale, t];
     }
     function frame() {
-      // Sem input → repousa no CENTRO (nada de deriva/balanço). O peek vem só do mouse/giroscópio.
       eye.x += (target.x - eye.x) * 0.06; eye.y += (target.y - eye.y) * 0.06;
       ctx!.clearRect(0, 0, cw, ch);
       for (let i = 0; i < segs.length; i++) {
@@ -135,7 +116,6 @@ export default function InicioPage() {
         ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
-      // Reprojeta cada cartela na sua âncora 3D → paralaxe junto com a sala.
       const rotY = eye.x * 13, rotX = -eye.y * 13;
       for (let i = 0; i < 4; i++) {
         const slot = slotRefs.current[i]; if (!slot) continue;
@@ -154,7 +134,7 @@ export default function InicioPage() {
     };
     document.addEventListener("pointermove", onPointer);
 
-    // ── Giroscópio — inclinar (gravidade) + girar (bússola) ──
+    // ── Giroscópio — inclinar (gravidade) + girar (bússola), auto ──
     let base: { lr: number; fb: number } | null = null, gxs = 0, gys = 0, yaw = 0, baseA: number | null = null, gyroOn = false;
     const orientAngle = () => {
       if (window.screen && screen.orientation && screen.orientation.angle != null) return screen.orientation.angle;
@@ -168,7 +148,7 @@ export default function InicioPage() {
       const o = orientAngle(); let lr: number, fb: number;
       if (o === 90) { lr = -ny; fb = -nx; } else if (o === -90 || o === 270) { lr = ny; fb = nx; } else { lr = nx; fb = ny; }
       if (base == null) base = { lr, fb };
-      else { base.lr += (lr - base.lr) * 0.006; base.fb += (fb - base.fb) * 0.006; }  // recentraliza o "zero" devagar → nunca fica preso num lado
+      else { base.lr += (lr - base.lr) * 0.006; base.fb += (fb - base.fb) * 0.006; }
       const dLR = lr - base.lr, dFB = fb - base.fb, DEAD = 0.02, RANGE = 0.22;
       const shape = (d: number) => { const s = d < 0 ? -1 : 1, m = Math.max(0, Math.abs(d) - DEAD); return s * Math.min(m, RANGE) / RANGE; };
       gxs += (shape(dLR) - gxs) * 0.28; gys += (shape(dFB) - gys) * 0.28; apply();
@@ -186,7 +166,7 @@ export default function InicioPage() {
     };
     const recalibrate = () => { base = null; baseA = null; };
     const addGyro = () => { if (gyroOn) return; gyroOn = true; base = null; baseA = null;
-      window.addEventListener("devicemotion", onMotion); window.addEventListener("deviceorientation", onOrient); setShowGyroBtn(false); };
+      window.addEventListener("devicemotion", onMotion); window.addEventListener("deviceorientation", onOrient); };
     const enableGyro = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const DM = window.DeviceMotionEvent as any, DO = window.DeviceOrientationEvent as any, ps: Promise<string>[] = [];
@@ -195,15 +175,25 @@ export default function InicioPage() {
       if (ps.length) Promise.all(ps.map((p) => p.catch(() => "denied"))).then((rs) => { if (rs.indexOf("granted") >= 0) addGyro(); });
       else addGyro();
     };
-    enableGyroRef.current = enableGyro;
     window.addEventListener("dblclick", recalibrate);
     window.addEventListener("orientationchange", recalibrate);
 
-    const isTouch = "ontouchstart" in window;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const DMc = window.DeviceMotionEvent as any, DOc = window.DeviceOrientationEvent as any;
-    if (isTouch && ((DMc && DMc.requestPermission) || (DOc && DOc.requestPermission))) setShowGyroBtn(true);
-    else if (isTouch && (window.DeviceMotionEvent || window.DeviceOrientationEvent)) addGyro();
+    const precisaPermissao = (DMc && DMc.requestPermission) || (DOc && DOc.requestPermission);
+    let kick: (() => void) | null = null;
+    if (precisaPermissao) {
+      // iOS: permissão exige gesto do usuário → ativa no PRIMEIRO toque, sem botão.
+      kick = () => {
+        enableGyro();
+        window.removeEventListener("pointerdown", kick!, true);
+        window.removeEventListener("touchstart", kick!, true);
+      };
+      window.addEventListener("pointerdown", kick, true);
+      window.addEventListener("touchstart", kick, true);
+    } else if (window.DeviceMotionEvent || window.DeviceOrientationEvent) {
+      addGyro(); // Android/desktop com sensores: liga direto
+    }
 
     window.addEventListener("resize", resize);
     resize(); raf = requestAnimationFrame(frame);
@@ -215,6 +205,7 @@ export default function InicioPage() {
       window.removeEventListener("deviceorientation", onOrient);
       window.removeEventListener("dblclick", recalibrate);
       window.removeEventListener("orientationchange", recalibrate);
+      if (kick) { window.removeEventListener("pointerdown", kick, true); window.removeEventListener("touchstart", kick, true); }
       window.removeEventListener("resize", resize);
       document.body.style.overflow = "";
     };
@@ -226,7 +217,6 @@ export default function InicioPage() {
       <canvas ref={canvasRef} className="mih-bg" />
       <div className="mih-scrim" />
 
-      {/* Cartelas 3D dentro do cubo */}
       <div className="mih-space">
         {CARTS.map((c, i) => (
           <button
@@ -248,29 +238,6 @@ export default function InicioPage() {
         ))}
       </div>
 
-      {/* HUD (chrome plano) */}
-      <div className="mih-hud">
-        <header className="mih-header">
-          <div className="mih-brand">
-            <span className="mih-dpad" aria-hidden="true"><i className="h" /><i className="v" /></span>
-            <span className="mih-wordmark">BARROOTS</span>
-          </div>
-          <span className="mih-clock">{clock}</span>
-        </header>
-        <div className="mih-title">
-          <p className="mih-eyebrow">Insira um cartucho</p>
-          <p className="mih-h1">Game Select <span className="mih-blink">_</span></p>
-        </div>
-        <footer className="mih-footer">
-          <span>© Barroots System</span>
-          <span>Escolha um cartucho <span className="mih-cursor">▶</span></span>
-        </footer>
-      </div>
-
-      {showGyroBtn && (
-        <button className="mih-gyro" onClick={() => enableGyroRef.current()}>Ativar giroscópio</button>
-      )}
-
       <style>{CSS}</style>
     </div>,
     document.body,
@@ -278,17 +245,16 @@ export default function InicioPage() {
 }
 
 const CSS = `
-.mih-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:ui-monospace,"SF Mono","Cascadia Code","Courier New",monospace;color:#e9ecd8;background:linear-gradient(180deg,#0f130c,#0c0f0a);--gold:#f0b23c;--emerald:#3ddc84;--violet:#b18bff;--dmg:#9bbc0f;--faint:#6a6f52;--muted:#9aa07f;}
+.mih-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:ui-monospace,"SF Mono","Cascadia Code","Courier New",monospace;color:#e9ecd8;background:linear-gradient(180deg,#0f130c,#0c0f0a);--gold:#f0b23c;--emerald:#3ddc84;--violet:#b18bff;--dmg:#9bbc0f;--faint:#6a6f52;}
 .mih-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block;touch-action:none;}
-.mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 34%,rgba(8,10,7,0.5) 82%,rgba(8,10,7,0.85) 100%);}
+.mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
 .mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
 
-/* Camada 3D das cartelas */
 .mih-space{position:absolute;inset:0;z-index:3;perspective:820px;pointer-events:none;}
 .mih-slot{position:absolute;top:0;left:0;padding:0;border:0;background:none;cursor:pointer;pointer-events:auto;transform-style:preserve-3d;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
 .mih-cart{--hue:var(--gold);position:relative;display:block;width:clamp(104px,27vw,168px);text-align:left;padding:11px 11px 13px;background:linear-gradient(165deg,#3a3d31,#202318);border:1px solid #4c4f40;border-radius:8px 8px 10px 10px;clip-path:polygon(0 0,74% 0,86% 12%,100% 12%,100% 100%,0 100%);box-shadow:0 22px 34px -14px rgba(0,0,0,0.9),inset 0 1px 0 rgba(255,255,255,0.05);transition:transform .16s ease,filter .2s;animation:mih-pop .45s ease both;}
-.mih-slot:nth-child(1) .mih-cart{animation-delay:.02s;} .mih-slot:nth-child(2) .mih-cart{animation-delay:.10s;} .mih-slot:nth-child(3) .mih-cart{animation-delay:.18s;} .mih-slot:nth-child(4) .mih-cart{animation-delay:.26s;}
+.mih-slot:nth-child(1) .mih-cart{animation-delay:.02s;}.mih-slot:nth-child(2) .mih-cart{animation-delay:.10s;}.mih-slot:nth-child(3) .mih-cart{animation-delay:.18s;}.mih-slot:nth-child(4) .mih-cart{animation-delay:.26s;}
 .mih-slot:hover .mih-cart{transform:translateY(-6px);filter:brightness(1.1);}
 .mih-slot:focus-visible .mih-cart{filter:brightness(1.12);box-shadow:0 0 0 3px var(--hue),0 22px 34px -14px rgba(0,0,0,0.9);}
 .mih-slot:active .mih-cart{transform:translateY(-2px);}
@@ -304,24 +270,5 @@ const CSS = `
 .mih-slot:hover .mih-fases,.mih-slot:focus-visible .mih-fases{color:var(--hue);}
 .mih-fases .play{color:var(--hue);}
 .c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
-
-/* HUD */
-.mih-hud{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(16px,4vw,34px);pointer-events:none;}
-.mih-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
-.mih-brand{display:flex;align-items:center;gap:12px;}
-.mih-dpad{width:26px;height:26px;position:relative;flex:none;}
-.mih-dpad i{position:absolute;background:var(--dmg);border-radius:2px;box-shadow:0 0 6px rgba(155,188,15,0.5);}
-.mih-dpad .h{top:10px;left:2px;width:22px;height:6px;}
-.mih-dpad .v{top:2px;left:10px;width:6px;height:22px;}
-.mih-wordmark{font-weight:700;font-size:15px;letter-spacing:0.26em;text-shadow:2px 2px 0 rgba(0,0,0,0.6);}
-.mih-clock{font-size:11px;letter-spacing:0.14em;color:var(--dmg);text-transform:uppercase;text-shadow:0 0 8px rgba(155,188,15,0.4);}
-.mih-title{text-align:center;}
-.mih-eyebrow{font-size:11px;letter-spacing:0.34em;text-transform:uppercase;color:var(--muted);margin:0;}
-.mih-h1{margin:8px 0 0;font-size:clamp(20px,4.5vw,32px);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;text-shadow:3px 3px 0 rgba(0,0,0,0.6);}
-.mih-blink{color:var(--dmg);animation:mih-blink 1.1s steps(1) infinite;}
-@keyframes mih-blink{50%{opacity:0;}}
-.mih-footer{display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);}
-.mih-cursor{color:var(--dmg);animation:mih-blink 1s steps(1) infinite;}
-.mih-gyro{position:fixed;right:14px;bottom:52px;z-index:5;font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#06110a;background:linear-gradient(180deg,var(--dmg),#7fa00c);border:none;padding:9px 13px;border-radius:8px;cursor:pointer;box-shadow:0 8px 20px -8px rgba(155,188,15,0.6);}
-@media (prefers-reduced-motion:reduce){.mih-cart{animation:none;transition:none;} .mih-slot:hover .mih-cart{transform:none;} .mih-blink,.mih-cursor{animation:none;}}
+@media (prefers-reduced-motion:reduce){.mih-cart{animation:none;transition:none;}.mih-slot:hover .mih-cart{transform:none;}}
 `;
