@@ -22,57 +22,52 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-// Ordem e rótulos conforme README §8 do handoff Barroots Terminal.
+// Três categorias de topo (decisão do dono): Investimentos (tudo da carteira e
+// análise), Finanças (vida pessoal) e Barroots (o resto que ele vai colocando).
+// Home fica fixa no topo e Configurações no rodapé, fora das categorias.
 export const NAV: NavGroup[] = [
   { items: [{ href: "/", label: "Home", icon: Home, sub: "Visão do dia", mobileShow: true }] },
   {
-    label: "Portfólio",
+    label: "Investimentos",
     items: [
+      // Carteira
+      { href: "/resumo", label: "Resumo", icon: LayoutDashboard, sub: "Visão geral dos seus investimentos", mobileShow: true },
       { href: "/renda-variavel", label: "Renda Variável", icon: BarChart2, sub: "Ações, ETFs, BDRs e FIIs" },
       { href: "/renda-fixa", label: "Renda Fixa", icon: Landmark, sub: "Tesouro, CDBs, LCI/LCA e debêntures" },
       { href: "/proventos", label: "Proventos", icon: Coins, sub: "Dividendos, JCP e rendimentos" },
       { href: "/agenda", label: "Agenda", icon: CalendarDays, sub: "Calendário de proventos — datas-ex, pagamentos e anúncios" },
       { href: "/criptoativos", label: "Criptoativos", icon: Bitcoin, sub: "Bitcoin e demais criptoativos" },
       { href: "/opcoes", label: "Opções", icon: Crosshair, sub: "Posições em opções e estruturas" },
-    ],
-  },
-  {
-    label: "Análise",
-    items: [
-      { href: "/resumo", label: "Resumo", icon: LayoutDashboard, sub: "Visão geral dos seus investimentos", mobileShow: true },
+      // Análise
       { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
       { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
       { href: "/simulacoes", label: "Simulações", icon: FlaskConical, sub: "Cenários de compra/venda e rebalanceamento por classe" },
       { href: "/trades", label: "Trades", icon: ArrowUpDown, sub: "Histórico de operações e desempenho" },
       { href: "/etf", label: "ETFs", icon: Layers, sub: "Composição, look-through e alocação" },
+      // Gestão
+      { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
+      { href: "/caixa", label: "Caixa & Margem", icon: Scale, sub: "Liquidez (caixa) e margem — automático via IBKR" },
+      { href: "/ibkr", label: "IBKR", icon: Building2, sub: "Visão gerencial da conta Interactive Brokers (via Flex)" },
+      { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
     ],
   },
   {
-    label: "Gestão",
+    label: "Finanças",
     items: [
-      { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
-      { href: "/caixa", label: "Caixa & Margem", icon: Scale, sub: "Liquidez (caixa) e margem — automático via IBKR" },
       { href: "/financas", label: "Finanças", icon: Wallet, sub: "Contas, cartões e fluxo pessoal" },
       { href: "/fluxos", label: "Fluxos", icon: ArrowDownUp, sub: "Entradas, saídas e movimentações" },
     ],
   },
   {
-    label: "API's",
+    label: "Barroots",
     items: [
-      { href: "/ibkr", label: "IBKR", icon: Building2, sub: "Visão gerencial da conta Interactive Brokers (via Flex)" },
-      { href: "/nasa", label: "NASA", icon: Rocket, sub: "Observatório — APOD, asteroides, Terra (EPIC) e Marte" },
-      { href: "/noticias", label: "Notícias & Previsões", icon: Newspaper, sub: "Jornal do mercado + mercados preditivos" },
-    ],
-  },
-  {
-    label: "Mais",
-    items: [
+      { href: "/noticias", label: "Notícias & Previsões", icon: Newspaper, sub: "Jornal do mercado + trabalho + mercados preditivos" },
       { href: "/radar", label: "Radar", icon: Radar, sub: "Mapa-múndi geoeconômico: índices, moedas e países", mobileShow: true },
-      { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
-      { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
-      { href: "/moedas", label: "Moedas", icon: Medal, sub: "Coleção numismática — fotos, valores e mapa (CoinSnap)" },
       { href: "/etf-cem", label: "ETF Cem", icon: Crown, sub: "As 100 maiores do mundo (via VOO) — preço, P/L e distância do topo" },
+      { href: "/moedas", label: "Moedas", icon: Medal, sub: "Coleção numismática — fotos, valores e mapa (CoinSnap)" },
+      { href: "/nasa", label: "NASA", icon: Rocket, sub: "Observatório — APOD, asteroides, Terra (EPIC) e Marte" },
+      { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
       { href: "/gameboy", label: "Game Boy", icon: Gamepad2, sub: "Pokémon Gold Spaceworld '97 — emulador embutido" },
     ],
   },
