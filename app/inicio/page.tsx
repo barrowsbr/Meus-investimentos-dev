@@ -58,6 +58,7 @@ export default function InicioPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const objRefs = useRef<Array<HTMLDivElement | null>>([]);
   const enableGyroRef = useRef<() => void>(() => {});
   const startCamRef = useRef<() => void>(() => {});
   const stopCamRef = useRef<() => void>(() => {});
@@ -126,13 +127,17 @@ export default function InicioPage() {
         ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
-      const rotY = eye.x * 24, rotX = -eye.y * 24;
+      const rotY = eye.x * 16, rotX = -eye.y * 16;
       for (let i = 0; i < 4; i++) {
-        const slot = slotRefs.current[i]; if (!slot) continue;
+        const slot = slotRefs.current[i], obj = objRefs.current[i]; if (!slot || !obj) continue;
         const [ax, ay, az] = anchor(i);
         const [X, Y] = project(ax, ay, az);
         const [bx, by] = BASE_ROT[i];
-        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%) rotateX(${bx + rotX}deg) rotateY(${by + rotY}deg)`;
+        // Posição (paralaxe) no slot; ROTAÇÃO no obj — que tem perspectiva PRÓPRIA
+        // centrada nele. Assim cada card fica reto (sem distorção off-axis do
+        // ponto de fuga único) e só mostra topo/lado quando gira.
+        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%)`;
+        obj.style.transform = `rotateX(${bx + rotX}deg) rotateY(${by + rotY}deg)`;
       }
       raf = requestAnimationFrame(frame);
     }
@@ -262,17 +267,21 @@ export default function InicioPage() {
             onClick={() => router.push(c.href)}
             aria-label={c.name}
           >
-            <div className="mih-face mih-side-l" />
-            <div className="mih-face mih-side-r" />
-            <div className="mih-face mih-side-t" />
-            <div className="mih-face mih-side-b" />
-            <div className="mih-face mih-back" />
-            <div className="mih-face mih-front">
-              <div className="mih-ridges" />
-              <div className="mih-label">
-                <span className="mih-screen" aria-hidden="true">{c.icon}</span>
-                <span className="mih-name">{c.name}</span>
-                <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
+            <div className="mih-persp">
+              <div className="mih-obj" ref={(el) => { objRefs.current[i] = el; }}>
+                <div className="mih-face mih-side-l" />
+                <div className="mih-face mih-side-r" />
+                <div className="mih-face mih-side-t" />
+                <div className="mih-face mih-side-b" />
+                <div className="mih-face mih-back" />
+                <div className="mih-face mih-front">
+                  <div className="mih-ridges" />
+                  <div className="mih-label">
+                    <span className="mih-screen" aria-hidden="true">{c.icon}</span>
+                    <span className="mih-name">{c.name}</span>
+                    <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </button>
@@ -307,12 +316,16 @@ const CSS = `
 .mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
 .mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
 
-/* IMPORTANTE: nada de filter/opacity/clip/overflow no .mih-slot — achata o preserve-3d. */
-.mih-space{position:absolute;inset:0;z-index:3;perspective:680px;pointer-events:none;}
+/* Cada card tem PERSPECTIVA PRÓPRIA (centrada nele) → fica reto, sem a distorção
+   off-axis do ponto de fuga único. IMPORTANTE: nada de filter/opacity/clip no
+   .mih-obj — achata o preserve-3d. */
+.mih-space{position:absolute;inset:0;z-index:3;pointer-events:none;}
 .mih-slot{--hue:var(--gold);--w:clamp(98px,25vw,150px);--h:clamp(124px,32vw,186px);--t:clamp(26px,8vw,38px);
   position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
-  pointer-events:auto;transform-style:preserve-3d;transform-origin:center center;will-change:transform;}
+  pointer-events:auto;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
+.mih-persp{width:100%;height:100%;perspective:640px;}
+.mih-obj{position:relative;width:100%;height:100%;transform-style:preserve-3d;transform-origin:center center;will-change:transform;}
 
 .mih-face{position:absolute;top:50%;left:50%;backface-visibility:hidden;}
 .mih-front,.mih-back{width:var(--w);height:var(--h);border-radius:9px;}
