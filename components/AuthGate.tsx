@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { getHubAtivo } from "@/lib/hub-prefs";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -16,6 +17,7 @@ const LOGIN_ENABLED_KEY = "mi_login_enabled";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [user, setUser] = useState("");
@@ -96,11 +98,17 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         if (novaConta) sessionStorage.setItem("mi_conta", novaConta);
         else sessionStorage.removeItem("mi_conta");
         sessionStorage.setItem(AUTH_KEY, "1");
+        // Tela inicial (hub) ativada → primeira tela pós-login é /inicio.
+        const hubOn = getHubAtivo();
         if (wasDemo !== isDemo || prevConta !== novaConta) {
-          window.location.reload();
+          // Troca de conta/demo exige reload total; se o hub está ligado, a
+          // navegação completa para /inicio já cumpre esse papel.
+          if (hubOn) window.location.href = "/inicio";
+          else window.location.reload();
           return;
         }
         setAuthed(true);
+        if (hubOn && pathname !== "/inicio") router.push("/inicio");
       } else {
         setError("Usuário ou senha incorretos.");
         setPass("");
