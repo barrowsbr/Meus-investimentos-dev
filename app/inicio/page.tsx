@@ -434,7 +434,7 @@ const CSS = `
    off-axis do ponto de fuga único. IMPORTANTE: nada de filter/opacity/clip no
    .mih-obj — achata o preserve-3d. */
 .mih-space{position:absolute;inset:0;z-index:3;pointer-events:none;}
-.mih-slot{--hue:var(--gold);--w:clamp(104px,26vw,158px);--h:clamp(140px,35vw,204px);--t:clamp(24px,7vw,34px);
+.mih-slot{--hue:var(--gold);--w:clamp(104px,26vw,158px);--h:clamp(140px,35vw,204px);--t:clamp(20px,6vw,28px);
   position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
   pointer-events:auto;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
@@ -451,12 +451,21 @@ const CSS = `
   border:1px solid color-mix(in srgb,var(--hue) 34%,#2a353a);
   box-shadow:0 36px 48px -22px rgba(0,0,0,0.92),0 0 26px -6px color-mix(in srgb,var(--hue) 46%,transparent),inset 0 1px 0 rgba(255,255,255,0.09),inset 0 0 30px -14px color-mix(in srgb,var(--hue) 70%,transparent);
   padding:10px;display:flex;flex-direction:column;overflow:hidden;}
-.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));border-radius:13px;background:linear-gradient(160deg,#0f171a,#070c0f);border:1px solid #1e2a2e;}
-/* laterais: metal escuro com fio de luz da cor do card */
-.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#1c262a,#0a1012);box-shadow:inset 2px 0 0 -1px color-mix(in srgb,var(--hue) 40%,transparent),inset 0 0 0 1px rgba(0,0,0,0.35);}
-.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#1c262a,#0a1012);box-shadow:inset -2px 0 0 -1px color-mix(in srgb,var(--hue) 40%,transparent),inset 0 0 0 1px rgba(0,0,0,0.35);}
-.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));background:linear-gradient(90deg,#26343a,#2e3f45);}
-.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));background:#05090b;}
+.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));border-radius:13px;background:linear-gradient(160deg,color-mix(in srgb,var(--hue) 13%,#0c1417),#070c0f);border:1px solid color-mix(in srgb,var(--hue) 28%,#1e2a2e);}
+/* Espessura NÃO é caixa fria: cada face herda a cor do card, com bevel/fio de luz
+   onde a frente iluminada "vaza" pra borda. Glow interno mantém tudo quente. */
+.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hue) 30%,#121b1f),color-mix(in srgb,var(--hue) 9%,#080d0f));
+  box-shadow:inset 3px 0 0 -1px color-mix(in srgb,var(--hue) 65%,transparent),inset 0 0 16px -5px color-mix(in srgb,var(--hue) 60%,transparent),inset 0 0 0 1px rgba(0,0,0,0.25);}
+.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hue) 30%,#121b1f),color-mix(in srgb,var(--hue) 9%,#080d0f));
+  box-shadow:inset -3px 0 0 -1px color-mix(in srgb,var(--hue) 65%,transparent),inset 0 0 16px -5px color-mix(in srgb,var(--hue) 60%,transparent),inset 0 0 0 1px rgba(0,0,0,0.25);}
+.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hue) 46%,#0d161a),color-mix(in srgb,var(--hue) 13%,#0a1013));
+  box-shadow:inset 0 2px 0 -0.5px color-mix(in srgb,var(--hue) 72%,transparent),inset 0 -2px 0 -0.5px color-mix(in srgb,var(--hue) 34%,transparent),inset 0 0 18px -5px color-mix(in srgb,var(--hue) 70%,transparent);}
+.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hue) 11%,#0a1013),#05090b);
+  box-shadow:inset 0 0 12px -6px color-mix(in srgb,var(--hue) 40%,transparent);}
 
 .mih-slot:hover .mih-front{border-color:color-mix(in srgb,var(--hue) 60%,transparent);box-shadow:0 40px 52px -22px rgba(0,0,0,0.95),0 0 40px -6px color-mix(in srgb,var(--hue) 62%,transparent),inset 0 1px 0 rgba(255,255,255,0.12),inset 0 0 34px -12px color-mix(in srgb,var(--hue) 80%,transparent);}
 .mih-slot:focus-visible .mih-front{box-shadow:0 36px 48px -22px rgba(0,0,0,0.92),inset 0 0 0 2px var(--hue);}
