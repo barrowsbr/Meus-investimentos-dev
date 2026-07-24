@@ -7,6 +7,7 @@
 // quarto (parecem objetos flutuando no meio da sala). Reage a mouse e giroscópio.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 interface Cart { cls: string; name: string; fases: string; href: string; icon: ReactNode }
@@ -57,6 +58,11 @@ export default function InicioPage() {
   const enableGyroRef = useRef<() => void>(() => {});
   const [showGyroBtn, setShowGyroBtn] = useState(false);
   const [clock, setClock] = useState("—");
+  const [mounted, setMounted] = useState(false);
+
+  // Portal só depois de montar (document existe) — evita SSR e o containing-block
+  // do shell (transform) que espremia o fixed numa caixinha.
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
@@ -212,9 +218,10 @@ export default function InicioPage() {
       window.removeEventListener("resize", resize);
       document.body.style.overflow = "";
     };
-  }, []);
+  }, [mounted]);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div className="mih-root">
       <canvas ref={canvasRef} className="mih-bg" />
       <div className="mih-scrim" />
@@ -265,7 +272,8 @@ export default function InicioPage() {
       )}
 
       <style>{CSS}</style>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
