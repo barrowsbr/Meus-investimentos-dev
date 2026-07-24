@@ -7,15 +7,17 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Gamepad2, ExternalLink } from "lucide-react";
-import { getHubAtivo, setHubAtivo } from "@/lib/hub-prefs";
+import { Gamepad2, ExternalLink, Sparkles, Minus } from "lucide-react";
+import { getHubAtivo, setHubAtivo, getHubEstilo, setHubEstilo, type HubEstilo } from "@/lib/hub-prefs";
 
 export default function InicioSection() {
   const [ativo, setAtivo] = useState(false);
+  const [estilo, setEstilo] = useState<HubEstilo>("vivo");
 
-  useEffect(() => { setAtivo(getHubAtivo()); }, []);
+  useEffect(() => { setAtivo(getHubAtivo()); setEstilo(getHubEstilo()); }, []);
 
   const toggle = () => { const v = !ativo; setHubAtivo(v); setAtivo(v); };
+  const escolherEstilo = (e: HubEstilo) => { setHubEstilo(e); setEstilo(e); };
 
   return (
     <div className="pt-3 border-t border-zinc-800/50 space-y-3">
@@ -58,6 +60,37 @@ export default function InicioSection() {
           <ExternalLink size={12} /> Ver a tela agora
         </Link>
       </div>
+
+      {ativo && (
+        <div className="pt-2 space-y-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Estilo da tela inicial</span>
+          <div className="grid grid-cols-2 gap-2 max-w-md">
+            {([
+              { id: "vivo" as HubEstilo, icon: Sparkles, titulo: "Vivo", desc: "HUD de vidro 3D, dados animados e fundo em movimento" },
+              { id: "sobrio" as HubEstilo, icon: Minus, titulo: "Sóbrio", desc: "Estático, elegante e sem animações" },
+            ]).map(({ id, icon: Icon, titulo, desc }) => {
+              const on = estilo === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => escolherEstilo(id)}
+                  className="flex flex-col gap-1 rounded-xl p-3 text-left transition-colors"
+                  style={{
+                    border: on ? "1px solid rgba(232,163,61,0.7)" : "1px solid var(--line, rgba(255,255,255,0.1))",
+                    background: on ? "rgba(232,163,61,0.1)" : "rgba(255,255,255,0.02)",
+                  }}
+                  aria-pressed={on}
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: on ? "#E8A33D" : "var(--text)" }}>
+                    <Icon size={13} /> {titulo}
+                  </span>
+                  <span className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>{desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

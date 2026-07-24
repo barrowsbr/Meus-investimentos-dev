@@ -6,7 +6,7 @@
 // (comportamento antigo: sidebar com todas as páginas, sem tela inicial).
 
 import { useState, useEffect } from "react";
-import { getHubAtivo, HUB_EVENT } from "./hub-prefs";
+import { getHubAtivo, HUB_EVENT, getHubEstilo, HUB_ESTILO_EVENT, type HubEstilo } from "./hub-prefs";
 
 export function useHubAtivo(): boolean {
   const [on, setOn] = useState(false);
@@ -21,4 +21,20 @@ export function useHubAtivo(): boolean {
     };
   }, []);
   return on;
+}
+
+/** Estilo da tela inicial ("vivo" | "sobrio"). `null` enquanto não montou (SSR). */
+export function useHubEstilo(): HubEstilo | null {
+  const [estilo, setEstilo] = useState<HubEstilo | null>(null);
+  useEffect(() => {
+    const read = () => setEstilo(getHubEstilo());
+    read();
+    window.addEventListener(HUB_ESTILO_EVENT, read);
+    window.addEventListener("storage", read);
+    return () => {
+      window.removeEventListener(HUB_ESTILO_EVENT, read);
+      window.removeEventListener("storage", read);
+    };
+  }, []);
+  return estilo;
 }
