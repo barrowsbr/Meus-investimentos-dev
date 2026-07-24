@@ -50,8 +50,9 @@ const CARTS: Cart[] = [
   },
 ];
 
-// Rotação de repouso por cartucho (mostra a espessura já parado): [rotX, rotY].
-const BASE_ROT: [number, number][] = [[13, 22], [13, -22], [-13, 22], [-13, -22]];
+// Sem rotação de repouso: em repouso os cartuchos ficam RETOS, alinhados com o
+// fundo (de frente). O topo/laterais só aparecem quando o celular é movido.
+const BASE_ROT: [number, number][] = [[0, 0], [0, 0], [0, 0], [0, 0]];
 
 export default function InicioPage() {
   const router = useRouter();
