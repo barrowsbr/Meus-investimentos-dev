@@ -9,11 +9,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
-interface Cart { cls: string; name: string; fases: string; href: string; icon: ReactNode }
+type Widget = "chart" | "bars" | "nodes" | "telemetry";
+interface Cart { cls: string; name: string; fases: string; href: string; eyebrow: string; widget: Widget; sub: string; icon: ReactNode }
 
 const CARTS: Cart[] = [
   {
-    cls: "c-invest", name: "Investimentos", fases: "17 fases", href: "/",
+    cls: "c-invest", name: "Investimentos", fases: "17 fases", href: "/", eyebrow: "Análise de mercado", widget: "chart", sub: "IBOV ▲ 1,2%",
     icon: (
       <svg viewBox="0 0 16 16" shapeRendering="crispEdges">
         <rect x="1" y="10" width="3" height="4" /><rect x="6" y="7" width="3" height="7" /><rect x="11" y="4" width="3" height="10" />
@@ -22,7 +23,7 @@ const CARTS: Cart[] = [
     ),
   },
   {
-    cls: "c-fin", name: "Finanças", fases: "2 fases", href: "/financas",
+    cls: "c-fin", name: "Finanças", fases: "2 fases", href: "/financas", eyebrow: "Saldo do mês", widget: "bars", sub: "+1.200 / −300",
     icon: (
       <svg viewBox="0 0 16 16" shapeRendering="crispEdges">
         <rect x="6" y="1" width="4" height="1" /><rect x="4" y="2" width="8" height="1" /><rect x="3" y="3" width="10" height="1" />
@@ -32,7 +33,7 @@ const CARTS: Cart[] = [
     ),
   },
   {
-    cls: "c-barroots", name: "Barroots", fases: "8 fases", href: "/barroots",
+    cls: "c-barroots", name: "Barroots", fases: "8 fases", href: "/barroots", eyebrow: "Explorar", widget: "nodes", sub: "7 nós • 4 🔒",
     icon: (
       <svg viewBox="0 0 16 16" shapeRendering="crispEdges">
         <rect x="3" y="3" width="10" height="1" /><rect x="2" y="4" width="12" height="2" /><rect x="2" y="6" width="12" height="7" />
@@ -41,7 +42,7 @@ const CARTS: Cart[] = [
     ),
   },
   {
-    cls: "c-config", name: "Config", fases: "ajustes", href: "/configuracoes",
+    cls: "c-config", name: "Config", fases: "ajustes", href: "/configuracoes", eyebrow: "Sistema", widget: "telemetry", sub: "CPU 62% • OK",
     icon: (
       <svg viewBox="0 0 16 16" shapeRendering="crispEdges">
         <rect x="2" y="2" width="4" height="4" /><rect className="k" x="2" y="2" width="2" height="2" /><rect x="5" y="5" width="2" height="2" /><rect x="7" y="7" width="2" height="2" /><rect x="9" y="9" width="2" height="2" /><rect x="11" y="11" width="3" height="3" />
@@ -49,6 +50,51 @@ const CARTS: Cart[] = [
     ),
   },
 ];
+
+// Mini-widget de dados "vivo" por card (animações CSS — sem custo de JS/frame).
+function CardWidget({ type }: { type: Widget }) {
+  if (type === "chart") {
+    const AREA = "M0 27 L12 20 L24 28 L36 13 L48 22 L60 9 L72 18 L84 12 L96 25 L108 12 L120 27 L120 40 L0 40 Z";
+    const LINE = "M0 27 L12 20 L24 28 L36 13 L48 22 L60 9 L72 18 L84 12 L96 25 L108 12 L120 27";
+    const One = () => (
+      <svg className="mih-chart-svg" viewBox="0 0 120 40" preserveAspectRatio="none">
+        <path className="area" d={AREA} /><path className="line" d={LINE} fill="none" />
+      </svg>
+    );
+    return <div className="mih-w mih-w-chart"><div className="mih-chart-scroll"><One /><One /></div></div>;
+  }
+  if (type === "bars") {
+    return (
+      <div className="mih-w mih-w-bars">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <span key={i} className={i % 3 === 2 ? "neg" : "pos"} style={{ animationDelay: `${i * 0.13}s` }} />
+        ))}
+      </div>
+    );
+  }
+  if (type === "nodes") {
+    const N: [number, number][] = [[60, 8], [34, 24], [86, 24], [20, 40], [46, 40], [74, 40], [100, 40]];
+    const L: [number, number][] = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
+    return (
+      <svg className="mih-w mih-w-nodes" viewBox="0 0 120 46">
+        {L.map(([a, b], i) => <line key={i} x1={N[a][0]} y1={N[a][1]} x2={N[b][0]} y2={N[b][1]} />)}
+        {N.map(([x, y], i) => <circle key={i} className={i >= 3 ? "lock" : ""} cx={x} cy={y} r={i === 0 ? 4.5 : 3.2} style={{ animationDelay: `${i * 0.18}s` }} />)}
+      </svg>
+    );
+  }
+  // telemetry
+  const rows: [string, number][] = [["CPU", 62], ["MEM", 41], ["NET", 78]];
+  return (
+    <div className="mih-w mih-w-tel">
+      {rows.map(([k, v], i) => (
+        <div className="mih-tel-row" key={k}>
+          <span className="lbl">{k}</span>
+          <span className="bar"><i style={{ width: `${v}%`, animationDelay: `${i * 0.25}s` }} /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Sem rotação de repouso: em repouso os cartuchos ficam RETOS, alinhados com o
 // fundo (de frente). O topo/laterais só aparecem quando o celular é movido.
@@ -105,6 +151,19 @@ export default function InicioPage() {
     const eye = { x: 0, y: 0 }, target = { x: 0, y: 0 };
     let raf = 0, headActive = false;   // head tracking tem precedência sobre mouse/gyro
 
+    // ── Partículas flutuantes + feixes de luz correndo pra frente (data-center) ──
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const PN = 42;
+    // nx,ny em [-1,1] (× W/H no desenho); z em [0,D]; deriva lenta rumo ao observador
+    const parts = Array.from({ length: PN }, () => ({ nx: rand(-0.98, 0.98), ny: rand(-0.98, 0.98), z: rand(0.05, D), s: rand(0.35, 1) }));
+    // feixes que descem os 4 cantos longitudinais da sala (parede↔piso/teto), de longe → perto
+    const CORNERS: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+    const streaks = CORNERS.flatMap((c, i) => [
+      { cx: c[0], cy: c[1], z: (D * i) / 4, sp: rand(1.4, 2.1) },
+      { cx: c[0], cy: c[1], z: (D * (i + 2)) / 4, sp: rand(1.4, 2.1) },
+    ]);
+    let tPrev = 0, pulseZ = D;
+
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       cw = cv!.clientWidth; ch = cv!.clientHeight;
@@ -116,18 +175,57 @@ export default function InicioPage() {
       return [ox + (eye.x + t * (x - eye.x)) * scale, oy - (eye.y + t * (y - eye.y)) * scale, t];
     }
     function frame() {
+      const now = (typeof performance !== "undefined" ? performance.now() : 0);
+      if (!tPrev) tPrev = now;
+      const dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now;
+      // plano de "varredura" de luz correndo em direção ao observador (D → 0)
+      pulseZ -= dt * 1.6; if (pulseZ < 0) pulseZ += D;
+
       eye.x += (target.x - eye.x) * 0.06; eye.y += (target.y - eye.y) * 0.06;
       ctx!.clearRect(0, 0, cw, ch);
+
+      // ── Grade da sala (com brilho puxado pela varredura) ──
       for (let i = 0; i < segs.length; i++) {
         const s = segs[i], A = project(s[0], s[1], s[2]), B = project(s[3], s[4], s[5]);
         const depth = (A[2] + B[2]) / 2, al = 0.05 + 0.45 * Math.pow(depth, 1.4);
+        const midZ = (s[2] + s[5]) / 2;
+        let dz = Math.abs(midZ - pulseZ); if (dz > D / 2) dz = D - dz;
+        const glow = Math.max(0, 1 - dz / 0.55);              // realça linhas perto do plano
         ctx!.lineWidth = 1.7;
-        ctx!.strokeStyle = `rgba(92,240,255,${al * 0.15})`;
+        ctx!.strokeStyle = `rgba(92,240,255,${al * (0.15 + glow * 0.5)})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
         ctx!.lineWidth = 0.9;
-        ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
+        ctx!.strokeStyle = `rgba(${170 + glow * 60},${235 + glow * 20},${245},${al * (0.75 + glow * 0.25)})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
+
+      // ── Feixes de luz descendo os cantos, de longe pra perto ──
+      for (let i = 0; i < streaks.length; i++) {
+        const k = streaks[i]; k.z -= dt * k.sp; if (k.z < 0) k.z += D;
+        const z2 = Math.min(D, k.z + 0.7);
+        const A = project(k.cx * W, k.cy * H, k.z), B = project(k.cx * W, k.cy * H, z2);
+        const near = A[2];                                    // t maior = mais perto
+        const a = Math.pow(near, 1.6);
+        const grad = ctx!.createLinearGradient(A[0], A[1], B[0], B[1]);
+        grad.addColorStop(0, `rgba(150,250,255,${0.9 * a})`);
+        grad.addColorStop(1, `rgba(92,240,255,0)`);
+        ctx!.lineWidth = 1 + near * 2.4; ctx!.strokeStyle = grad;
+        ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
+        ctx!.fillStyle = `rgba(200,252,255,${a})`;
+        ctx!.beginPath(); ctx!.arc(A[0], A[1], 1 + near * 2, 0, 6.283); ctx!.fill();
+      }
+
+      // ── Partículas flutuantes (poeira de dados) ──
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        p.z -= dt * 0.28 * p.s; p.nx += dt * 0.02 * Math.sin(p.z * 3 + i);
+        if (p.z < 0.05) { p.z = D; p.nx = rand(-0.98, 0.98); p.ny = rand(-0.98, 0.98); }
+        const P = project(p.nx * W, p.ny * H, p.z), near = P[2];
+        const a = Math.pow(near, 1.7) * (0.4 + 0.6 * p.s);
+        ctx!.fillStyle = `rgba(120,240,255,${a * 0.7})`;
+        ctx!.beginPath(); ctx!.arc(P[0], P[1], 0.5 + near * 1.7 * p.s, 0, 6.283); ctx!.fill();
+      }
+
       const rotY = eye.x * 16, rotX = -eye.y * 16;
       for (let i = 0; i < 4; i++) {
         const slot = slotRefs.current[i], obj = objRefs.current[i]; if (!slot || !obj) continue;
@@ -276,12 +374,17 @@ export default function InicioPage() {
                 <div className="mih-face mih-side-b" />
                 <div className="mih-face mih-back" />
                 <div className="mih-face mih-front">
-                  <div className="mih-ridges" />
-                  <div className="mih-label">
-                    <span className="mih-screen" aria-hidden="true">{c.icon}</span>
+                  <div className="mih-hud">
+                    <div className="mih-hud-top">
+                      <span className="mih-chip" aria-hidden="true">{c.icon}</span>
+                      <span className="mih-eyebrow">{c.eyebrow}</span>
+                    </div>
                     <span className="mih-name">{c.name}</span>
+                    <CardWidget type={c.widget} />
+                    <span className="mih-sub">{c.sub}</span>
                     <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
                   </div>
+                  <span className="mih-scan" aria-hidden="true" />
                 </div>
               </div>
             </div>
@@ -312,16 +415,16 @@ export default function InicioPage() {
 }
 
 const CSS = `
-.mih-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:ui-monospace,"SF Mono","Cascadia Code","Courier New",monospace;color:#e9ecd8;background:linear-gradient(180deg,#0f130c,#0c0f0a);--gold:#f0b23c;--emerald:#3ddc84;--violet:#b18bff;--dmg:#9bbc0f;--faint:#6a6f52;}
+.mih-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:ui-monospace,"SF Mono","Cascadia Code","Courier New",monospace;color:#dfeef2;background:radial-gradient(140% 120% at 50% 42%,#0b1518,#060a0c 70%,#04070a);--gold:#f0b23c;--emerald:#3ddc84;--violet:#b18bff;--dmg:#c6e64e;--cyan:#5cf0ff;--faint:#5c7a82;}
 .mih-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block;touch-action:none;}
-.mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
-.mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
+.mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 34%,rgba(4,8,10,0.5) 82%,rgba(3,6,8,0.86) 100%);}
+.mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.16) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 60%,rgba(0,0,0,0.42) 100%);mix-blend-mode:multiply;}
 
 /* Cada card tem PERSPECTIVA PRÓPRIA (centrada nele) → fica reto, sem a distorção
    off-axis do ponto de fuga único. IMPORTANTE: nada de filter/opacity/clip no
    .mih-obj — achata o preserve-3d. */
 .mih-space{position:absolute;inset:0;z-index:3;pointer-events:none;}
-.mih-slot{--hue:var(--gold);--w:clamp(98px,25vw,150px);--h:clamp(124px,32vw,186px);--t:clamp(26px,8vw,38px);
+.mih-slot{--hue:var(--gold);--w:clamp(104px,26vw,158px);--h:clamp(140px,35vw,204px);--t:clamp(24px,7vw,34px);
   position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
   pointer-events:auto;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
@@ -332,28 +435,68 @@ const CSS = `
 .mih-front,.mih-back{width:var(--w);height:var(--h);border-radius:9px;}
 .mih-side-l,.mih-side-r{width:var(--t);height:var(--h);}
 .mih-side-t,.mih-side-b{width:var(--w);height:var(--t);}
-.mih-front{transform:translate(-50%,-50%) translateZ(calc(var(--t)/2));background:linear-gradient(160deg,#42463781,#20231800),linear-gradient(160deg,#43473a,#23271c);border:1px solid #565a49;box-shadow:0 34px 40px -20px rgba(0,0,0,0.85),inset 0 1px 0 rgba(255,255,255,0.09);padding:11px;display:flex;flex-direction:column;}
-.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));background:linear-gradient(160deg,#22251b,#101309);border:1px solid #34382c;}
-/* laterais: gradiente que simula luz vindo de cima → topo mais claro */
-.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#3a3e30,#14170e);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.3);}
-.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#3a3e30,#14170e);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.3);}
-.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));background:linear-gradient(90deg,#4c5040,#565b48);}
-.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));background:#0d1007;}
+/* FRENTE = painel HUD de vidro com brilho neon da cor do card */
+.mih-front{transform:translate(-50%,-50%) translateZ(calc(var(--t)/2));border-radius:13px;
+  background:linear-gradient(157deg,color-mix(in srgb,var(--hue) 12%,transparent),transparent 52%),linear-gradient(160deg,#131b1f,#080d10);
+  border:1px solid color-mix(in srgb,var(--hue) 34%,#2a353a);
+  box-shadow:0 36px 48px -22px rgba(0,0,0,0.92),0 0 26px -6px color-mix(in srgb,var(--hue) 46%,transparent),inset 0 1px 0 rgba(255,255,255,0.09),inset 0 0 30px -14px color-mix(in srgb,var(--hue) 70%,transparent);
+  padding:10px;display:flex;flex-direction:column;overflow:hidden;}
+.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));border-radius:13px;background:linear-gradient(160deg,#0f171a,#070c0f);border:1px solid #1e2a2e;}
+/* laterais: metal escuro com fio de luz da cor do card */
+.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#1c262a,#0a1012);box-shadow:inset 2px 0 0 -1px color-mix(in srgb,var(--hue) 40%,transparent),inset 0 0 0 1px rgba(0,0,0,0.35);}
+.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#1c262a,#0a1012);box-shadow:inset -2px 0 0 -1px color-mix(in srgb,var(--hue) 40%,transparent),inset 0 0 0 1px rgba(0,0,0,0.35);}
+.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));background:linear-gradient(90deg,#26343a,#2e3f45);}
+.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));background:#05090b;}
 
-.mih-slot:hover .mih-front{filter:brightness(1.12);}
-.mih-slot:focus-visible .mih-front{box-shadow:0 34px 40px -20px rgba(0,0,0,0.85),inset 0 0 0 2px var(--hue);}
+.mih-slot:hover .mih-front{border-color:color-mix(in srgb,var(--hue) 60%,transparent);box-shadow:0 40px 52px -22px rgba(0,0,0,0.95),0 0 40px -6px color-mix(in srgb,var(--hue) 62%,transparent),inset 0 1px 0 rgba(255,255,255,0.12),inset 0 0 34px -12px color-mix(in srgb,var(--hue) 80%,transparent);}
+.mih-slot:focus-visible .mih-front{box-shadow:0 36px 48px -22px rgba(0,0,0,0.92),inset 0 0 0 2px var(--hue);}
 
-.mih-ridges{height:11px;width:58%;border-radius:3px;margin-bottom:10px;flex:none;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.4) 0 3px,rgba(255,255,255,0.06) 3px 6px);}
-.mih-label{flex:1;background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:11px 9px 9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
-.mih-screen{width:clamp(40px,11vw,54px);height:clamp(40px,11vw,54px);display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--hue) 22%,#0c0f08),#0c0f08 75%);border:2px solid color-mix(in srgb,var(--hue) 55%,transparent);border-radius:6px;box-shadow:0 0 16px -4px color-mix(in srgb,var(--hue) 70%,transparent),inset 0 0 10px rgba(0,0,0,0.6);}
-.mih-screen svg{width:64%;height:64%;color:var(--hue);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--hue) 70%,transparent));}
-.mih-screen svg rect{fill:currentColor;}
-.mih-screen svg rect.k{fill:#0c0f08;}
-.mih-name{font-size:clamp(9.5px,2.5vw,11.5px);font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--hue);text-shadow:1px 1px 0 rgba(0,0,0,0.5);text-align:center;}
-.mih-fases{font-size:8px;letter-spacing:0.13em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px;}
-.mih-slot:hover .mih-fases{color:var(--hue);}
+/* varredura de luz que atravessa o vidro */
+.mih-scan{position:absolute;inset:0;border-radius:13px;pointer-events:none;background:linear-gradient(115deg,transparent 30%,color-mix(in srgb,var(--hue) 22%,transparent) 48%,transparent 62%);background-size:280% 100%;background-position:130% 0;animation:mih-sheen 5.5s ease-in-out infinite;mix-blend-mode:screen;}
+@keyframes mih-sheen{0%,72%{background-position:130% 0;}100%{background-position:-60% 0;}}
+
+.mih-hud{flex:1;display:flex;flex-direction:column;gap:6px;position:relative;z-index:1;}
+.mih-hud-top{display:flex;align-items:center;gap:7px;min-height:22px;}
+.mih-chip{width:23px;height:23px;flex:none;display:grid;place-items:center;border-radius:6px;background:color-mix(in srgb,var(--hue) 15%,#0a1012);border:1px solid color-mix(in srgb,var(--hue) 50%,transparent);box-shadow:0 0 12px -3px color-mix(in srgb,var(--hue) 75%,transparent),inset 0 0 8px -4px color-mix(in srgb,var(--hue) 80%,transparent);}
+.mih-chip svg{width:14px;height:14px;color:var(--hue);filter:drop-shadow(0 0 3px color-mix(in srgb,var(--hue) 70%,transparent));}
+.mih-chip svg rect{fill:currentColor;} .mih-chip svg rect.k{fill:#0a1012;}
+.mih-eyebrow{font-size:7.5px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;line-height:1.15;color:color-mix(in srgb,var(--hue) 78%,#93b0b7);}
+.mih-name{font-size:clamp(11px,3vw,13.5px);font-weight:800;letter-spacing:0.01em;color:#eef6f8;text-shadow:0 0 12px color-mix(in srgb,var(--hue) 40%,transparent);line-height:1;}
+.mih-sub{font-size:8px;letter-spacing:0.06em;font-weight:700;color:color-mix(in srgb,var(--hue) 82%,#9fc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mih-fases{margin-top:auto;font-size:7.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px;}
+.mih-slot:hover .mih-fases{color:color-mix(in srgb,var(--hue) 70%,var(--faint));}
 .mih-fases .play{color:var(--hue);}
 .c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
+
+/* ── Mini-widgets de dados (moldura de "tela") ── */
+.mih-w{position:relative;border-radius:6px;background:linear-gradient(180deg,#081013,#050a0c);border:1px solid color-mix(in srgb,var(--hue) 22%,#16202400);box-shadow:inset 0 0 20px -9px color-mix(in srgb,var(--hue) 70%,transparent);overflow:hidden;}
+/* linha 1: gráfico area+linha rolando */
+.mih-w-chart{height:clamp(32px,8.5vw,42px);}
+.mih-chart-scroll{display:flex;width:200%;height:100%;animation:mih-scroll 6s linear infinite;}
+.mih-chart-svg{width:50%;height:100%;display:block;}
+.mih-chart-svg .area{fill:color-mix(in srgb,var(--hue) 20%,transparent);}
+.mih-chart-svg .line{stroke:var(--hue);stroke-width:1.6;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--hue) 85%,transparent));}
+@keyframes mih-scroll{to{transform:translateX(-50%);}}
+/* barras +/- estilo equalizador */
+.mih-w-bars{height:clamp(32px,8.5vw,42px);display:flex;align-items:flex-end;gap:3px;padding:5px 7px;}
+.mih-w-bars span{flex:1;height:100%;border-radius:1.5px;transform-origin:bottom;animation:mih-bar 1.7s ease-in-out infinite;}
+.mih-w-bars .pos{background:linear-gradient(180deg,var(--emerald),#1f8a52);box-shadow:0 0 6px -1px var(--emerald);}
+.mih-w-bars .neg{background:linear-gradient(180deg,#ff7a7a,#c0392b);box-shadow:0 0 6px -1px #ff6b6b;}
+@keyframes mih-bar{0%,100%{transform:scaleY(0.32);}50%{transform:scaleY(1);}}
+/* grafo de nós (árvore) com travados */
+.mih-w-nodes{height:clamp(38px,10vw,50px);width:100%;display:block;}
+.mih-w-nodes line{stroke:color-mix(in srgb,var(--hue) 52%,transparent);stroke-width:1.1;}
+.mih-w-nodes circle{fill:color-mix(in srgb,var(--hue) 26%,#0a1012);stroke:var(--hue);stroke-width:1.3;animation:mih-pulse 2.4s ease-in-out infinite;}
+.mih-w-nodes circle.lock{stroke-dasharray:2.2 2.2;opacity:0.45;animation:none;fill:#0a1012;}
+@keyframes mih-pulse{0%,100%{opacity:0.55;}50%{opacity:1;filter:drop-shadow(0 0 3px var(--hue));}}
+/* telemetria CPU/MEM/NET */
+.mih-w-tel{padding:7px 8px;display:flex;flex-direction:column;gap:5px;}
+.mih-tel-row{display:flex;align-items:center;gap:6px;}
+.mih-tel-row .lbl{font-size:7px;letter-spacing:0.08em;color:var(--faint);width:22px;flex:none;}
+.mih-tel-row .bar{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
+.mih-tel-row .bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,color-mix(in srgb,var(--hue) 55%,transparent),var(--hue));box-shadow:0 0 8px -2px var(--hue);animation:mih-tel 3s ease-in-out infinite;}
+@keyframes mih-tel{0%,100%{transform:translateX(-14%);}50%{transform:translateX(0);}}
+@media (prefers-reduced-motion:reduce){.mih-chart-scroll,.mih-w-bars span,.mih-w-nodes circle,.mih-tel-row .bar i,.mih-scan{animation:none;}}
 
 .mih-controls{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:0 12px;}
 .mih-ctl{font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--faint);background:rgba(12,15,10,0.72);border:1px solid rgba(255,255,255,0.12);padding:10px 15px;border-radius:999px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
