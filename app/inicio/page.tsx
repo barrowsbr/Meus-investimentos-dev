@@ -97,7 +97,8 @@ export default function InicioPage() {
     function anchor(i: number): [number, number, number] {
       const col = (i % 2) === 0 ? -1 : 1;
       const row = i < 2 ? 1 : -1;
-      return [col * 0.6 * W, row * 0.62 * H, Z_CART];
+      // Cluster mais junto e centralizado (menos espalhamento vertical/horizontal).
+      return [col * 0.55 * W, row * 0.42 * H, Z_CART];
     }
 
     let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
