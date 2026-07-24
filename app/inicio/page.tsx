@@ -160,6 +160,9 @@ function VivoHub() {
     let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
     const eye = { x: 0, y: 0 }, target = { x: 0, y: 0 };
     let raf = 0, headActive = false;   // head tracking tem precedência sobre mouse/gyro
+    // Posição/escala dos cards é FIXA no plano (calculada 1×, observador no centro).
+    // Ao mover, só o ÂNGULO muda (rotação do obj) — o objeto não translada nem escala.
+    const slotPos: [number, number][] = [];
 
     // ── Partículas flutuantes + feixes de luz correndo pra frente (data-center) ──
     const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -179,6 +182,12 @@ function VivoHub() {
       cw = cv!.clientWidth; ch = cv!.clientHeight;
       cv!.width = cw * dpr; cv!.height = ch * dpr; ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       W = 1; H = W * (ch / cw); scale = cw / (2 * W); ox = cw / 2; oy = ch / 2; buildRoom();
+      // Ancoragem estática: projeção com observador no centro e sem dolly.
+      for (let i = 0; i < 4; i++) {
+        const [ax, ay, az] = anchor(i);
+        const t0 = EYE_D0 / (az + EYE_D0);
+        slotPos[i] = [ox + t0 * ax * scale, oy - t0 * ay * scale];
+      }
     }
     function project(x: number, y: number, z: number): [number, number, number] {
       const t = EYE_D / (z + EYE_D);
@@ -239,12 +248,11 @@ function VivoHub() {
       const rotY = eye.x * 16, rotX = -eye.y * 16;
       for (let i = 0; i < 4; i++) {
         const slot = slotRefs.current[i], obj = objRefs.current[i]; if (!slot || !obj) continue;
-        const [ax, ay, az] = anchor(i);
-        const [X, Y] = project(ax, ay, az);
+        const [X, Y] = slotPos[i];
         const [bx, by] = BASE_ROT[i];
-        // Posição (paralaxe) no slot; ROTAÇÃO no obj — que tem perspectiva PRÓPRIA
-        // centrada nele. Assim cada card fica reto (sem distorção off-axis do
-        // ponto de fuga único) e só mostra topo/lado quando gira.
+        // Posição FIXA (não translada/escala); só o ângulo do observador gira o
+        // obj — que tem perspectiva PRÓPRIA centrada nele, então mostra topo/lado
+        // sem distorção off-axis nem "crescer/diminuir".
         slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%)`;
         obj.style.transform = `rotateX(${bx + rotX}deg) rotateY(${by + rotY}deg)`;
       }
@@ -408,13 +416,13 @@ function VivoHub() {
           data-on={camState === "on"}
           onClick={() => (camState === "on" ? stopCamRef.current() : startCamRef.current())}
         >
-          {camState === "on" ? "⏹ Parar câmera"
-            : camState === "loading" ? "Ativando câmera…"
-              : camState === "error" ? "Câmera indisponível — arraste o dedo"
-                : "🎥 Head tracking"}
+          {camState === "on" ? "⏹ Câmera"
+            : camState === "loading" ? "🎥 …"
+              : camState === "error" ? "🎥 indisponível"
+                : "🎥 Câmera"}
         </button>
         {showGyroBtn && camState !== "on" && (
-          <button className="mih-ctl" onClick={() => enableGyroRef.current()}>Giroscópio</button>
+          <button className="mih-ctl" onClick={() => enableGyroRef.current()}>Sensores</button>
         )}
       </div>
 
@@ -517,10 +525,11 @@ const CSS = `
 @keyframes mih-tel{0%,100%{transform:translateX(-14%);}50%{transform:translateX(0);}}
 @media (prefers-reduced-motion:reduce){.mih-chart-scroll,.mih-w-bars span,.mih-w-nodes circle,.mih-tel-row .bar i,.mih-scan{animation:none;}}
 
-.mih-controls{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:0 12px;}
-.mih-ctl{font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--faint);background:rgba(12,15,10,0.72);border:1px solid rgba(255,255,255,0.12);padding:10px 15px;border-radius:999px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
-.mih-ctl-cam{color:#06110a;background:linear-gradient(180deg,#5cf0ff,#35c9dd);border:none;font-weight:700;box-shadow:0 8px 22px -8px rgba(92,240,255,0.7);}
-.mih-ctl-cam[data-on="true"]{background:linear-gradient(180deg,#f0b23c,#c9852e);box-shadow:0 8px 22px -8px rgba(240,178,60,0.7);}
+/* Controles pequenos, translúcidos e discretos (só aparecem de leve). */
+.mih-controls{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:7px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 12px;}
+.mih-ctl{font:inherit;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--faint);background:rgba(10,13,15,0.5);border:1px solid rgba(255,255,255,0.1);padding:5px 10px;border-radius:999px;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0.6;transition:opacity .2s ease,color .2s ease,border-color .2s ease;}
+.mih-ctl:hover{opacity:1;color:#d6eef2;border-color:rgba(255,255,255,0.22);}
+.mih-ctl-cam[data-on="true"]{opacity:1;color:#9ff0d4;border-color:color-mix(in srgb,#5cf0ff 40%,transparent);}
 `;
 
 // ── Versão SÓBRIA e elegante — estática, sem canvas/3D/animações ─────────────
