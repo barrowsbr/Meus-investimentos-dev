@@ -3,7 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { CONFIG_ITEM, INICIO_HREF, INICIO_ICON, spaceForPath, type IconType } from "./nav";
+import { SPACES, CONFIG_ITEM, INICIO_HREF, INICIO_ICON, spaceForPath, type IconType } from "./nav";
+import { useHubAtivo } from "@/lib/use-hub";
 
 interface Props {
   /** Aberto como slide-over no mobile (< 1100px). */
@@ -16,6 +17,7 @@ interface Props {
 
 export default function Rail({ open = false, collapsed = false, onToggleCollapse, onNavigate }: Props) {
   const pathname = usePathname();
+  const spacesMode = useHubAtivo();          // interruptor mestre (Configurações)
   const space = spaceForPath(pathname);
   const items = space ? space.items : [];
 
@@ -106,26 +108,39 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
           </span>
         </div>
 
-        {/* Navegação POR ESPAÇO — só as páginas da categoria atual */}
+        {/* Navegação — MODO ESPAÇOS (só a categoria atual) × MODO ANTIGO (tudo) */}
         <nav className={`flex-1 px-2 ${collapsed ? "min-[1100px]:px-1" : ""} py-2.5`}>
-          {/* Voltar à tela inicial (hub de categorias) */}
-          {railLink(INICIO_HREF, "Início", INICIO_ICON)}
-
-          {/* Rótulo do espaço ativo */}
-          {space && !collapsed && (
-            <div
-              className="px-2.5 pt-3 pb-1 font-mono"
-              style={{ fontSize: 8.5, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--faint)" }}
-            >
-              {space.label}
-            </div>
+          {spacesMode ? (
+            <>
+              {/* Voltar à tela inicial (hub de categorias) */}
+              {railLink(INICIO_HREF, "Início", INICIO_ICON)}
+              {/* Rótulo do espaço ativo */}
+              {space && !collapsed && (
+                <div className="px-2.5 pt-3 pb-1 font-mono" style={{ fontSize: 8.5, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--faint)" }}>
+                  {space.label}
+                </div>
+              )}
+              {space && collapsed && (
+                <div className="my-2 mx-auto hidden min-[1100px]:block" style={{ width: 20, height: 1, background: "var(--line)" }} />
+              )}
+              {items.map((it) => railLink(it.href, it.label, it.icon))}
+            </>
+          ) : (
+            // MODO ANTIGO: todas as páginas, agrupadas por categoria.
+            SPACES.map((sp) => (
+              <div key={sp.id} className="mb-2.5">
+                {!collapsed && (
+                  <div className="px-2.5 pt-1.5 pb-1 font-mono" style={{ fontSize: 8.5, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--faint)" }}>
+                    {sp.label}
+                  </div>
+                )}
+                {collapsed && (
+                  <div className="my-1 mx-auto hidden min-[1100px]:block" style={{ width: 20, height: 1, background: "var(--line)" }} />
+                )}
+                {sp.items.map((it) => railLink(it.href, it.label, it.icon))}
+              </div>
+            ))
           )}
-          {space && collapsed && (
-            <div className="my-2 mx-auto hidden min-[1100px]:block" style={{ width: 20, height: 1, background: "var(--line)" }} />
-          )}
-
-          {/* Itens do espaço */}
-          {items.map((it) => railLink(it.href, it.label, it.icon))}
         </nav>
 
         {/* Configurações — página única, sempre acessível */}

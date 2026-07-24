@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { spaceForPath, CONFIG_ITEM, INICIO_HREF, INICIO_ICON, type NavItem } from "./nav";
+import { spaceForPath, CONFIG_ITEM, INICIO_HREF, INICIO_ICON, LEGACY_MOBILE, type NavItem } from "./nav";
+import { useHubAtivo } from "@/lib/use-hub";
 
 const SHORT: Record<string, string> = {
   "/inicio": "Início",
@@ -19,13 +20,17 @@ const SHORT: Record<string, string> = {
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const spacesMode = useHubAtivo();
   const space = spaceForPath(pathname);
-  // Barra por ESPAÇO: Início (hub) + páginas-chave da categoria + Configurações.
-  const items: NavItem[] = [
-    { href: INICIO_HREF, label: "Início", icon: INICIO_ICON },
-    ...(space ? space.items.filter((i) => i.mobileShow) : []),
-    { href: CONFIG_ITEM.href, label: CONFIG_ITEM.label, icon: CONFIG_ITEM.icon },
-  ];
+  // MODO ESPAÇOS: Início (hub) + páginas-chave da categoria + Configurações.
+  // MODO ANTIGO: o conjunto clássico global.
+  const items: NavItem[] = spacesMode
+    ? [
+        { href: INICIO_HREF, label: "Início", icon: INICIO_ICON },
+        ...(space ? space.items.filter((i) => i.mobileShow) : []),
+        { href: CONFIG_ITEM.href, label: CONFIG_ITEM.label, icon: CONFIG_ITEM.icon },
+      ]
+    : LEGACY_MOBILE;
 
   return (
     <nav className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around">

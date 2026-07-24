@@ -1,8 +1,9 @@
 "use client";
 
-// Card de Configurações — "Tela inicial (Game Select)". Liga/desliga o hub
-// pós-login: quando ativo, o AuthGate direciona para /inicio logo após o login
-// (a senha, quando exigida, sempre vem antes). Preferência local (localStorage).
+// Card de Configurações — "Modo espaços (Game Select)". Interruptor MESTRE do
+// modo novo: quando ligado, a tela inicial /inicio aparece pós-login E a sidebar
+// mostra só as páginas da categoria atual. Quando desligado, volta ao antigo:
+// sem tela inicial e sidebar com TODAS as páginas por seção. localStorage.
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -20,13 +21,16 @@ export default function InicioSection() {
     <div className="pt-3 border-t border-zinc-800/50 space-y-3">
       <div className="flex items-center gap-2">
         <Gamepad2 size={13} className="text-amber-400" />
-        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Tela inicial — Game Select</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Modo espaços — tela inicial + sidebar por categoria</span>
       </div>
       <p className="text-xs text-zinc-500">
-        Uma tela de entrada estilo cartucho de Game Boy com 4 botões
-        (Investimentos · Finanças · Barroots · Config) sobre um fundo 3D. Quando
-        ligada, ela aparece <strong className="text-zinc-300">logo após o login</strong> — a
-        senha, se exigida, sempre vem antes.
+        <strong className="text-zinc-300">Ligado:</strong> a tela inicial estilo Game Boy
+        (Investimentos · Finanças · Barroots · Config) aparece <strong className="text-zinc-300">após o
+        login</strong> e, ao entrar numa categoria, a <strong className="text-zinc-300">sidebar mostra só as
+        páginas dela</strong> (com &ldquo;← Início&rdquo; para trocar).<br />
+        <strong className="text-zinc-300">Desligado:</strong> volta ao antigo — sem tela inicial e a
+        sidebar com <strong className="text-zinc-300">todas as páginas</strong> agrupadas por seção. (A senha,
+        quando exigida, sempre vem antes.)
       </p>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -111,5 +111,11 @@ export function navItemForPath(pathname: string): NavItem | undefined {
   return candidates[0];
 }
 
-// Compat: itens marcados para a barra mobile (agora a BottomNav é por espaço).
+// Compat: itens marcados para a barra mobile.
 export const MOBILE_ITEMS: NavItem[] = ALL_ITEMS.filter((i) => i.mobileShow);
+
+// Barra mobile do MODO ANTIGO (espaços desligado): o conjunto clássico.
+const byHref = (href: string): NavItem => ALL_ITEMS.find((i) => i.href === href)!;
+export const LEGACY_MOBILE: NavItem[] = [
+  byHref("/"), byHref("/resumo"), byHref("/performance"), byHref("/radar"), CONFIG_ITEM,
+];
