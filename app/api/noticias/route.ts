@@ -317,6 +317,29 @@ export async function GET(request: Request) {
       );
     }
 
+    // scope=trabalho → aba TRABALHO do dono: mercado de meios de pagamento
+    // (bandeiras, adquirentes, emissores, Bacen/Pix/DREX/open finance) +
+    // software de gestão BR. Motor dedicado (lib/news/trabalho).
+    if (scope === "trabalho") {
+      const { fetchNoticiasTrabalho } = await import("@/lib/news/trabalho");
+      const itens = await fetchNoticiasTrabalho(48);
+      const articles = itens.map(it => ({
+        titulo: it.titulo,
+        link: it.link,
+        data: it.data,
+        fonte: it.fonte,
+        imagem: it.imagem,
+        tema: it.tema,
+        ticker: "Trabalho",
+        categoria: it.categoria,
+        impacto: it.impacto,
+      }));
+      return NextResponse.json(
+        { articles, count: articles.length },
+        { headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=3600" } },
+      );
+    }
+
     // Painel geral → MOTOR ÚNICO (lib/news/engine): feeds diretos por tema COM
     // imagem + providers gated (Marketaux/Finnhub/GNews) + anti-briga + curador
     // LLM + ranking por interesse/impacto/recência/foto. O perfil vem por query

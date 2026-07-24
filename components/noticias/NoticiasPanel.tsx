@@ -5,18 +5,19 @@
 // renderiza com NewsCard. Cache por aba (troca de aba não refaz fetch).
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Search, Sparkles, Newspaper, Globe2, Bitcoin, Landmark, SlidersHorizontal } from "lucide-react";
+import { Loader2, Search, Sparkles, Newspaper, Globe2, Bitcoin, Landmark, SlidersHorizontal, Briefcase } from "lucide-react";
 import Link from "next/link";
 import NewsCard from "./NewsCard";
 import type { NewsArticle } from "@/lib/news/ui";
 import { getPerfilNoticias, perfilQuery, PERFIL_EVENT } from "@/lib/news/perfil";
 import { TEMAS_PERFIL } from "@/lib/news/temas";
 
-type Sub = "foryou" | "mercado" | "mundo" | "cripto" | "busca";
+type Sub = "foryou" | "mercado" | "trabalho" | "mundo" | "cripto" | "busca";
 
 const SUBS: { id: Sub; label: string; icon: typeof Newspaper }[] = [
   { id: "foryou", label: "Para você", icon: Sparkles },
   { id: "mercado", label: "Mercado", icon: Landmark },
+  { id: "trabalho", label: "Trabalho", icon: Briefcase },
   { id: "mundo", label: "Mundo", icon: Globe2 },
   { id: "cripto", label: "Cripto", icon: Bitcoin },
   { id: "busca", label: "Busca", icon: Search },
@@ -71,6 +72,7 @@ export default function NoticiasPanel() {
 
   const [mercado, setMercado] = useState<NewsArticle[] | null>(null);
   const [foryou, setForyou] = useState<NewsArticle[] | null>(null);
+  const [trabalho, setTrabalho] = useState<NewsArticle[] | null>(null);
   const [cripto, setCripto] = useState<NewsArticle[] | null>(null);
   const [mundo, setMundo] = useState<Record<string, NewsArticle[]>>({});
   const [pais, setPais] = useState(COUNTRIES[0]);
@@ -100,6 +102,13 @@ export default function NoticiasPanel() {
         // query e o MOTOR ranqueia no servidor (interesse+impacto+recência+foto).
         const a = await getArticles(`/api/noticias?${perfilQuery(getPerfilNoticias())}`);
         if (alive) { setForyou(a); setLoading(false); }
+      } else if (sub === "trabalho" && trabalho === null) {
+        setLoading(true);
+        // Aba do trabalho do dono: mercado de meios de pagamento (bandeiras,
+        // adquirentes, emissores, Bacen/Pix/DREX/open finance) + software de
+        // gestão BR. Motor dedicado (scope=trabalho).
+        const a = await getArticles("/api/noticias?scope=trabalho");
+        if (alive) { setTrabalho(a); setLoading(false); }
       } else if (sub === "cripto" && cripto === null) {
         setLoading(true);
         // Motor com tema cripto: Cointelegraph/CoinDesk têm foto NATIVA no RSS
@@ -178,6 +187,18 @@ export default function NoticiasPanel() {
       {loading ? <Loading /> : (
         <>
           {sub === "mercado" && <Jornal articles={mercado ?? []} />}
+          {sub === "trabalho" && (
+            <div>
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                {["Pix & Bacen", "Bandeiras", "Adquirentes", "Emissores", "Open Finance", "DREX", "Software de gestão"].map(t => (
+                  <span key={t} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(52,211,153,0.10)", border: "1px solid rgba(52,211,153,0.28)", color: "#6ee7b7" }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+              <Jornal articles={trabalho ?? []} />
+            </div>
+          )}
           {sub === "cripto" && <Jornal articles={cripto ?? []} />}
           {sub === "mundo" && <Jornal articles={mundo[pais] ?? []} />}
           {sub === "foryou" && (
