@@ -80,7 +80,6 @@ export default function InicioPage() {
     if (!cv) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     document.body.style.overflow = "hidden";
 
     let W = 1, H = 1;
@@ -110,7 +109,7 @@ export default function InicioPage() {
 
     let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
     const eye = { x: 0, y: 0 }, target = { x: 0, y: 0 };
-    let lastInput = -9999, raf = 0;
+    let raf = 0;
 
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -122,8 +121,8 @@ export default function InicioPage() {
       const t = EYE_D / (z + EYE_D);
       return [ox + (eye.x + t * (x - eye.x)) * scale, oy - (eye.y + t * (y - eye.y)) * scale, t];
     }
-    function frame(now: number) {
-      if (!reduce && now - lastInput > 4000) { const s = now * 0.00024; target.x = Math.sin(s) * 0.14 * W; target.y = Math.cos(s * 0.7) * 0.06 * H; }
+    function frame() {
+      // Sem input → repousa no CENTRO (nada de deriva/balanço). O peek vem só do mouse/giroscópio.
       eye.x += (target.x - eye.x) * 0.06; eye.y += (target.y - eye.y) * 0.06;
       ctx!.clearRect(0, 0, cw, ch);
       for (let i = 0; i < segs.length; i++) {
@@ -148,10 +147,10 @@ export default function InicioPage() {
     }
 
     // ── Entradas — mouse ──
-    const maxX = 0.95, maxY = 0.62;
+    const maxX = 0.7, maxY = 0.45;
     const clampU = (v: number) => (v < -1.25 ? -1.25 : v > 1.25 ? 1.25 : v);
     const onPointer = (e: PointerEvent) => {
-      target.x = ((e.clientX / cw) - 0.5) * 1.3 * W; target.y = -((e.clientY / ch) - 0.5) * 0.9 * H; lastInput = performance.now();
+      target.x = ((e.clientX / cw) - 0.5) * 1.1 * W; target.y = -((e.clientY / ch) - 0.5) * 0.75 * H;
     };
     document.addEventListener("pointermove", onPointer);
 
@@ -162,13 +161,14 @@ export default function InicioPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (window as any).orientation || 0;
     };
-    const apply = () => { target.x = clampU(gxs + yaw * 0.75) * maxX * W; target.y = -gys * maxY * H; lastInput = performance.now(); };
+    const apply = () => { target.x = clampU(gxs + yaw * 0.4) * maxX * W; target.y = -gys * maxY * H; };
     const onMotion = (e: DeviceMotionEvent) => {
       const g = e.accelerationIncludingGravity; if (!g || g.x == null) return;
       const mag = Math.hypot(g.x!, g.y!, g.z!) || 9.8, nx = g.x! / mag, ny = g.y! / mag;
       const o = orientAngle(); let lr: number, fb: number;
       if (o === 90) { lr = -ny; fb = -nx; } else if (o === -90 || o === 270) { lr = ny; fb = nx; } else { lr = nx; fb = ny; }
       if (base == null) base = { lr, fb };
+      else { base.lr += (lr - base.lr) * 0.006; base.fb += (fb - base.fb) * 0.006; }  // recentraliza o "zero" devagar → nunca fica preso num lado
       const dLR = lr - base.lr, dFB = fb - base.fb, DEAD = 0.02, RANGE = 0.22;
       const shape = (d: number) => { const s = d < 0 ? -1 : 1, m = Math.max(0, Math.abs(d) - DEAD); return s * Math.min(m, RANGE) / RANGE; };
       gxs += (shape(dLR) - gxs) * 0.28; gys += (shape(dFB) - gys) * 0.28; apply();
