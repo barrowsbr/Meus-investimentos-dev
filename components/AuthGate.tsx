@@ -61,6 +61,23 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       .finally(() => setConfigLoaded(true));
   }, []);
 
+  // Tela inicial (hub) ativada → é a PRIMEIRA tela do app depois do login.
+  // Dispara na ENTRADA do app (não só ao enviar o form de login), 1× por sessão:
+  // assim funciona mesmo já autenticado ou com login desligado. Ordem garantida:
+  // login (AuthGate bloqueia a renderização) → /inicio.
+  useEffect(() => {
+    if (!mounted || !configLoaded) return;
+    const needAuthNow = (() => {
+      if (!loginEnabled) return false;
+      if (!protectedPages || protectedPages.length === 0) return true;
+      return protectedPages.some((p) => (p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(p + "/")));
+    })();
+    if (!(authed || !needAuthNow)) return;                 // ainda precisa passar pelo login
+    if (sessionStorage.getItem("mi_hub_shown") === "1") return; // já entrou nesta sessão
+    sessionStorage.setItem("mi_hub_shown", "1");
+    if (getHubAtivo() && pathname !== "/inicio") router.replace("/inicio");
+  }, [mounted, configLoaded, authed, loginEnabled, protectedPages, pathname, router]);
+
   // Auto-update golden source once per day after login
   useEffect(() => {
     if (!authed) return;
@@ -98,17 +115,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         if (novaConta) sessionStorage.setItem("mi_conta", novaConta);
         else sessionStorage.removeItem("mi_conta");
         sessionStorage.setItem(AUTH_KEY, "1");
-        // Tela inicial (hub) ativada → primeira tela pós-login é /inicio.
-        const hubOn = getHubAtivo();
+        // Novo login → deixa a tela inicial (hub) reaparecer nesta sessão.
+        sessionStorage.removeItem("mi_hub_shown");
         if (wasDemo !== isDemo || prevConta !== novaConta) {
-          // Troca de conta/demo exige reload total; se o hub está ligado, a
-          // navegação completa para /inicio já cumpre esse papel.
-          if (hubOn) window.location.href = "/inicio";
-          else window.location.reload();
+          window.location.reload();
           return;
         }
         setAuthed(true);
-        if (hubOn && pathname !== "/inicio") router.push("/inicio");
+        // O redirect para /inicio (quando o hub está ativo) é feito pelo efeito
+        // de entrada acima, assim que a autenticação está satisfeita.
       } else {
         setError("Usuário ou senha incorretos.");
         setPass("");
