@@ -19,6 +19,7 @@ const HUE: Record<string, string> = {
   "/etf-cem": "#f0c93c",
   "/moedas": "#e0a35c",
   "/nasa": "#8aa0ff",
+  "/expressoes": "#ff8bd0",
   "/anotacoes": "#c6e64e",
   "/gameboy": "#7dd956",
 };
@@ -88,6 +89,19 @@ function Motif({ href }: { href: string }): ReactNode {
           <circle className="brc-orbiter" r="3.2">
             <animateMotion dur="7s" repeatCount="indefinite" path="M152 46 A52 24 0 1 1 48 46 A52 24 0 1 1 152 46" />
           </circle>
+        </svg>
+      );
+    case "/expressoes":
+      return (
+        <svg className="brc-m" viewBox="0 0 200 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <g className="brc-stroke">
+            <ellipse cx="100" cy="45" rx="30" ry="37" />
+            <line x1="70" y1="30" x2="130" y2="30" /><line x1="72" y1="45" x2="128" y2="45" /><line x1="74" y1="60" x2="126" y2="60" />
+            <line x1="100" y1="10" x2="100" y2="80" />
+            <path d="M84 57 Q100 70 116 57" fill="none" />
+          </g>
+          <circle className="brc-blip" cx="88" cy="40" r="2.6" />
+          <circle className="brc-blip b2" cx="112" cy="40" r="2.6" />
         </svg>
       );
     case "/anotacoes":
