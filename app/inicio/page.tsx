@@ -634,11 +634,10 @@ const SOBRIO_CSS = `
 .sob-inner{width:100%;max-width:720px;display:flex;flex-direction:column;gap:22px;}
 .sob-brand{text-align:center;font-size:12px;letter-spacing:0.34em;text-transform:uppercase;color:#aeb8bc;font-weight:600;}
 .sob-brand span{color:var(--faint);margin-left:8px;font-weight:400;}
-.sob-grid{display:grid;grid-template-columns:1fr;gap:14px;}
-@media(min-width:560px){.sob-grid{grid-template-columns:1fr 1fr;}}
+.sob-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(10px,2.6vw,14px);}
 
-.sob-card{--hue:var(--gold);position:relative;text-align:left;display:flex;flex-direction:column;gap:11px;
-  padding:18px 18px 15px;border-radius:14px;cursor:pointer;
+.sob-card{--hue:var(--gold);position:relative;text-align:left;display:flex;flex-direction:column;gap:clamp(8px,2.3vw,11px);
+  padding:clamp(13px,3.6vw,18px) clamp(12px,3.3vw,18px) clamp(11px,3vw,15px);border-radius:14px;cursor:pointer;
   background:linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012));
   border:1px solid rgba(255,255,255,0.09);
   box-shadow:0 1px 0 rgba(255,255,255,0.03) inset;
@@ -648,24 +647,25 @@ const SOBRIO_CSS = `
 .sob-card:hover{border-color:color-mix(in srgb,var(--hue) 42%,rgba(255,255,255,0.12));background:linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));transform:translateY(-2px);}
 .sob-card:focus-visible{outline:2px solid color-mix(in srgb,var(--hue) 60%,transparent);outline-offset:2px;}
 
-.sob-head{display:flex;align-items:center;gap:10px;}
-.sob-chip{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;color:var(--hue);
+.sob-head{display:flex;align-items:center;gap:8px;min-width:0;}
+.sob-chip{width:clamp(26px,7vw,30px);height:clamp(26px,7vw,30px);flex:none;display:grid;place-items:center;border-radius:8px;color:var(--hue);
   background:color-mix(in srgb,var(--hue) 12%,rgba(255,255,255,0.02));border:1px solid color-mix(in srgb,var(--hue) 32%,transparent);}
-.sob-chip svg{width:16px;height:16px;color:var(--hue);}
+.sob-chip svg{width:clamp(14px,3.8vw,16px);height:clamp(14px,3.8vw,16px);color:var(--hue);}
 .sob-chip svg rect{fill:currentColor;} .sob-chip svg rect.k{fill:#0a0d0f;}
-.sob-eyebrow{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--faint);}
-.sob-name{font-size:19px;font-weight:600;letter-spacing:-0.01em;color:#f1f5f6;line-height:1.05;}
+.sob-eyebrow{font-size:clamp(8px,2.4vw,10px);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--faint);
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sob-name{font-size:clamp(13px,4.4vw,19px);font-weight:600;letter-spacing:-0.01em;color:#f1f5f6;line-height:1.05;}
 
-.sob-glyph{height:44px;display:flex;align-items:center;}
-.sob-g{opacity:.9;}
-.sob-g-chart{width:100%;height:40px;display:block;}
+.sob-glyph{height:clamp(36px,10vw,44px);display:flex;align-items:center;}
+.sob-g{opacity:.9;width:100%;}
+.sob-g-chart{width:100%;height:100%;display:block;}
 .sob-g-chart .area{fill:color-mix(in srgb,var(--hue) 12%,transparent);}
 .sob-g-chart .line{stroke:color-mix(in srgb,var(--hue) 72%,transparent);stroke-width:1.4;vector-effect:non-scaling-stroke;}
-.sob-g-bars{width:100%;height:40px;display:flex;align-items:flex-end;gap:4px;}
+.sob-g-bars{width:100%;height:100%;display:flex;align-items:flex-end;gap:4px;}
 .sob-g-bars span{flex:1;border-radius:2px;min-height:4px;}
 .sob-g-bars .pos{background:color-mix(in srgb,var(--emerald) 55%,transparent);}
 .sob-g-bars .neg{background:color-mix(in srgb,#d98a8a 55%,transparent);}
-.sob-g-nodes{width:100%;height:44px;display:block;}
+.sob-g-nodes{width:100%;height:100%;display:block;}
 .sob-g-nodes line{stroke:color-mix(in srgb,var(--hue) 42%,transparent);stroke-width:1.1;}
 .sob-g-nodes circle{fill:color-mix(in srgb,var(--hue) 20%,#0a0d0f);stroke:color-mix(in srgb,var(--hue) 65%,transparent);stroke-width:1.2;}
 .sob-g-nodes circle.lock{stroke-dasharray:2.2 2.2;opacity:.4;}
@@ -675,9 +675,9 @@ const SOBRIO_CSS = `
 .sob-tel-row .bar{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
 .sob-tel-row .bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--hue) 55%,transparent);}
 
-.sob-foot{margin-top:2px;display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
-.sob-sub{font-size:12px;font-weight:500;color:color-mix(in srgb,var(--hue) 70%,#aeb8bc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sob-go{font-size:11px;letter-spacing:0.04em;color:var(--faint);white-space:nowrap;flex:none;}
+.sob-foot{margin-top:2px;display:flex;align-items:baseline;justify-content:space-between;gap:6px;}
+.sob-sub{font-size:clamp(10.5px,3vw,12px);font-weight:500;color:color-mix(in srgb,var(--hue) 70%,#aeb8bc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.sob-go{font-size:clamp(9.5px,2.7vw,11px);letter-spacing:0.02em;color:var(--faint);white-space:nowrap;flex:none;}
 .sob-go .arw{transition:transform .18s ease;display:inline-block;}
 .sob-card:hover .sob-go{color:color-mix(in srgb,var(--hue) 70%,var(--faint));}
 .sob-card:hover .sob-go .arw{transform:translateX(3px);}
