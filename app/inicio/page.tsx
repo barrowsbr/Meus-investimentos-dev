@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useHubEstilo } from "@/lib/use-hub";
+import { HubBattle } from "@/lib/hub-battle";
 
 type Widget = "chart" | "bars" | "nodes" | "telemetry";
 interface Cart { cls: string; name: string; fases: string; href: string; eyebrow: string; widget: Widget; sub: string; icon: ReactNode }
@@ -118,9 +119,16 @@ function VivoHub() {
   const enableGyroRef = useRef<() => void>(() => {});
   const startCamRef = useRef<() => void>(() => {});
   const stopCamRef = useRef<() => void>(() => {});
+  const battleRef = useRef<HubBattle | null>(null);
+  const battleOnRef = useRef(false);
   const [mounted, setMounted] = useState(false);
   const [showGyroBtn, setShowGyroBtn] = useState(false);
   const [camState, setCamState] = useState<"off" | "loading" | "on" | "error">("off");
+  const [battleOn, setBattleOn] = useState(false);
+  const toggleBattle = () => {
+    const v = !battleOn; setBattleOn(v); battleOnRef.current = v;
+    battleRef.current = v ? new HubBattle() : null;
+  };
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -243,6 +251,12 @@ function VivoHub() {
         const a = Math.pow(near, 1.7) * (0.4 + 0.6 * p.s);
         ctx!.fillStyle = `rgba(120,240,255,${a * 0.7})`;
         ctx!.beginPath(); ctx!.arc(P[0], P[1], 0.5 + near * 1.7 * p.s, 0, 6.283); ctx!.fill();
+      }
+
+      // ── Easter-egg: batalha Goku × Vegeta no corredor (atrás dos cards) ──
+      if (battleOnRef.current && battleRef.current) {
+        battleRef.current.step(dt);
+        battleRef.current.draw(ctx!, project, scale);
       }
 
       const rotY = eye.x * 16, rotX = -eye.y * 16;
@@ -424,6 +438,9 @@ function VivoHub() {
         {showGyroBtn && camState !== "on" && (
           <button className="mih-ctl" onClick={() => enableGyroRef.current()}>Sensores</button>
         )}
+        <button className="mih-ctl" data-on={battleOn} onClick={toggleBattle}>
+          {battleOn ? "⚡ Parar luta" : "⚡ Batalha"}
+        </button>
       </div>
 
       <style>{CSS}</style>
@@ -530,6 +547,7 @@ const CSS = `
 .mih-ctl{font:inherit;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--faint);background:rgba(10,13,15,0.5);border:1px solid rgba(255,255,255,0.1);padding:5px 10px;border-radius:999px;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0.6;transition:opacity .2s ease,color .2s ease,border-color .2s ease;}
 .mih-ctl:hover{opacity:1;color:#d6eef2;border-color:rgba(255,255,255,0.22);}
 .mih-ctl-cam[data-on="true"]{opacity:1;color:#9ff0d4;border-color:color-mix(in srgb,#5cf0ff 40%,transparent);}
+.mih-ctl[data-on="true"]{opacity:1;color:#ffd23a;border-color:color-mix(in srgb,#ffd23a 45%,transparent);}
 `;
 
 // ── Versão SÓBRIA e elegante — estática, sem canvas/3D/animações ─────────────
