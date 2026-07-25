@@ -8,12 +8,34 @@
 
 import { useEffect, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import { FaceMesh, analyzeExpression, type FaceFrame, type ExprScore } from "@/lib/face-mesh";
+import { FaceMesh, analyzeExpression, adjustBlends, type FaceFrame, type ExprScore, type Blend } from "@/lib/face-mesh";
 
 const COLOR: Record<string, string> = {
   feliz: "#3ddc84", surpreso: "#5cf0ff", bravo: "#ff6b6b", triste: "#8aa0ff",
   nojo: "#a9c05a", piscadinha: "#f0b23c", lingua: "#ff8bd0", beijo: "#ff8bd0", neutro: "#9fb2b8",
 };
+
+// Nomes amigáveis (PT) dos blendshapes → "traços" mostrados ao vivo.
+const AU_PT: Record<string, string> = {
+  mouthSmileLeft: "sorriso", mouthSmileRight: "sorriso", jawOpen: "boca aberta",
+  browDownLeft: "sobrancelha franzida", browDownRight: "sobrancelha franzida", browInnerUp: "sobrancelha interna ↑",
+  browOuterUpLeft: "sobrancelha ↑", browOuterUpRight: "sobrancelha ↑",
+  eyeWideLeft: "olhos arregalados", eyeWideRight: "olhos arregalados",
+  eyeBlinkLeft: "olho esq. fechado", eyeBlinkRight: "olho dir. fechado",
+  mouthPucker: "beicinho", mouthFrownLeft: "boca ↓", mouthFrownRight: "boca ↓",
+  noseSneerLeft: "nariz torcido", noseSneerRight: "nariz torcido", cheekPuff: "bochecha inflada", tongueOut: "língua",
+};
+
+// Top "traços" ativos (dedupe por rótulo PT) a partir dos blends ajustados.
+function topTraits(blends: Blend[], n = 3): { label: string; score: number }[] {
+  const best = new Map<string, number>();
+  for (const b of blends) {
+    const label = AU_PT[b.name]; if (!label) continue;
+    if (b.score > (best.get(label) ?? 0)) best.set(label, b.score);
+  }
+  return [...best.entries()].map(([label, score]) => ({ label, score }))
+    .filter((t) => t.score >= 0.15).sort((a, b) => b.score - a.score).slice(0, n);
+}
 
 type Status = "idle" | "loading" | "on" | "error";
 
@@ -23,11 +45,16 @@ export default function ExpressoesPage() {
   const trackerRef = useRef<FaceMesh | null>(null);
   const smoothRef = useRef<Record<string, number>>({});
   const frameN = useRef(0);
+  const baselineRef = useRef<Record<string, number> | null>(null);
+  const calibRef = useRef<{ acc: Record<string, number>; n: number; until: number } | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [top, setTop] = useState<ExprScore>({ key: "neutro", label: "Neutro", emoji: "😐", score: 0 });
   const [bars, setBars] = useState<ExprScore[]>([]);
+  const [traits, setTraits] = useState<{ label: string; score: number }[]>([]);
   const [face, setFace] = useState(false);
+  const [calibrated, setCalibrated] = useState(false);
+  const [calibrating, setCalibrating] = useState(false);
 
   useEffect(() => () => { trackerRef.current?.stop(); trackerRef.current = null; }, []);
 
@@ -78,18 +105,50 @@ export default function ExpressoesPage() {
   const onFrame = (f: FaceFrame) => {
     draw(f);
     if (!f.landmarks || f.blends.length === 0) { if (face) setFace(false); return; }
-    const { top: t, all } = analyzeExpression(f.blends);
+
+    // Coleta da linha de base "neutra" (calibração).
+    const c = calibRef.current;
+    if (c) {
+      for (const b of f.blends) c.acc[b.name] = (c.acc[b.name] ?? 0) + b.score;
+      c.n++;
+      if (performance.now() >= c.until && c.n > 0) {
+        const base: Record<string, number> = {};
+        for (const k in c.acc) base[k] = c.acc[k] / c.n;
+        baselineRef.current = base; calibRef.current = null;
+        setCalibrated(true); setCalibrating(false);
+      }
+      return;   // durante a calibração não classifica
+    }
+
+    const adj = adjustBlends(f.blends, baselineRef.current);
+    const { all } = analyzeExpression(adj);
     // Suaviza (EMA) pra evitar tremeliques.
     const s = smoothRef.current;
     for (const e of all) s[e.key] = (s[e.key] ?? 0) * 0.6 + e.score * 0.4;
-    s[t.key] = (s[t.key] ?? 0) * 0.6 + t.score * 0.4;
     if ((frameN.current++ % 3) === 0) {
       const smoothed = all.map((e) => ({ ...e, score: s[e.key] ?? 0 })).sort((a, b) => b.score - a.score);
       const best = smoothed[0];
       const topSmoothed: ExprScore = best.score >= 0.3 ? best : { key: "neutro", label: "Neutro", emoji: "😐", score: 1 - best.score };
-      setTop(topSmoothed); setBars(smoothed); setFace(true);
+      setTop(topSmoothed); setBars(smoothed); setTraits(topTraits(adj)); setFace(true);
     }
   };
+
+  function calibrar() {
+    if (status !== "on") return;
+    calibRef.current = { acc: {}, n: 0, until: performance.now() + 1000 };
+    setCalibrating(true);
+  }
+
+  function foto() {
+    const cv = canvasRef.current; if (!cv) return;
+    cv.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `expressao-${top.key}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }, "image/png");
+  }
 
   async function startCam() {
     if (trackerRef.current) return;
@@ -103,7 +162,8 @@ export default function ExpressoesPage() {
   }
   function stopCam() {
     trackerRef.current?.stop(); trackerRef.current = null;
-    setStatus("idle"); setFace(false); setBars([]);
+    setStatus("idle"); setFace(false); setBars([]); setTraits([]);
+    setCalibrated(false); setCalibrating(false); baselineRef.current = null; calibRef.current = null;
     const cv = canvasRef.current; const ctx = cv?.getContext("2d"); if (cv && ctx) ctx.clearRect(0, 0, cv.width, cv.height);
   }
 
@@ -111,7 +171,7 @@ export default function ExpressoesPage() {
     <>
       <PageHeader
         title="Expressões"
-        description="Reconhecimento facial ao vivo — a malha mostra os traços analisados. Roda 100% no seu aparelho; nada de vídeo sai do dispositivo."
+        description="Reconhecimento facial ao vivo — a malha mostra os traços analisados. Toque em Calibrar com o rosto neutro para afinar ao seu rosto. Roda 100% no seu aparelho; nada de vídeo sai do dispositivo."
       />
 
       <div className="exp-wrap">
@@ -140,10 +200,30 @@ export default function ExpressoesPage() {
                 <span className="exp-emoji">{face ? top.emoji : "🙈"}</span>
                 <div className="exp-top-txt">
                   <span className="exp-label">{face ? top.label : "Procurando rosto…"}</span>
-                  {face && <span className="exp-conf">{Math.round(top.score * 100)}%</span>}
+                  {face && (
+                    <span className="exp-conf">
+                      {Math.round(top.score * 100)}%
+                      {calibrated && <b className="exp-cal">• calibrado</b>}
+                    </span>
+                  )}
                 </div>
               </div>
-              <button className="exp-stop" onClick={stopCam}>⏹ Parar</button>
+
+              {face && traits.length > 0 && (
+                <div className="exp-traits">
+                  {traits.map((t) => (
+                    <span className="exp-trait" key={t.label}>{t.label}<i>{Math.round(t.score * 100)}</i></span>
+                  ))}
+                </div>
+              )}
+
+              {calibrating && <div className="exp-calibrating"><span className="exp-spin" /> Fique com o rosto neutro…</div>}
+
+              <div className="exp-ctls">
+                <button className="exp-ctl" onClick={calibrar} disabled={calibrating} title="Calibrar rosto neutro">◎ Calibrar</button>
+                <button className="exp-ctl" onClick={foto} title="Salvar foto">📸</button>
+                <button className="exp-ctl" onClick={stopCam} title="Parar">⏹</button>
+              </div>
             </>
           )}
         </div>
@@ -194,8 +274,24 @@ const CSS = `
 .exp-top-txt{display:flex;flex-direction:column;gap:1px;}
 .exp-label{font-size:15px;font-weight:800;color:#eef6f8;letter-spacing:.01em;}
 .exp-conf{font-size:11px;font-weight:700;letter-spacing:.08em;color:color-mix(in srgb,var(--c) 80%,#cfe);}
-.exp-stop{position:absolute;right:12px;top:12px;font:inherit;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#e7eef0;cursor:pointer;
-  background:rgba(6,11,14,0.55);border:1px solid rgba(255,255,255,0.16);padding:7px 12px;border-radius:999px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+.exp-cal{font-weight:700;color:#5bd6a0;margin-left:4px;}
+
+/* cluster de controles discretos (canto sup. direito) */
+.exp-ctls{position:absolute;right:12px;top:12px;display:flex;gap:6px;}
+.exp-ctl{font:inherit;font-size:11px;letter-spacing:.04em;color:#e7eef0;cursor:pointer;
+  background:rgba(6,11,14,0.55);border:1px solid rgba(255,255,255,0.16);padding:7px 11px;border-radius:999px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:border-color .2s,opacity .2s;}
+.exp-ctl:hover{border-color:rgba(92,240,255,0.5);}
+.exp-ctl:disabled{opacity:.5;cursor:default;}
+
+/* "traços ativos" ao vivo (reforça o que está sendo analisado) */
+.exp-traits{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:none;}
+.exp-trait{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#dff2f6;
+  background:rgba(6,11,14,0.5);border:1px solid rgba(120,220,255,0.28);padding:4px 9px;border-radius:999px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.exp-trait i{font-style:normal;font-size:10px;font-variant-numeric:tabular-nums;color:#5cf0ff;}
+
+.exp-calibrating{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:9px;
+  font-size:13px;color:#eafaff;letter-spacing:.02em;background:rgba(6,11,14,0.7);border:1px solid rgba(92,240,255,0.4);
+  padding:10px 16px;border-radius:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
 
 .exp-bars{display:flex;flex-direction:column;gap:9px;padding:4px 2px;}
 .exp-bar{display:grid;grid-template-columns:22px 78px 1fr 26px;align-items:center;gap:9px;}

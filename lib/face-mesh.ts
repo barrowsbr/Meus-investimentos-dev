@@ -22,6 +22,14 @@ export interface ExprScore { key: string; label: string; emoji: string; score: n
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+// Subtrai a linha de base "neutra" calibrada por rosto (cada blendshape menos o
+// seu valor em repouso) — reduz muito o falso positivo de quem tem traços
+// marcados parados. Sem baseline, devolve os blends como estão.
+export function adjustBlends(blends: Blend[], baseline?: Record<string, number> | null): Blend[] {
+  if (!baseline) return blends;
+  return blends.map((b) => ({ name: b.name, score: clamp01(b.score - (baseline[b.name] ?? 0)) }));
+}
+
 // Deriva as expressões a partir dos blendshapes (0..1). Regras simples e
 // legíveis — o "top" cai para Neutro quando nada se destaca.
 export function analyzeExpression(blends: Blend[]): { top: ExprScore; all: ExprScore[] } {
@@ -77,7 +85,9 @@ export class FaceMesh {
   private raf = 0;
   private running = false;
   private lastTs = 0;
+  private lastVideoTime = -1;
   conns: Conns | null = null;
+  delegate: "GPU" | "CPU" = "GPU";
 
   constructor(private onFrame: (f: FaceFrame) => void) {}
 
@@ -95,12 +105,14 @@ export class FaceMesh {
 
     const vision = await import("@mediapipe/tasks-vision");
     const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
-    this.lm = await vision.FaceLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: "/mediapipe/face_landmarker.task", delegate: "GPU" },
-      runningMode: "VIDEO",
-      numFaces: 1,
-      outputFaceBlendshapes: true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const make = (delegate: "GPU" | "CPU") => vision.FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: "/mediapipe/face_landmarker.task", delegate },
+      runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true,
     });
+    // GPU quando dá; cai para CPU em aparelhos sem WebGL2/GPU delegate.
+    try { this.lm = await make("GPU"); this.delegate = "GPU"; }
+    catch { this.lm = await make("CPU"); this.delegate = "CPU"; }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const F = vision.FaceLandmarker as any;
     this.conns = {
@@ -119,7 +131,10 @@ export class FaceMesh {
     const now = performance.now();
     const ts = now <= this.lastTs ? this.lastTs + 1 : now;   // timestamp estritamente crescente
     this.lastTs = ts;
-    if (this.video.readyState >= 2) {
+    // Só infere quando o quadro do vídeo avançou (a câmera costuma dar ~30fps;
+    // sem isso, re-inferiríamos o mesmo quadro a ~60fps, gastando bateria à toa).
+    if (this.video.readyState >= 2 && this.video.currentTime !== this.lastVideoTime) {
+      this.lastVideoTime = this.video.currentTime;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let res: any = null;
       try { res = this.lm.detectForVideo(this.video, ts); } catch { res = null; }
@@ -138,6 +153,6 @@ export class FaceMesh {
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
     if (this.lm?.close) { try { this.lm.close(); } catch { /* ignore */ } }
     if (this.video) { try { this.video.srcObject = null; } catch { /* ignore */ } }
-    this.lm = null; this.stream = null; this.video = null; this.conns = null;
+    this.lm = null; this.stream = null; this.video = null; this.conns = null; this.lastVideoTime = -1;
   }
 }
