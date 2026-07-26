@@ -342,6 +342,13 @@ fundo) **NÃO participa** da fusão e não deve ser tocada.
   registro de cada item criado na aba `numista_envio` e **desfazer em lote**.
   Rotas fatiadas (`/api/moedas-colecao/numista/{match,enviar,desfazer}`) — o
   card pagina as chamadas. NUNCA enviar sem dry-run aprovado no card.
+  **Cache do casamento na aba `numista_match`** (a cota mensal do Numista já
+  estourou com dry-runs repetidos — 1–3 buscas × 400+ moedas por rodada):
+  veredito por moeda (casou → N#; não casou → "nenhuma") gravado na planilha,
+  chave por país|denominação|ano|KM# (não pelo índice); re-rodar o dry-run
+  custa ~zero. Veredito obtido sob 429 NUNCA é gravado; "Recasar falhas" manda
+  `force=1` (ignora "nenhuma" cacheado e re-consulta; o resultado novo
+  sobrescreve por append, leitura last-wins).
   A "história por IA" foi REMOVIDA a pedido do dono — dado real > texto gerado.
   Cache CDN 7 dias. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar**
   (`app/api/moedas/route.ts` → `handler.ts`) — não confundir com a coleção
