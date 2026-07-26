@@ -10,8 +10,8 @@ import PageHeader from "@/components/PageHeader";
 import { SPACES } from "@/components/terminal/nav";
 
 const HUE: Record<string, string> = {
-  "/noticias": "#d8b26a", "/radar": "#63c6bd", "/etf-cem": "#d8c46a", "/moedas": "#d6a878",
-  "/nasa": "#a99be6", "/expressoes": "#e08bc0", "/anotacoes": "#b9c88a", "/gameboy": "#8fce7a",
+  "/moedas": "#d6a878", "/nasa": "#a99be6", "/expressoes": "#e08bc0",
+  "/anotacoes": "#b9c88a", "/gameboy": "#8fce7a",
 };
 
 export default function BarrootsHome() {
@@ -21,8 +21,8 @@ export default function BarrootsHome() {
   return (
     <>
       <PageHeader
-        title="Barroots"
-        description="O resto — notícias, radar, coleções, observatório e diversão."
+        title="Baú"
+        description="O baú do Barroots — coleções, observatório e diversão."
       />
 
       <div className="bec-grid">

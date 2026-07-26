@@ -12,7 +12,7 @@ const SHORT: Record<string, string> = {
   "/performance": "Perf.",
   "/financas": "Finanças",
   "/fluxos": "Fluxos",
-  "/barroots": "Barroots",
+  "/barroots": "Baú",
   "/noticias": "Notícias",
   "/radar": "Radar",
   "/configuracoes": "Config",
