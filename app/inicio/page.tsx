@@ -590,6 +590,32 @@ function SobrioGlyph({ type }: { type: Widget }) {
   );
 }
 
+// Ícones de LINHA (finos, elegantes) — exclusivos do modo sóbrio (o vivo mantém
+// os pixelados). stroke = currentColor (herda o hue do card).
+const SOB_ICON: Record<string, ReactNode> = {
+  "c-invest": (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 16 L9 10 L13 13 L21 5" /><path d="M15 5 h6 v6" />
+    </svg>
+  ),
+  "c-fin": (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="6" width="18" height="13" rx="2.6" /><path d="M3 10.5 h18" /><circle cx="16.5" cy="14" r="1.15" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  "c-barroots": (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" /><path d="M15.6 8.4 L10.8 10.8 L8.4 15.6 L13.2 13.2 Z" />
+    </svg>
+  ),
+  "c-config": (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 2.5v3 M12 18.5v3 M2.5 12h3 M18.5 12h3 M5 5l2.1 2.1 M16.9 16.9l2.1 2.1 M19 5l-2.1 2.1 M7.1 16.9L5 19" />
+    </svg>
+  ),
+};
+
 function SobrioHub() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -604,17 +630,19 @@ function SobrioHub() {
       <div className="sob-inner">
         <div className="sob-brand">Barroots<span>· início</span></div>
         <div className="sob-grid">
-          {CARTS.map((c) => (
+          {CARTS.map((c, i) => (
             <button key={c.href} className={`sob-card ${c.cls}`} onClick={() => router.push(c.href)} aria-label={c.name}>
+              <span className="sob-idx">{String(i + 1).padStart(2, "0")}</span>
               <div className="sob-head">
-                <span className="sob-chip" aria-hidden="true">{c.icon}</span>
+                <span className="sob-chip" aria-hidden="true">{SOB_ICON[c.cls]}</span>
                 <span className="sob-eyebrow">{c.eyebrow}</span>
               </div>
               <div className="sob-name">{c.name}</div>
               <div className="sob-glyph"><SobrioGlyph type={c.widget} /></div>
+              <div className="sob-rule" />
               <div className="sob-foot">
-                <span className="sob-sub">{c.sub}</span>
-                <span className="sob-go">{c.fases} <span className="arw">→</span></span>
+                <span className="sob-metric">{c.sub}</span>
+                <span className="sob-arrow" aria-hidden="true">→</span>
               </div>
             </button>
           ))}
@@ -627,60 +655,67 @@ function SobrioHub() {
 }
 
 const SOBRIO_CSS = `
-.sob-root{position:fixed;inset:0;z-index:60;overflow:auto;display:grid;place-items:center;padding:32px 20px;
-  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#e7ecee;
-  background:radial-gradient(120% 90% at 50% 0%,#12171b,#0a0d0f 62%,#070809);
-  --gold:#e0b155;--emerald:#5bb98a;--violet:#a693e6;--dmg:#a9c05a;--faint:#7c878c;}
-.sob-inner{width:100%;max-width:720px;display:flex;flex-direction:column;gap:22px;}
-.sob-brand{text-align:center;font-size:12px;letter-spacing:0.34em;text-transform:uppercase;color:#aeb8bc;font-weight:600;}
-.sob-brand span{color:var(--faint);margin-left:8px;font-weight:400;}
-.sob-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(10px,2.6vw,14px);}
+.sob-root{position:fixed;inset:0;z-index:60;overflow:auto;display:grid;place-items:center;padding:clamp(28px,7vw,44px) 20px;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#e9edef;
+  background:radial-gradient(130% 100% at 50% -6%,#141a1e,#0a0d10 58%,#06080a);
+  --gold:#d8b26a;--emerald:#6bbf97;--violet:#a99be6;--dmg:#b9c88a;--faint:#79868c;--line:rgba(255,255,255,0.08);}
+.sob-inner{width:100%;max-width:680px;display:flex;flex-direction:column;gap:clamp(18px,5vw,28px);}
+.sob-brand{text-align:center;font-size:11px;letter-spacing:0.42em;text-transform:uppercase;color:#c4ced2;font-weight:500;}
+.sob-brand span{color:var(--faint);margin-left:9px;font-weight:400;letter-spacing:0.3em;}
+.sob-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(11px,2.8vw,15px);}
 
-.sob-card{--hue:var(--gold);position:relative;text-align:left;display:flex;flex-direction:column;gap:clamp(8px,2.3vw,11px);
-  padding:clamp(13px,3.6vw,18px) clamp(12px,3.3vw,18px) clamp(11px,3vw,15px);border-radius:14px;cursor:pointer;
-  background:linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012));
-  border:1px solid rgba(255,255,255,0.09);
-  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset;
-  transition:border-color .18s ease,background .18s ease,transform .18s ease;}
-.sob-card::before{content:"";position:absolute;left:18px;right:18px;top:0;height:1px;border-radius:1px;
-  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--hue) 60%,transparent),transparent);opacity:.55;}
-.sob-card:hover{border-color:color-mix(in srgb,var(--hue) 42%,rgba(255,255,255,0.12));background:linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));transform:translateY(-2px);}
-.sob-card:focus-visible{outline:2px solid color-mix(in srgb,var(--hue) 60%,transparent);outline-offset:2px;}
+.sob-card{--hue:var(--gold);position:relative;overflow:hidden;isolation:isolate;text-align:left;display:flex;flex-direction:column;
+  gap:clamp(9px,2.4vw,12px);padding:clamp(15px,4vw,21px) clamp(14px,3.7vw,21px) clamp(13px,3.4vw,17px);
+  border-radius:16px;cursor:pointer;
+  background:linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.011));
+  border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,0.04) inset,0 22px 44px -30px rgba(0,0,0,0.85);
+  transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .3s ease,box-shadow .3s ease;}
+/* fio de acento no topo — discreto, acende no hover */
+.sob-card::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--hue) 70%,transparent),transparent);opacity:.3;transition:opacity .3s ease;}
+.sob-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--hue) 26%,var(--line));
+  box-shadow:0 1px 0 rgba(255,255,255,0.06) inset,0 30px 54px -30px rgba(0,0,0,0.9),0 0 32px -16px color-mix(in srgb,var(--hue) 55%,transparent);}
+.sob-card:hover::before{opacity:.85;}
+.sob-card:focus-visible{outline:1px solid color-mix(in srgb,var(--hue) 55%,transparent);outline-offset:3px;}
 
-.sob-head{display:flex;align-items:center;gap:8px;min-width:0;}
-.sob-chip{width:clamp(26px,7vw,30px);height:clamp(26px,7vw,30px);flex:none;display:grid;place-items:center;border-radius:8px;color:var(--hue);
-  background:color-mix(in srgb,var(--hue) 12%,rgba(255,255,255,0.02));border:1px solid color-mix(in srgb,var(--hue) 32%,transparent);}
-.sob-chip svg{width:clamp(14px,3.8vw,16px);height:clamp(14px,3.8vw,16px);color:var(--hue);}
-.sob-chip svg rect{fill:currentColor;} .sob-chip svg rect.k{fill:#0a0d0f;}
-.sob-eyebrow{font-size:clamp(8px,2.4vw,10px);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--faint);
+.sob-idx{position:absolute;top:clamp(14px,3.6vw,19px);right:clamp(14px,3.7vw,19px);z-index:1;
+  font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;font-size:10px;letter-spacing:.14em;color:rgba(255,255,255,0.22);}
+
+.sob-head{display:flex;align-items:center;gap:9px;min-width:0;padding-right:24px;}
+.sob-chip{width:clamp(30px,8vw,34px);height:clamp(30px,8vw,34px);flex:none;display:grid;place-items:center;border-radius:10px;color:var(--hue);
+  background:rgba(255,255,255,0.025);border:1px solid color-mix(in srgb,var(--hue) 22%,var(--line));}
+.sob-chip svg{width:clamp(16px,4.2vw,18px);height:clamp(16px,4.2vw,18px);}
+.sob-eyebrow{font-size:clamp(8.5px,2.3vw,10px);letter-spacing:0.17em;text-transform:uppercase;font-weight:500;color:var(--faint);
   min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sob-name{font-size:clamp(13px,4.4vw,19px);font-weight:600;letter-spacing:-0.01em;color:#f1f5f6;line-height:1.05;}
+.sob-name{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif;
+  font-size:clamp(16px,5vw,22px);font-weight:500;letter-spacing:-0.006em;color:#f3f6f7;line-height:1.04;}
 
-.sob-glyph{height:clamp(36px,10vw,44px);display:flex;align-items:center;}
-.sob-g{opacity:.9;width:100%;}
+.sob-glyph{height:clamp(30px,8vw,38px);display:flex;align-items:center;opacity:.9;}
+.sob-g{width:100%;}
 .sob-g-chart{width:100%;height:100%;display:block;}
-.sob-g-chart .area{fill:color-mix(in srgb,var(--hue) 12%,transparent);}
-.sob-g-chart .line{stroke:color-mix(in srgb,var(--hue) 72%,transparent);stroke-width:1.4;vector-effect:non-scaling-stroke;}
-.sob-g-bars{width:100%;height:100%;display:flex;align-items:flex-end;gap:4px;}
-.sob-g-bars span{flex:1;border-radius:2px;min-height:4px;}
-.sob-g-bars .pos{background:color-mix(in srgb,var(--emerald) 55%,transparent);}
-.sob-g-bars .neg{background:color-mix(in srgb,#d98a8a 55%,transparent);}
+.sob-g-chart .area{fill:color-mix(in srgb,var(--hue) 7%,transparent);}
+.sob-g-chart .line{stroke:color-mix(in srgb,var(--hue) 56%,transparent);stroke-width:1.2;vector-effect:non-scaling-stroke;}
+.sob-g-bars{width:100%;height:100%;display:flex;align-items:flex-end;gap:5px;}
+.sob-g-bars span{flex:1;border-radius:1.5px;min-height:3px;}
+.sob-g-bars .pos{background:color-mix(in srgb,var(--emerald) 40%,transparent);}
+.sob-g-bars .neg{background:color-mix(in srgb,#d98a8a 40%,transparent);}
 .sob-g-nodes{width:100%;height:100%;display:block;}
-.sob-g-nodes line{stroke:color-mix(in srgb,var(--hue) 42%,transparent);stroke-width:1.1;}
-.sob-g-nodes circle{fill:color-mix(in srgb,var(--hue) 20%,#0a0d0f);stroke:color-mix(in srgb,var(--hue) 65%,transparent);stroke-width:1.2;}
-.sob-g-nodes circle.lock{stroke-dasharray:2.2 2.2;opacity:.4;}
+.sob-g-nodes line{stroke:color-mix(in srgb,var(--hue) 32%,transparent);stroke-width:1;}
+.sob-g-nodes circle{fill:color-mix(in srgb,var(--hue) 15%,#0a0d0f);stroke:color-mix(in srgb,var(--hue) 52%,transparent);stroke-width:1.1;}
+.sob-g-nodes circle.lock{stroke-dasharray:2 2;opacity:.34;}
 .sob-g-tel{width:100%;display:flex;flex-direction:column;gap:6px;}
-.sob-tel-row{display:flex;align-items:center;gap:8px;}
-.sob-tel-row .lbl{font-size:8.5px;letter-spacing:0.08em;color:var(--faint);width:26px;flex:none;}
-.sob-tel-row .bar{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
-.sob-tel-row .bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--hue) 55%,transparent);}
+.sob-tel-row{display:flex;align-items:center;gap:9px;}
+.sob-tel-row .lbl{font-size:8px;letter-spacing:.1em;color:var(--faint);width:26px;flex:none;text-transform:uppercase;}
+.sob-tel-row .bar{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
+.sob-tel-row .bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--hue) 46%,transparent);}
 
-.sob-foot{margin-top:2px;display:flex;align-items:baseline;justify-content:space-between;gap:6px;}
-.sob-sub{font-size:clamp(10.5px,3vw,12px);font-weight:500;color:color-mix(in srgb,var(--hue) 70%,#aeb8bc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
-.sob-go{font-size:clamp(9.5px,2.7vw,11px);letter-spacing:0.02em;color:var(--faint);white-space:nowrap;flex:none;}
-.sob-go .arw{transition:transform .18s ease;display:inline-block;}
-.sob-card:hover .sob-go{color:color-mix(in srgb,var(--hue) 70%,var(--faint));}
-.sob-card:hover .sob-go .arw{transform:translateX(3px);}
+.sob-rule{height:1px;background:var(--line);margin-top:1px;}
+.sob-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.sob-metric{font-size:clamp(11px,3vw,12.5px);font-weight:500;letter-spacing:.01em;color:color-mix(in srgb,var(--hue) 62%,#c3ccd0);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;font-variant-numeric:tabular-nums;}
+.sob-arrow{flex:none;color:var(--faint);font-size:14px;line-height:1;opacity:.5;transform:translateX(-2px);transition:transform .25s ease,opacity .25s ease,color .25s ease;}
+.sob-card:hover .sob-arrow{opacity:1;transform:translateX(0);color:color-mix(in srgb,var(--hue) 75%,var(--faint));}
 
 .sob-card.c-invest{--hue:var(--gold);} .sob-card.c-fin{--hue:var(--emerald);} .sob-card.c-barroots{--hue:var(--violet);} .sob-card.c-config{--hue:var(--dmg);}
 `;
