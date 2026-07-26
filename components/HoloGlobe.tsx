@@ -4,7 +4,7 @@ import React, { useRef, useMemo, useState, useEffect, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { Cloud, Rocket, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Square, Compass, X, Tags, Sun } from "lucide-react";
+import { Cloud, Rocket, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Square, Compass, X, Tags, Sun, Lock, Unlock, Landmark } from "lucide-react";
 
 interface MarketPoint {
   symbol: string;
@@ -936,7 +936,7 @@ function ConflictMarker({
 // gira a câmera em QUALQUER direção (dá pra passar por cima dos polos; o roll
 // emerge naturalmente), com inércia ao soltar, pinch para zoom no touch,
 // velocidade adaptativa ao zoom e duplo-clique/toque para endireitar o norte.
-function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist: number; onUserStart?: () => void }) {
+function FreeOrbit({ minDist, maxDist, onUserStart, lockAxis = false }: { minDist: number; maxDist: number; onUserStart?: () => void; lockAxis?: boolean }) {
   const { camera, gl } = useThree();
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
@@ -944,10 +944,33 @@ function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist
   const zoomVel = useRef(0);               // zoom suave (fração por frame)
   const pinchDist = useRef<number | null>(null);
 
+  // Ao TRAVAR o eixo, endireita o norte imediatamente (remove roll acumulado).
+  useEffect(() => {
+    if (lockAxis) { camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0); }
+  }, [lockAxis, camera]);
+
   const rotateBy = useCallback((dxPx: number, dyPx: number) => {
     // Ângulo por pixel adaptado ao zoom: rasante gira fino, longe gira rápido.
     const dist = camera.position.length();
     const speed = 0.0045 * THREE.MathUtils.clamp(dist / 4, 0.4, 1.5);
+    if (lockAxis) {
+      // Eixo TRAVADO (turntable): norte sempre pra cima. Horizontal gira em
+      // torno do eixo polar (Y do mundo); vertical muda a latitude da câmera,
+      // com clamp antes dos polos — impossível "perder" o norte/sul.
+      const r = camera.position.length();
+      let theta = Math.acos(THREE.MathUtils.clamp(camera.position.y / r, -1, 1)); // 0 = polo N
+      let phi = Math.atan2(camera.position.x, camera.position.z);
+      phi -= dxPx * speed;
+      theta = THREE.MathUtils.clamp(theta - dyPx * speed, 0.12, Math.PI - 0.12);
+      camera.position.set(
+        r * Math.sin(theta) * Math.sin(phi),
+        r * Math.cos(theta),
+        r * Math.sin(theta) * Math.cos(phi),
+      );
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      return;
+    }
     const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
     const q = new THREE.Quaternion().setFromAxisAngle(up, -dxPx * speed)
@@ -955,7 +978,7 @@ function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist
     camera.position.applyQuaternion(q);
     camera.up.applyQuaternion(q);
     camera.lookAt(0, 0, 0);
-  }, [camera]);
+  }, [camera, lockAxis]);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -1278,7 +1301,7 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, sunOn = true, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; sunOn?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; lift: number; stop: boolean }> }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, sunOn = true, targets = [], warpRef, flightCmd, lockAxis = false, focusRef }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; sunOn?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; lift: number; stop: boolean }>; lockAxis?: boolean; focusRef?: React.MutableRefObject<((m: MarketPoint) => void) | null> }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -1302,9 +1325,38 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
     if (freeFly) introDone.current = true;
   }, [freeFly]);
 
+  // Voo curto até uma bolsa (modo órbita): slerp da direção da câmera até o
+  // ponto da bolsa no MUNDO (a Terra gira — aplica o quaternion do grupo),
+  // endireitando o norte no caminho. Arrastar durante o voo cancela.
+  const flyRef = useRef<{ fromDir: THREE.Vector3; fromUp: THREE.Vector3; qArc: THREE.Quaternion; fromDist: number; dist: number; t: number } | null>(null);
+
   // Identidade estável: recriar este callback a cada render re-assinava os
   // listeners dos controles sem necessidade.
-  const markUserTookOver = useCallback(() => { introDone.current = true; }, []);
+  const markUserTookOver = useCallback(() => { introDone.current = true; flyRef.current = null; }, []);
+
+  const focusOn = useCallback((m: MarketPoint) => {
+    if (!groupRef.current) return;
+    introDone.current = true;
+    const q = groupRef.current.getWorldQuaternion(new THREE.Quaternion());
+    const dir = latLngToVec3(m.lat, m.lng, 1).applyQuaternion(q).normalize();
+    const fromDir = camera.position.clone().normalize();
+    flyRef.current = {
+      fromDir,
+      fromUp: camera.up.clone(),
+      qArc: new THREE.Quaternion().setFromUnitVectors(fromDir, dir),
+      fromDist: camera.position.length(),
+      dist: THREE.MathUtils.clamp(camera.position.length(), 1.7, 2.6),   // aproxima o suficiente pra ler
+      t: 0,
+    };
+    setSelectedId(m.symbol);
+    onSelect({ type: "market", data: m });
+  }, [camera, onSelect]);
+
+  useEffect(() => {
+    if (!focusRef) return;
+    focusRef.current = focusOn;
+    return () => { focusRef.current = null; };
+  }, [focusRef, focusOn]);
 
   const handleSelectMarket = useCallback((p: MarketPoint) => {
     setSelectedId(prev => {
@@ -1342,6 +1394,18 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
   useEffect(() => () => { sunGlowTex.dispose(); }, [sunGlowTex]);
 
   useFrame(({ clock }, delta) => {
+    // Voo até a bolsa focada (slerp de direção + ajuste de distância + norte).
+    if (flyRef.current && !freeFly) {
+      const f = flyRef.current;
+      f.t = Math.min(1, f.t + delta / 0.9);
+      const e = f.t < 0.5 ? 2 * f.t * f.t : 1 - Math.pow(-2 * f.t + 2, 2) / 2;   // easeInOut
+      const qPart = new THREE.Quaternion().slerpQuaternions(new THREE.Quaternion(), f.qArc, e);
+      const dir = f.fromDir.clone().applyQuaternion(qPart);
+      camera.position.copy(dir.multiplyScalar(THREE.MathUtils.lerp(f.fromDist, f.dist, e)));
+      camera.up.lerpVectors(f.fromUp, new THREE.Vector3(0, 1, 0), e).normalize();
+      camera.lookAt(0, 0, 0);
+      if (f.t >= 1) flyRef.current = null;
+    }
     if (classic) {
       // Clássico mantém o giro estético de antes.
       if (groupRef.current) {
@@ -1495,7 +1559,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
       ) : freeFly ? (
         <FreeFly onUserStart={markUserTookOver} targets={targets} warpRef={warpRef} flightCmd={flightCmd} />
       ) : (
-        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={markUserTookOver} />
+        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={markUserTookOver} lockAxis={lockAxis} />
       )}
     </>
   );
@@ -3124,6 +3188,22 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
     if (mode === "globe") setSolarTargets(computeSolarTargets(new Date()));
   }, [mode]);
   const warpRef = useRef<((id: string) => void) | null>(null);
+  // Eixo do globo: TRAVADO por padrão (norte sempre pra cima — navegação
+  // previsível); o giro livre (arcball, passa pelos polos) vira opção.
+  const [axisLock, setAxisLock] = useState(true);
+  useEffect(() => {
+    setAxisLock(window.localStorage.getItem("holoAxisLock") !== "0");
+  }, []);
+  const toggleAxisLock = useCallback(() => {
+    setAxisLock(v => {
+      const next = !v;
+      try { window.localStorage.setItem("holoAxisLock", next ? "1" : "0"); } catch { /* sem storage */ }
+      return next;
+    });
+  }, []);
+  // Navegador de bolsas: painel com todas as bolsas; tocar voa até ela.
+  const [bolsasOpen, setBolsasOpen] = useState(false);
+  const focusRef = useRef<((m: MarketPoint) => void) | null>(null);
   // Botoeira de voo: empuxo contínuo enquanto o botão está pressionado.
   const flightCmd = useRef<{ thrust: number; strafe: number; lift: number; stop: boolean }>({ thrust: 0, strafe: 0, lift: 0, stop: false });
   const [navOpen, setNavOpen] = useState(true);
@@ -3375,7 +3455,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} sunOn={classic || freeFly ? true : sunOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} sunOn={classic || freeFly ? true : sunOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} lockAxis={axisLock} focusRef={focusRef} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -3432,7 +3512,27 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               <>
             <ConflictLegend count={conflicts.length} />
             <span className="text-[8px] text-zinc-700">|</span>
-            <MarketHeatLegend />
+            {/* Navegador de bolsas: abre o painel com todas; tocar voa até ela */}
+            <button
+              onClick={() => setBolsasOpen(v => !v)}
+              title={bolsasOpen ? "Fechar a lista de bolsas" : "Navegar pelas bolsas — tocar voa até ela no globo"}
+              className="flex items-center gap-1 transition-colors"
+              style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: bolsasOpen ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <Landmark size={10} strokeWidth={2.5} style={{ opacity: bolsasOpen ? 1 : 0.45 }} />
+              Bolsas
+            </button>
+            <span className="text-[8px] text-zinc-700">|</span>
+            {/* Trava do eixo: turntable (norte fixo) × giro livre (arcball) */}
+            <button
+              onClick={toggleAxisLock}
+              title={axisLock ? "Eixo travado — norte sempre pra cima. Toque para liberar o giro livre" : "Giro livre — toque para travar o eixo (norte fixo)"}
+              className="flex items-center gap-1 transition-colors"
+              style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: axisLock ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              {axisLock ? <Lock size={10} strokeWidth={2.5} /> : <Unlock size={10} strokeWidth={2.5} style={{ opacity: 0.45 }} />}
+              Eixo
+            </button>
             <span className="text-[8px] text-zinc-700">|</span>
             {/* Toggle discreto da camada de nuvens/satélite do dia */}
             <button
@@ -3512,6 +3612,40 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                 arraste para olhar · botões para voar · 🌍 no painel volta pra casa
               </span>
             </>
+          ) : bolsasOpen ? (
+            /* Painel de bolsas: ordenadas oeste→leste (tour Américas→Europa→Ásia);
+               tocar VOA a câmera até a bolsa e abre o card dela. */
+            <div
+              className="rounded-xl px-2 py-2"
+              style={{ background: "rgba(6,10,16,0.78)", border: "1px solid rgba(103,232,249,0.18)", backdropFilter: "blur(10px)", pointerEvents: "auto", maxWidth: 360, maxHeight: 168, overflowY: "auto" }}
+            >
+              {markets.length === 0 ? (
+                <span className="text-[9px] text-zinc-500 px-1">Carregando bolsas…</span>
+              ) : (
+                <div className="grid grid-cols-3 gap-1">
+                  {[...markets].sort((a, b) => a.lng - b.lng).map(m => {
+                    const up = (m.changePct ?? 0) >= 0;
+                    return (
+                      <button
+                        key={m.symbol}
+                        onClick={() => focusRef.current?.(m)}
+                        title={`Voar até ${m.name}`}
+                        className="flex flex-col items-start rounded-lg px-1.5 py-1 transition-colors hover:bg-white/10"
+                        style={{ border: "1px solid transparent", minWidth: 0 }}
+                      >
+                        <span className="flex items-center gap-1 w-full" style={{ minWidth: 0 }}>
+                          <span style={{ fontSize: 11, lineHeight: 1 }}>{m.flag}</span>
+                          <span className="text-[8px] font-bold text-zinc-300 leading-tight truncate">{m.name}</span>
+                        </span>
+                        <span className="text-[8px] font-mono leading-tight" style={{ color: up ? "#34d399" : "#f87171" }}>
+                          {up ? "▲" : "▼"} {Math.abs(m.changePct ?? 0).toFixed(2)}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ) : (
             <span
               className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
