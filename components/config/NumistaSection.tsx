@@ -41,16 +41,16 @@ export default function NumistaSection() {
   // Roda uma lista de índices em lotes, honrando `pendentes` (parciais por
   // orçamento de tempo do servidor) e parando com aviso se a cota da API
   // do Numista estourar (429) — melhor parar claro do que "não carregar".
-  const rodarIndices = async (idxs: number[], aoReceber: (c: Casamento[]) => void): Promise<"ok" | "cota"> => {
+  const rodarIndices = async (idxs: number[], aoReceber: (c: Casamento[]) => void, force = false): Promise<"ok" | "cota"> => {
     let fila = [...idxs];
     let feitos = 0;
     const totalAlvo = fila.length;
     while (fila.length > 0) {
       const lote = fila.slice(0, 8);
       fila = fila.slice(8);
-      const r = await fetch(`/api/moedas-colecao/numista/match?idxs=${lote.join(",")}`);
+      const r = await fetch(`/api/moedas-colecao/numista/match?idxs=${lote.join(",")}${force ? "&force=1" : ""}`);
       if (!r.ok) throw new Error(`lote: HTTP ${r.status}`);
-      const d = (await r.json()) as { resultados?: Casamento[]; pendentes?: number[]; rateLimit?: boolean };
+      const d = (await r.json()) as { resultados?: Casamento[]; pendentes?: number[]; rateLimit?: boolean; doCache?: number };
       const cs = d.resultados ?? [];
       if (cs.length === 0 && !d.pendentes?.length) throw new Error("resposta sem resultados — atualize a página (deploy novo?)");
       aoReceber(cs);
@@ -58,7 +58,9 @@ export default function NumistaSection() {
       if (d.pendentes?.length) fila = [...d.pendentes, ...fila];
       setProgresso(Math.min(1, feitos / Math.max(1, totalAlvo)));
       if (d.rateLimit) return "cota";
-      await new Promise((res) => setTimeout(res, 350)); // respiro anti rate-limit
+      // Respiro anti rate-limit — dispensável quando o lote veio TODO do cache
+      // (zero chamadas à API do Numista).
+      if ((d.doCache ?? 0) < cs.length) await new Promise((res) => setTimeout(res, 350));
     }
     return "ok";
   };
@@ -94,7 +96,8 @@ export default function NumistaSection() {
     const mapa = new Map(casamentos.map((c) => [c.idx, c]));
     const antes = casamentos.filter((c) => c.confianca !== "nenhuma").length;
     try {
-      const fim = await rodarIndices(semMatch.map((c) => c.idx), (cs) => { for (const c of cs) mapa.set(c.idx, c); });
+      // force=1: ignora o veredito "nenhuma" do cache — recasar é tentar DE NOVO
+      const fim = await rodarIndices(semMatch.map((c) => c.idx), (cs) => { for (const c of cs) mapa.set(c.idx, c); }, true);
       const novo = [...mapa.values()].sort((a, b) => a.idx - b.idx);
       setCasamentos(novo);
       setMsg(`${novo.filter((c) => c.confianca !== "nenhuma").length - antes} recuperadas no recasamento.`);

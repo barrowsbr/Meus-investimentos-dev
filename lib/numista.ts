@@ -106,6 +106,56 @@ export interface Casamento {
   faixaAnos?: string | null;
   // Cota da API estourada durante ESTA moeda — "nenhuma" não é veredito.
   rateLimit?: boolean;
+  // Veio do cache (aba numista_match) — zero chamadas à API.
+  doCache?: boolean;
+}
+
+// ── Cache persistente do casamento (aba numista_match) ───────────────────────
+// O dry-run em massa era o grande consumidor da cota (1–3 buscas × 400+
+// moedas A CADA rodada). O veredito de cada moeda (casou → N#; não casou →
+// "nenhuma") agora fica gravado na planilha: re-rodar o dry-run custa ~zero.
+// Regras: veredito obtido sob 429 NUNCA é gravado; o "Recasar falhas" ignora
+// hits "nenhuma" (re-consulta de verdade) e o resultado novo sobrescreve o
+// antigo (leitura last-wins por chave).
+
+export const MATCH_CACHE_TAB = "numista_match";
+export const MATCH_CACHE_HEADERS = ["chave", "type_id", "titulo", "url", "confianca", "faixa_anos", "ano_suspeito", "atualizado_em"];
+
+/** Chave estável da moeda (não usa o índice — a coleção pode ser reordenada). */
+export function chaveCasamento(m: { denominacao: string; pais: string; ano: string; krause?: string | null }): string {
+  return [norm(m.pais), norm(m.denominacao), m.ano.slice(0, 4), m.krause ? norm(m.krause) : ""].join("|");
+}
+
+/** Reconstrói um Casamento a partir da linha do cache (sem tocar a API). */
+export function casamentoDoCache(m: MoedaParaCasar, row: Record<string, unknown>): Casamento {
+  const typeId = Number(row["type_id"]);
+  const temTipo = Number.isFinite(typeId) && typeId > 0;
+  const conf = String(row["confianca"] ?? "nenhuma");
+  return {
+    ...m,
+    typeId: temTipo ? typeId : null,
+    issueId: null,
+    titulo: temTipo && row["titulo"] ? String(row["titulo"]) : null,
+    url: temTipo && row["url"] ? String(row["url"]) : null,
+    confianca: conf === "km" || conf === "pais-ano" ? conf : "nenhuma",
+    anoSuspeito: String(row["ano_suspeito"] ?? "") === "1",
+    faixaAnos: row["faixa_anos"] ? String(row["faixa_anos"]) : null,
+    doCache: true,
+  };
+}
+
+/** Linha do cache para um Casamento recém-obtido (só chamar se NÃO houve 429). */
+export function linhaCache(c: Casamento): (string | number)[] {
+  return [
+    chaveCasamento(c),
+    c.typeId ?? "",
+    c.titulo ?? "",
+    c.url ?? "",
+    c.confianca,
+    c.faixaAnos ?? "",
+    c.anoSuspeito ? 1 : 0,
+    new Date().toISOString(),
+  ];
 }
 
 /** Casa UMA moeda com o catálogo. Sequencial e best-effort — quem chama controla o lote.
