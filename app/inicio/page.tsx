@@ -35,7 +35,7 @@ const CARTS: Cart[] = [
     ),
   },
   {
-    cls: "c-barroots", name: "Barroots", fases: "8 fases", href: "/barroots", eyebrow: "Explorar", widget: "nodes", sub: "7 nós • 4 🔒",
+    cls: "c-barroots", name: "Baú", fases: "5 fases", href: "/barroots", eyebrow: "Explorar", widget: "nodes", sub: "5 seções • 🔓",
     icon: (
       <svg viewBox="0 0 16 16" shapeRendering="crispEdges">
         <rect x="3" y="3" width="10" height="1" /><rect x="2" y="4" width="12" height="2" /><rect x="2" y="6" width="12" height="7" />
@@ -604,8 +604,11 @@ const SOB_ICON: Record<string, ReactNode> = {
     </svg>
   ),
   "c-barroots": (
+    // Baú de tesouro: tampa arqueada + corpo + fecho
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" /><path d="M15.6 8.4 L10.8 10.8 L8.4 15.6 L13.2 13.2 Z" />
+      <path d="M4 11 V9.5 A5.5 5.5 0 0 1 9.5 4 h5 A5.5 5.5 0 0 1 20 9.5 V11" />
+      <rect x="4" y="11" width="16" height="9" rx="1.6" />
+      <path d="M12 11 v3.4" /><rect x="10.6" y="14" width="2.8" height="2.6" rx="0.8" />
     </svg>
   ),
   "c-config": (
@@ -628,6 +631,8 @@ function SobrioHub() {
   return createPortal(
     <div className="sob-root">
       <div className="sob-inner">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/barroots-mark.png" alt="Barroots" className="sob-logo" draggable={false} />
         <div className="sob-brand">Barroots<span>· início</span></div>
         <div className="sob-grid">
           {CARTS.map((c, i) => (
@@ -659,6 +664,8 @@ const SOBRIO_CSS = `
   background:radial-gradient(130% 100% at 50% -6%,#141a1e,#0a0d10 58%,#06080a);
   --gold:#d8b26a;--emerald:#6bbf97;--violet:#a99be6;--dmg:#b9c88a;--faint:#79868c;--line:rgba(255,255,255,0.08);}
 .sob-inner{width:100%;max-width:680px;display:flex;flex-direction:column;gap:clamp(18px,5vw,28px);}
+.sob-logo{width:clamp(96px,26vw,132px);height:auto;align-self:center;margin-bottom:-6px;user-select:none;-webkit-user-drag:none;
+  filter:drop-shadow(0 0 26px rgba(80,170,230,0.28));}
 .sob-brand{text-align:center;font-size:11px;letter-spacing:0.42em;text-transform:uppercase;color:#c4ced2;font-weight:500;}
 .sob-brand span{color:var(--faint);margin-left:9px;font-weight:400;letter-spacing:0.3em;}
 .sob-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(11px,2.8vw,15px);}
