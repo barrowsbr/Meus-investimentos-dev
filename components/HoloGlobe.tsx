@@ -936,39 +936,51 @@ function ConflictMarker({
 // gira a câmera em QUALQUER direção (dá pra passar por cima dos polos; o roll
 // emerge naturalmente), com inércia ao soltar, pinch para zoom no touch,
 // velocidade adaptativa ao zoom e duplo-clique/toque para endireitar o norte.
-function FreeOrbit({ minDist, maxDist, onUserStart, lockAxis = false }: { minDist: number; maxDist: number; onUserStart?: () => void; lockAxis?: boolean }) {
+// Faixa do equador no modo travado: a câmera vive em torno de θ=π/2 (equador
+// SEMPRE de frente), com inclinação leve permitida até ±31° rumo aos polos.
+const EQ_TILT = 0.55;
+const EQ_MIN = Math.PI / 2 - EQ_TILT;
+const EQ_MAX = Math.PI / 2 + EQ_TILT;
+
+function FreeOrbit({ minDist, maxDist, onUserStart, lockAxis = false, suspendRef }: { minDist: number; maxDist: number; onUserStart?: () => void; lockAxis?: boolean; suspendRef?: React.MutableRefObject<boolean> }) {
   const { camera, gl } = useThree();
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
   const vel = useRef({ x: 0, y: 0 });      // inércia angular (px suavizados)
   const zoomVel = useRef(0);               // zoom suave (fração por frame)
   const pinchDist = useRef<number | null>(null);
+  // Modo travado: estado esférico com PESO — o dedo move o ALVO (tPhi/tTheta)
+  // e o globo persegue com atraso de massa (crítico-amortecido). Pegar o globo
+  // ressincroniza (mata o giro, como segurar um globo pesado de verdade).
+  const sph = useRef({ phi: 0, theta: Math.PI / 2, tPhi: 0, tTheta: Math.PI / 2, active: false });
 
-  // Ao TRAVAR o eixo, endireita o norte imediatamente (remove roll acumulado).
+  const syncSph = useCallback(() => {
+    const p = camera.position, r = p.length();
+    const theta = Math.acos(THREE.MathUtils.clamp(p.y / r, -1, 1));
+    const phi = Math.atan2(p.x, p.z);
+    const s = sph.current;
+    s.phi = phi; s.tPhi = phi;
+    s.theta = theta;
+    s.tTheta = THREE.MathUtils.clamp(theta, EQ_MIN, EQ_MAX);
+    s.active = Math.abs(s.tTheta - theta) > 1e-4;   // fora da faixa → desliza de volta ao equador
+  }, [camera]);
+
+  // Ao TRAVAR o eixo: endireita o norte na hora e desliza a câmera para a
+  // faixa do equador (se estava rasante a um polo).
   useEffect(() => {
-    if (lockAxis) { camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0); }
-  }, [lockAxis, camera]);
+    if (lockAxis) { camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0); syncSph(); }
+  }, [lockAxis, camera, syncSph]);
 
   const rotateBy = useCallback((dxPx: number, dyPx: number) => {
     // Ângulo por pixel adaptado ao zoom: rasante gira fino, longe gira rápido.
     const dist = camera.position.length();
     const speed = 0.0045 * THREE.MathUtils.clamp(dist / 4, 0.4, 1.5);
     if (lockAxis) {
-      // Eixo TRAVADO (turntable): norte sempre pra cima. Horizontal gira em
-      // torno do eixo polar (Y do mundo); vertical muda a latitude da câmera,
-      // com clamp antes dos polos — impossível "perder" o norte/sul.
-      const r = camera.position.length();
-      let theta = Math.acos(THREE.MathUtils.clamp(camera.position.y / r, -1, 1)); // 0 = polo N
-      let phi = Math.atan2(camera.position.x, camera.position.z);
-      phi -= dxPx * speed;
-      theta = THREE.MathUtils.clamp(theta - dyPx * speed, 0.12, Math.PI - 0.12);
-      camera.position.set(
-        r * Math.sin(theta) * Math.sin(phi),
-        r * Math.cos(theta),
-        r * Math.sin(theta) * Math.cos(phi),
-      );
-      camera.up.set(0, 1, 0);
-      camera.lookAt(0, 0, 0);
+      // Só move o ALVO — o peso (perseguição amortecida) vive no useFrame.
+      const s = sph.current;
+      s.tPhi -= dxPx * speed;
+      s.tTheta = THREE.MathUtils.clamp(s.tTheta - dyPx * speed * 0.55, EQ_MIN, EQ_MAX);
+      s.active = true;
       return;
     }
     const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
@@ -992,6 +1004,9 @@ function FreeOrbit({ minDist, maxDist, onUserStart, lockAxis = false }: { minDis
         dragging.current = true;
         last.current = { x: e.clientX, y: e.clientY };
         vel.current = { x: 0, y: 0 };
+        // Travado: "pegar" o globo ressincroniza do estado real da câmera e
+        // MATA o giro em curso — sensação de segurar um objeto com massa.
+        if (lockAxis) syncSph();
       }
     };
     const onMove = (e: PointerEvent) => {
@@ -1044,15 +1059,40 @@ function FreeOrbit({ minDist, maxDist, onUserStart, lockAxis = false }: { minDis
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("dblclick", onDbl);
     };
-  }, [gl, camera, rotateBy, onUserStart]);
+  }, [gl, camera, rotateBy, onUserStart, lockAxis, syncSph]);
 
   useFrame((_, delta) => {
-    // Inércia do giro — decai suavemente após soltar.
+    // Voo até bolsa em andamento: o controle cede a vez (sem cabo de guerra).
+    if (suspendRef?.current) {
+      vel.current.x = 0; vel.current.y = 0;
+      sph.current.active = false;
+      return;
+    }
+    // Inércia do giro — decai suavemente após soltar. Travado: atrito MENOR
+    // (volante pesado — continua girando por mais tempo).
     if (!dragging.current && Math.abs(vel.current.x) + Math.abs(vel.current.y) > 0.02) {
       rotateBy(vel.current.x, vel.current.y);
-      const f = Math.exp(-3.0 * delta);
+      const f = Math.exp(-(lockAxis ? 1.7 : 3.0) * delta);
       vel.current.x *= f;
       vel.current.y *= f;
+    }
+    // Peso do modo travado: a câmera PERSEGUE o alvo com amortecimento —
+    // o globo "atrasa" atrás do dedo e assenta macio (massa, não vidro).
+    if (lockAxis && sph.current.active) {
+      const s = sph.current;
+      const k = 1 - Math.exp(-5.2 * delta);
+      s.phi += (s.tPhi - s.phi) * k;
+      s.theta += (s.tTheta - s.theta) * k;
+      const r = camera.position.length();
+      camera.position.set(
+        r * Math.sin(s.theta) * Math.sin(s.phi),
+        r * Math.cos(s.theta),
+        r * Math.sin(s.theta) * Math.cos(s.phi),
+      );
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      if (!dragging.current && Math.abs(s.tPhi - s.phi) + Math.abs(s.tTheta - s.theta) < 5e-5
+          && Math.abs(vel.current.x) + Math.abs(vel.current.y) <= 0.02) s.active = false;
     }
     // Zoom suave com limites.
     if (Math.abs(zoomVel.current) > 1e-4) {
@@ -1329,10 +1369,12 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
   // ponto da bolsa no MUNDO (a Terra gira — aplica o quaternion do grupo),
   // endireitando o norte no caminho. Arrastar durante o voo cancela.
   const flyRef = useRef<{ fromDir: THREE.Vector3; fromUp: THREE.Vector3; qArc: THREE.Quaternion; fromDist: number; dist: number; t: number } | null>(null);
+  // Durante o voo até uma bolsa, o FreeOrbit fica suspenso (sem cabo de guerra).
+  const orbitSuspend = useRef(false);
 
   // Identidade estável: recriar este callback a cada render re-assinava os
   // listeners dos controles sem necessidade.
-  const markUserTookOver = useCallback(() => { introDone.current = true; flyRef.current = null; }, []);
+  const markUserTookOver = useCallback(() => { introDone.current = true; flyRef.current = null; orbitSuspend.current = false; }, []);
 
   const focusOn = useCallback((m: MarketPoint) => {
     if (!groupRef.current) return;
@@ -1348,6 +1390,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
       dist: THREE.MathUtils.clamp(camera.position.length(), 1.7, 2.6),   // aproxima o suficiente pra ler
       t: 0,
     };
+    orbitSuspend.current = true;
     setSelectedId(m.symbol);
     onSelect({ type: "market", data: m });
   }, [camera, onSelect]);
@@ -1404,7 +1447,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
       camera.position.copy(dir.multiplyScalar(THREE.MathUtils.lerp(f.fromDist, f.dist, e)));
       camera.up.lerpVectors(f.fromUp, new THREE.Vector3(0, 1, 0), e).normalize();
       camera.lookAt(0, 0, 0);
-      if (f.t >= 1) flyRef.current = null;
+      if (f.t >= 1) { flyRef.current = null; orbitSuspend.current = false; }
     }
     if (classic) {
       // Clássico mantém o giro estético de antes.
@@ -1559,7 +1602,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
       ) : freeFly ? (
         <FreeFly onUserStart={markUserTookOver} targets={targets} warpRef={warpRef} flightCmd={flightCmd} />
       ) : (
-        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={markUserTookOver} lockAxis={lockAxis} />
+        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={markUserTookOver} lockAxis={lockAxis} suspendRef={orbitSuspend} />
       )}
     </>
   );
