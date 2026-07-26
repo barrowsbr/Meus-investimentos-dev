@@ -641,7 +641,6 @@ function SobrioHub() {
               <div className="sob-glyph"><SobrioGlyph type={c.widget} /></div>
               <div className="sob-rule" />
               <div className="sob-foot">
-                <span className="sob-metric">{c.sub}</span>
                 <span className="sob-arrow" aria-hidden="true">→</span>
               </div>
             </button>
@@ -711,10 +710,8 @@ const SOBRIO_CSS = `
 .sob-tel-row .bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--hue) 46%,transparent);}
 
 .sob-rule{height:1px;background:var(--line);margin-top:1px;}
-.sob-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-.sob-metric{font-size:clamp(11px,3vw,12.5px);font-weight:500;letter-spacing:.01em;color:color-mix(in srgb,var(--hue) 62%,#c3ccd0);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;font-variant-numeric:tabular-nums;}
-.sob-arrow{flex:none;color:var(--faint);font-size:14px;line-height:1;opacity:.5;transform:translateX(-2px);transition:transform .25s ease,opacity .25s ease,color .25s ease;}
+.sob-foot{display:flex;align-items:center;justify-content:flex-end;}
+.sob-arrow{flex:none;color:var(--faint);font-size:15px;line-height:1;opacity:.45;transform:translateX(-2px);transition:transform .25s ease,opacity .25s ease,color .25s ease;}
 .sob-card:hover .sob-arrow{opacity:1;transform:translateX(0);color:color-mix(in srgb,var(--hue) 75%,var(--faint));}
 
 .sob-card.c-invest{--hue:var(--gold);} .sob-card.c-fin{--hue:var(--emerald);} .sob-card.c-barroots{--hue:var(--violet);} .sob-card.c-config{--hue:var(--dmg);}
