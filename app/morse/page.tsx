@@ -20,6 +20,11 @@ const MORSE: Record<string, string> = {
 };
 const DECODE = new Map(Object.entries(MORSE).map(([k, v]) => [v, k]));
 
+// Ordem de aprendizado do treino (inspirada no método Koch: começa com códigos
+// curtos/contrastantes e vai somando). A cada 5 acertos seguidos, +1 letra.
+const ORDEM_TREINO = ["E", "T", "A", "N", "I", "M", "S", "O", "R", "U", "D", "K", "G", "W", "H", "V", "F", "L", "P", "J", "B", "X", "C", "Y", "Z", "Q"];
+const NIVEL_KEY = "morse_treino_nivel";
+
 // ── Geometria da árvore (só letras, como no cartão físico) ───────────────────
 // Convenção do gadget: TRAÇO ramifica pra ESQUERDA, PONTO pra DIREITA (T à
 // esquerda, E à direita). O deslocamento halva a cada nível.
@@ -157,6 +162,11 @@ export default function MorsePage() {
   const spaceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bufferRef = useRef("");
 
+  // Treino — refs preenchidas mais abaixo (o commitLetter desvia pra cá quando
+  // o modo "bater" está ativo).
+  const treinoRef = useRef<"ouvir" | "bater" | null>(null);
+  const responderRef = useRef<((letra: string) => void) | null>(null);
+
   const clearTimers = () => {
     if (letterTimer.current) { clearTimeout(letterTimer.current); letterTimer.current = null; }
     if (spaceTimer.current) { clearTimeout(spaceTimer.current); spaceTimer.current = null; }
@@ -164,8 +174,13 @@ export default function MorsePage() {
   const commitLetter = useCallback(() => {
     const code = bufferRef.current;
     if (!code) return;
-    setDecoded((t) => t + (DECODE.get(code) ?? "?"));
     bufferRef.current = ""; setBuffer("");
+    // Modo treino "bater": a letra batida vira RESPOSTA, não texto.
+    if (treinoRef.current === "bater") {
+      responderRef.current?.(DECODE.get(code) ?? "?");
+      return;
+    }
+    setDecoded((t) => t + (DECODE.get(code) ?? "?"));
     spaceTimer.current = setTimeout(() => setDecoded((t) => (t && !t.endsWith(" ") ? t + " " : t)), 1000);
   }, []);
 
@@ -222,8 +237,87 @@ export default function MorsePage() {
     setTocando(false);
   }, [texto, tocando, beep]);
 
-  // Código aceso no cartão: telégrafo tem prioridade; depois o playback.
-  const activeCode = buffer || (play && /^[A-Z]$/.test(play.letter) ? (MORSE[play.letter] ?? "").slice(0, play.upTo) : "");
+  // ── Treino (aprender Morse) ────────────────────────────────────────────────
+  const [treino, setTreino] = useState<"ouvir" | "bater" | null>(null);
+  const [nivel, setNivel] = useState(4);          // quantas letras desbloqueadas
+  const [alvo, setAlvo] = useState<string | null>(null);
+  const [seq, setSeq] = useState(0);
+  const [acertos, setAcertos] = useState(0);
+  const [rodadas, setRodadas] = useState(0);
+  const [fb, setFb] = useState<{ ok: boolean; letra: string; nova?: string } | null>(null);
+  const alvoRef = useRef<string | null>(null);
+  const fbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { treinoRef.current = treino; }, [treino]);
+  useEffect(() => { alvoRef.current = alvo; }, [alvo]);
+  useEffect(() => {
+    try { const v = Number(localStorage.getItem(NIVEL_KEY)); if (v >= 4 && v <= 26) setNivel(v); } catch { /* sem storage */ }
+  }, []);
+  useEffect(() => () => { if (fbTimer.current) clearTimeout(fbTimer.current); }, []);
+
+  const playCode = useCallback(async (code: string) => {
+    const U = 80;
+    for (const s of code) {
+      const d = s === "·" ? U : U * 3;
+      beep(d);
+      await new Promise((r) => setTimeout(r, d + U));
+    }
+  }, [beep]);
+
+  const proximaRodada = useCallback((modo: "ouvir" | "bater", nivelAtual: number) => {
+    setFb(null);
+    const set = ORDEM_TREINO.slice(0, nivelAtual);
+    let l: string;
+    do {
+      // 35% de chance de puxar uma das 2 letras mais novas (fixa o recém-aprendido).
+      l = Math.random() < 0.35 && set.length > 2
+        ? set[set.length - 1 - Math.floor(Math.random() * 2)]
+        : set[Math.floor(Math.random() * set.length)];
+    } while (l === alvoRef.current && set.length > 1);
+    setAlvo(l);
+    if (modo === "ouvir") setTimeout(() => { void playCode(MORSE[l]); }, 300);
+  }, [playCode]);
+
+  const responder = useCallback((letra: string) => {
+    const alvoL = alvoRef.current;
+    if (!alvoL || fb) return;
+    const ok = letra === alvoL;
+    setRodadas((r) => r + 1);
+    let nivelNovo = nivel;
+    if (ok) {
+      setAcertos((a) => a + 1);
+      const ns = seq + 1;
+      setSeq(ns);
+      if (ns % 5 === 0 && nivel < 26) {
+        nivelNovo = nivel + 1;
+        setNivel(nivelNovo);
+        try { localStorage.setItem(NIVEL_KEY, String(nivelNovo)); } catch { /* sem storage */ }
+      }
+    } else setSeq(0);
+    setFb({ ok, letra: alvoL, nova: nivelNovo > nivel ? ORDEM_TREINO[nivelNovo - 1] : undefined });
+    if (!ok) void playCode(MORSE[alvoL]);   // reforço: ouve o certo junto do caminho aceso
+    if (fbTimer.current) clearTimeout(fbTimer.current);
+    fbTimer.current = setTimeout(() => {
+      const m = treinoRef.current;
+      if (m) proximaRodada(m, nivelNovo);
+    }, ok ? 1000 : 2200);
+  }, [fb, nivel, seq, playCode, proximaRodada]);
+  useEffect(() => { responderRef.current = responder; }, [responder]);
+
+  const iniciarTreino = (modo: "ouvir" | "bater") => {
+    setTreino(modo); setSeq(0); setFb(null);
+    bufferRef.current = ""; setBuffer("");
+    proximaRodada(modo, nivel);
+  };
+  const pararTreino = () => {
+    setTreino(null); setAlvo(null); setFb(null);
+    if (fbTimer.current) clearTimeout(fbTimer.current);
+  };
+  const desbloqueadas = ORDEM_TREINO.slice(0, nivel);
+
+  // Código aceso no cartão: telégrafo → feedback do treino → playback do tradutor.
+  // (Durante a pergunta do "ouvir" o cartão fica APAGADO — senão entrega a resposta.)
+  const fbCode = fb ? (MORSE[fb.letra] ?? "") : "";
+  const activeCode = buffer || fbCode || (play && /^[A-Z]$/.test(play.letter) ? (MORSE[play.letter] ?? "").slice(0, play.upTo) : "");
 
   return (
     <>
@@ -238,6 +332,58 @@ export default function MorsePage() {
         </div>
 
         <div className="mor-right">
+          {/* Treino — aprender de verdade (progressão estilo Koch) */}
+          <section className="mor-panel">
+            <h3 className="mor-h">Treino</h3>
+            {!treino ? (
+              <>
+                <p className="mor-sub">
+                  Aprenda progressivamente: começa com {Math.min(4, nivel)} letras e a cada <b>5 acertos seguidos</b> desbloqueia
+                  mais uma. Nível atual: <b>{nivel}</b>/26 letras.
+                </p>
+                <div className="mor-treino-botoes">
+                  <button className="mor-play" onClick={() => iniciarTreino("ouvir")}>🎧 Ouvir e adivinhar</button>
+                  <button className="mor-play alt" onClick={() => iniciarTreino("bater")}>⚡ Ler e bater</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mor-treino-status">
+                  <span>Nível <b>{nivel}</b>/26</span>
+                  <span>Sequência <b>{seq}</b></span>
+                  <span>Acertos <b>{acertos}</b>/{rodadas}</span>
+                  <button className="mor-clear" onClick={pararTreino}>Parar</button>
+                </div>
+
+                {treino === "ouvir" ? (
+                  <>
+                    <p className="mor-sub">Ouça e responda — qual letra é essa?</p>
+                    <div className="mor-treino-acao">
+                      <button className="mor-play" onClick={() => { if (alvo && !fb) void playCode(MORSE[alvo]); }}>🔁 Ouvir de novo</button>
+                    </div>
+                    <div className="mor-keypad">
+                      {[...desbloqueadas].sort().map((l) => (
+                        <button key={l} className="mor-kp" disabled={!!fb} onClick={() => responder(l)}>{l}</button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mor-sub">Bata esta letra no telégrafo abaixo (curto = ponto · segurado = traço):</p>
+                    <div className="mor-alvo">{alvo}</div>
+                  </>
+                )}
+
+                {fb && (
+                  <div className={`mor-fb ${fb.ok ? "ok" : "erro"}`}>
+                    {fb.ok ? "✓ Acertou!" : <>✗ Era <b>{fb.letra}</b> ({MORSE[fb.letra]}) — olhe o caminho no cartão</>}
+                    {fb.nova && <span className="mor-nova">🔓 Nova letra: <b>{fb.nova}</b> ({MORSE[fb.nova]})</span>}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
           {/* Telégrafo */}
           <section className="mor-panel">
             <h3 className="mor-h">Telégrafo</h3>
@@ -330,4 +476,24 @@ const CSS = `
 .mor-play:disabled{opacity:0.4;cursor:default;box-shadow:none;}
 .mor-playing{margin-left:10px;font-size:11px;color:var(--muted,#8b969b);}
 .mor-playing b{color:#67e8f9;}
+
+/* Treino */
+.mor-treino-botoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
+.mor-play.alt{color:#eafff5;background:linear-gradient(180deg,#3ddc84,#22a05e);box-shadow:0 8px 20px -8px rgba(61,220,132,0.55);}
+.mor-treino-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted,#8b969b);margin-bottom:8px;}
+.mor-treino-status b{color:#dff2f6;}
+.mor-treino-status .mor-clear{margin-left:auto;padding:5px 11px;}
+.mor-treino-acao{margin-bottom:10px;}
+.mor-keypad{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;}
+.mor-kp{font:inherit;font-size:14px;font-weight:700;color:#dfeef2;background:#0a0d10;border:1px solid rgba(255,255,255,0.12);
+  border-radius:9px;padding:9px 0;cursor:pointer;transition:border-color .15s,color .15s;-webkit-tap-highlight-color:transparent;}
+.mor-kp:hover{border-color:rgba(103,232,249,0.5);color:#bff5ff;}
+.mor-kp:disabled{opacity:0.45;cursor:default;}
+.mor-alvo{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif;font-size:64px;line-height:1;
+  color:#f3f6f7;text-align:center;padding:8px 0 4px;text-shadow:0 0 24px rgba(103,232,249,0.35);}
+.mor-fb{margin-top:10px;font-size:12.5px;border-radius:10px;padding:9px 12px;display:flex;flex-direction:column;gap:3px;}
+.mor-fb.ok{color:#8ff0bf;background:rgba(61,220,132,0.08);border:1px solid rgba(61,220,132,0.3);}
+.mor-fb.erro{color:#ffb3b3;background:rgba(255,107,107,0.07);border:1px solid rgba(255,107,107,0.3);}
+.mor-fb b{color:inherit;}
+.mor-nova{font-size:11.5px;color:#ffe08a;}
 `;
