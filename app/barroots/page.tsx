@@ -11,7 +11,7 @@ import { SPACES } from "@/components/terminal/nav";
 
 const HUE: Record<string, string> = {
   "/moedas": "#d6a878", "/nasa": "#a99be6", "/expressoes": "#e08bc0",
-  "/anotacoes": "#b9c88a", "/gameboy": "#8fce7a",
+  "/morse": "#7fc9d8", "/anotacoes": "#b9c88a", "/gameboy": "#8fce7a",
 };
 
 export default function BarrootsHome() {

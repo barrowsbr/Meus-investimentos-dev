@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays, Boxes, LayoutGrid, Smile,
+  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays, Boxes, LayoutGrid, Smile, Radio,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -78,6 +78,7 @@ export const SPACES: Space[] = [
       { href: "/moedas", label: "Moedas", icon: Medal, sub: "Coleção numismática — fotos, valores e mapa", mobileShow: true },
       { href: "/nasa", label: "NASA", icon: Rocket, sub: "Observatório — APOD, asteroides, Terra (EPIC) e Marte", mobileShow: true },
       { href: "/expressoes", label: "Expressões", icon: Smile, sub: "Reconhecimento facial ao vivo — 100% no aparelho" },
+      { href: "/morse", label: "Morse", icon: Radio, sub: "O cartão do código Morse, vivo — árvore, telégrafo e tradutor" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
       { href: "/gameboy", label: "Game Boy", icon: Gamepad2, sub: "Fliperama — emuladores embutidos" },
     ],
