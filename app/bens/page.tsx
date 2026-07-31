@@ -99,7 +99,7 @@ function AjusteInline({ v, onAjuste }: { v: VeiculoFipe; onAjuste: (id: string, 
 }
 
 // ── Popup de detalhes ────────────────────────────────────────────────────────
-function DetalheModal({ v, onClose }: { v: VeiculoFipe; onClose: () => void }) {
+function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () => void; onAjuste: (id: string, pct: number) => Promise<string | null> }) {
   const bem = bemPorId(v.id);
   const [hist, setHist] = useState<PontoHist[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
@@ -149,6 +149,9 @@ function DetalheModal({ v, onClose }: { v: VeiculoFipe; onClose: () => void }) {
             </div>
             {v.codigoFipe && <span className="bns-fipe-cod">FIPE {v.codigoFipe}</span>}
           </div>
+
+          {/* Ajuste % sobre a tabela — persistido na planilha (app_config, escopo bens) */}
+          <AjusteInline v={v} onAjuste={onAjuste} />
 
           {histLoading && <p className="bns-md-hint">carregando histórico…</p>}
           {hist && hist.length >= 2 && <Sparkline pontos={hist} />}
@@ -255,7 +258,6 @@ export default function BensPage() {
                   </div>
                   <span className="bns-mais">detalhes →</span>
                 </div>
-                <AjusteInline v={v} onAjuste={salvarAjuste} />
               </div>
             </article>
           ))}
@@ -280,7 +282,7 @@ export default function BensPage() {
         </div>
       </section>
 
-      {detalhe && <DetalheModal v={detalhe} onClose={fechar} />}
+      {detalhe && <DetalheModal v={detalhe} onClose={fechar} onAjuste={salvarAjuste} />}
 
       <style>{CSS}</style>
     </>
