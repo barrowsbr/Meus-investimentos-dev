@@ -5,6 +5,7 @@
 // (v1). Cache de dados do Next (12h) segura a carga na API do parallelum.
 
 import { VEICULOS, FRACAO_BENS } from "./bens";
+import { lerEscopo } from "./app-config";
 
 const BASE = "https://parallelum.com.br/fipe/api/v1/carros";
 const BASE_V2 = "https://parallelum.com.br/fipe/api/v2";
@@ -34,18 +35,35 @@ function parseValor(v: string | undefined): number | null {
 export interface BemFipe {
   id: string; nome: string; detalhe: string; ok: boolean;
   valor?: string; valorNum?: number; fipeModelo?: string; codigoFipe?: string; mesReferencia?: string; erro?: string;
+  // Ajuste do dono sobre a tabela (app_config, escopo "bens", chave ajuste_<id>):
+  // +5 = vale 5% acima da FIPE; -8 = 8% abaixo. valorFinalNum = FIPE × (1+pct/100).
+  ajustePct?: number;
+  valorFinalNum?: number;
 }
 export interface BensFipe {
   veiculos: BemFipe[];
-  total: number;          // tabela cheia (100%)
+  total: number;          // tabela cheia (100%), JÁ com os ajustes aplicados
   minhaParte: number;     // total × FRACAO_BENS — o que entra no patrimônio
   fracao: number;
   mesReferencia: string | null;
   ok: boolean;
 }
 
+/** Ajustes persistidos na planilha (escopo "bens": ajuste_<id> → pct). */
+async function lerAjustes(): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  try {
+    for (const [chave, valor] of await lerEscopo("bens")) {
+      if (!chave.startsWith("ajuste_")) continue;
+      const pct = Number(String(valor).replace(",", "."));
+      if (Number.isFinite(pct)) map.set(chave.slice("ajuste_".length), pct);
+    }
+  } catch { /* sem planilha → sem ajustes */ }
+  return map;
+}
+
 export async function computeBensFipe(): Promise<BensFipe> {
-  const marcas = await j<Item[]>(`${BASE}/marcas`);
+  const [marcas, ajustes] = await Promise.all([j<Item[]>(`${BASE}/marcas`), lerAjustes()]);
   const out: BemFipe[] = [];
 
   for (const v of VEICULOS) {
@@ -111,7 +129,14 @@ export async function computeBensFipe(): Promise<BensFipe> {
     });
   }
 
-  const total = out.reduce((s, o) => s + (o.valorNum ?? 0), 0);
+  // Aplica o ajuste do dono sobre a tabela; totais usam o valor FINAL.
+  for (const o of out) {
+    const pct = ajustes.get(o.id) ?? 0;
+    o.ajustePct = pct;
+    if (o.valorNum != null) o.valorFinalNum = Math.round(o.valorNum * (1 + pct / 100) * 100) / 100;
+  }
+
+  const total = out.reduce((s, o) => s + (o.valorFinalNum ?? o.valorNum ?? 0), 0);
   return {
     veiculos: out,
     total,
