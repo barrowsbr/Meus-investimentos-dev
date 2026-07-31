@@ -621,6 +621,7 @@ function IbkrStripPlaceholder({ loaded }: { loaded: boolean }) {
 
 const BR_GREEN = "#009C3B";
 const BTC_ORANGE = "#F7931A";
+const BENS_BRONZE = "#d6a878";   // Bens físicos (carros × FIPE — minha parte ÷2)
 
 const signedBRLc = (v: number | null | undefined) => (v != null && v >= 0 ? "+" : "") + compactBRL(v ?? 0);
 
@@ -773,7 +774,7 @@ interface PatrimonioParte {
 // mesma fórmula canônica das parcelas.
 interface AuditData {
   usdbrl: number;
-  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; divida_fora_ibkr_brl?: number; total_brl: number };
+  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; divida_fora_ibkr_brl?: number; bens_brl?: number; total_brl: number };
   ibkr: { ok: boolean; patrimonioTotalUSD?: number; posicoes_brl?: number; caixa_brl?: number; erro?: string };
 }
 
@@ -918,6 +919,8 @@ export default function HomePage() {
   const [ibkrLoaded, setIbkrLoaded] = useState(false); // /api/home resolveu (com ou sem book)
   const [retornoOpen, setRetornoOpen] = useState(false); // popup "Retorno do dia · por book"
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
+  // Bens (carros × FIPE, minha parte ÷2) — vem do /api/home; soma no patrimônio.
+  const [bensBRL, setBensBRL] = useState(0);
   const [mascoteOn, setMascoteOn] = useState(false); // easter-egg: mascote andando (clique na logo)
 
   // Modo privacidade — FECHADO (valores ocultos) por padrão; o padrão é
@@ -969,6 +972,7 @@ export default function HomePage() {
       if (pd?.ibkr_ok === true && typeof pd?.patrimonio_dia_brl === "number" && pd.patrimonio_dia_brl > 0) {
         setPatrimonioDia(pd.patrimonio_dia_brl);
       }
+      if (typeof pd?.breakdown?.bens_brl === "number") setBensBRL(pd.breakdown.bens_brl);
       setDetalhe(d.detalhe && d.detalhe.partes ? (d.detalhe as AuditData) : "erro");
     })();
     return () => { cancelled = true; };
@@ -999,7 +1003,7 @@ export default function HomePage() {
   const dividaForaIbkrBRL = data?.alavancagem?.dividaForaIbkrBRL ?? 0;
   // Só usa o cálculo client quando IBKR E snapshot já chegaram (evita "piscar"
   // um valor só-IBKR antes do BR/Cripto entrarem).
-  const patrimonioDiaClient = ibkrTotalBRL != null && data ? ibkrTotalBRL + brBRL + criptoBRL - dividaForaIbkrBRL : null;
+  const patrimonioDiaClient = ibkrTotalBRL != null && data ? ibkrTotalBRL + brBRL + criptoBRL + bensBRL - dividaForaIbkrBRL : null;
   const totalBRL = patrimonioDiaClient ?? patrimonioDia ?? totalBRLCanon;
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
@@ -1097,11 +1101,13 @@ export default function HomePage() {
     if (detalheData) {
       const ibkr = detalheData.ibkr.ok ? detalheData.partes.ibkr_brl : ibkrTotalBRL;
       const dividaFora = detalheData.partes.divida_fora_ibkr_brl ?? 0;
+      const bens = detalheData.partes.bens_brl ?? bensBRL;
       return [
         { label: "IBKR", color: IBKR_RED, brl: ibkr },
         { label: "Brasil", color: BR_GREEN, brl: detalheData.partes.brasil_brl },
         { label: "Cripto", color: BTC_ORANGE, brl: detalheData.partes.cripto_brl },
         { label: "RF + Caixa", color: "var(--accent)", brl: detalheData.partes.rf_caixa_brl },
+        ...(bens > 0 ? [{ label: "Bens (½)", color: BENS_BRONZE, brl: bens }] : []),
         ...(dividaFora > 0 ? [{ label: "Margem (fora IBKR)", color: "var(--neg)", brl: -dividaFora }] : []),
       ];
     }
@@ -1113,9 +1119,10 @@ export default function HomePage() {
       { label: "Brasil", color: BR_GREEN, brl: acoesBR },
       { label: "Cripto", color: BTC_ORANGE, brl: criptoBRL },
       { label: "RF + Caixa", color: "var(--accent)", brl: rfCaixa },
+      ...(bensBRL > 0 ? [{ label: "Bens (½)", color: BENS_BRONZE, brl: bensBRL }] : []),
       ...(dividaForaIbkrBRL > 0 ? [{ label: "Margem (fora IBKR)", color: "var(--neg)", brl: -dividaForaIbkrBRL }] : []),
     ];
-  }, [detalheData, data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL, dividaForaIbkrBRL]);
+  }, [detalheData, data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL, dividaForaIbkrBRL, bensBRL]);
 
   // Total exibido = soma dos marcadores quando o detalhe está disponível
   // (Σ dos blocos bate com o número grande, centavo a centavo).

@@ -16,7 +16,7 @@ interface VeiculoFipe {
   id: string; nome: string; detalhe: string; ok: boolean;
   valor?: string; valorNum?: number; fipeModelo?: string; codigoFipe?: string; mesReferencia?: string; erro?: string;
 }
-interface FipeResp { veiculos: VeiculoFipe[]; total: number; mesReferencia: string | null; ok: boolean }
+interface FipeResp { veiculos: VeiculoFipe[]; total: number; minhaParte?: number; fracao?: number; mesReferencia: string | null; ok: boolean }
 interface PontoHist { mes: string; valor: string; valorNum: number }
 
 const fmtBRL = (v: number) =>
@@ -147,11 +147,14 @@ export default function BensPage() {
         description="Patrimônio físico — carros, imóveis e itens de alto valor, com valor de tabela ao dia."
       />
 
-      {/* Total */}
+      {/* Total — a visão é a MINHA parte (divisão de bens ÷2); a tabela cheia
+          fica como referência. É a metade que soma no patrimônio da Home. */}
       <div className="bns-hero">
-        <span className="bns-hero-lbl">Total em bens</span>
-        <span className="bns-hero-val">{carregando ? "…" : total > 0 ? fmtBRL(total) : "—"}</span>
-        {dados?.mesReferencia && <span className="bns-hero-ref">Tabela FIPE · {dados.mesReferencia}</span>}
+        <span className="bns-hero-lbl">Minha parte nos bens (÷2)</span>
+        <span className="bns-hero-val">{carregando ? "…" : (dados?.minhaParte ?? 0) > 0 ? fmtBRL(dados!.minhaParte!) : "—"}</span>
+        <span className="bns-hero-ref">
+          {total > 0 ? <>Tabela cheia: {fmtBRL(total)}{dados?.mesReferencia ? <> · FIPE {dados.mesReferencia.trim()}</> : null} · entra no patrimônio da Home</> : "consultando FIPE…"}
+        </span>
       </div>
 
       {/* Carros */}

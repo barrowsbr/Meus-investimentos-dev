@@ -21,6 +21,7 @@ import { buildIbkrOverview, type IbkrOverview } from "./ibkr-overview";
 import { isRendaFixa, getMoedaExposicao } from "./sectors";
 import { toNumber } from "./format";
 import { MARGIN_TAB, parseMarginRows } from "./margin";
+import { computeBensFipe } from "./bens-fipe";
 
 type Row = Record<string, unknown>;
 
@@ -39,12 +40,12 @@ export interface PatrimonioDiaPayload {
   patrimonio_dia_usd: number | null;
   usdbrl: number;
   ibkr_ok: boolean;
-  breakdown: { ibkr_brl: number; ibkr_usd: number; br_brl: number; cripto_brl: number; divida_fora_ibkr_brl: number };
+  breakdown: { ibkr_brl: number; ibkr_usd: number; br_brl: number; cripto_brl: number; divida_fora_ibkr_brl: number; bens_brl: number };
 }
 
 export interface DetalhePayload {
   usdbrl: number;
-  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; divida_fora_ibkr_brl: number; total_brl: number };
+  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; divida_fora_ibkr_brl: number; bens_brl: number; total_brl: number };
   conferencia: { expo_brl_snapshot: number; expo_brl_recalculada: number; expo_cripto_snapshot: number };
   ibkr: Row;
   brasil_itens: Row[];
@@ -93,7 +94,10 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
         (ov) => ({ ov, erro: null as string | null }),
         (e) => ({ ov: null as IbkrOverview | null, erro: e instanceof Error ? e.message : String(e) }),
       );
-  const [cotacoes, ibkrResult] = await Promise.all([fetchCotacoes(tickers), ibkrPromise]);
+  // Bens (carros × FIPE): a "minha parte" (÷2 — divisão de bens) entra no
+  // patrimônio total. Best-effort: FIPE fora do ar → 0 (nunca derruba a Home).
+  const bensPromise = computeBensFipe().then((b) => (b.ok ? b.minhaParte : 0), () => 0);
+  const [cotacoes, ibkrResult, bensBRL] = await Promise.all([fetchCotacoes(tickers), ibkrPromise, bensPromise]);
 
   const fxAtual = cotacoes.fx;
   const usdbrl = fxAtual.USDBRL;
@@ -205,18 +209,19 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
     .reduce((s, e) => s + e.valor * fxToBRL(e.moeda, fxAtual), 0);
 
   // "Valor disponível total (net)" = IBKR (NLV) + BRL (expo) + Cripto (expo)
-  // − margem fora da IBKR. É o número do card da Home e do histórico.
-  const patrimonioDiaBRL = ibkrBRL + brBRL + criptoExpoBRL - dividaForaIbkrBRL;
+  // + Bens (minha parte ÷2, FIPE) − margem fora da IBKR. É o número do card da
+  // Home e do histórico patrimonial.
+  const patrimonioDiaBRL = ibkrBRL + brBRL + criptoExpoBRL + bensBRL - dividaForaIbkrBRL;
 
   const patrimonioDia: PatrimonioDiaPayload = {
     patrimonio_dia_brl: patrimonioDiaBRL,
     patrimonio_dia_usd: usdbrl > 0 ? patrimonioDiaBRL / usdbrl : null,
     usdbrl,
     ibkr_ok: ibkrUSD > 0,
-    breakdown: { ibkr_brl: ibkrBRL, ibkr_usd: ibkrUSD, br_brl: brBRL, cripto_brl: criptoExpoBRL, divida_fora_ibkr_brl: Math.round(dividaForaIbkrBRL * 100) / 100 },
+    breakdown: { ibkr_brl: ibkrBRL, ibkr_usd: ibkrUSD, br_brl: brBRL, cripto_brl: criptoExpoBRL, divida_fora_ibkr_brl: Math.round(dividaForaIbkrBRL * 100) / 100, bens_brl: bensBRL },
   };
 
-  const totalDetalhe = ibkrBRL + brasilBRL + criptoBRL + rfCaixaBRL - dividaForaIbkrBRL;
+  const totalDetalhe = ibkrBRL + brasilBRL + criptoBRL + rfCaixaBRL + bensBRL - dividaForaIbkrBRL;
   const detalhe: DetalhePayload = {
     usdbrl,
     partes: {
@@ -225,6 +230,7 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
       cripto_brl: Math.round(criptoBRL * 100) / 100,
       rf_caixa_brl: Math.round(rfCaixaBRL * 100) / 100,
       divida_fora_ibkr_brl: Math.round(dividaForaIbkrBRL * 100) / 100,
+      bens_brl: bensBRL,
       total_brl: Math.round(totalDetalhe * 100) / 100,
     },
     conferencia: {
