@@ -55,23 +55,54 @@ function Sparkline({ pontos }: { pontos: PontoHist[] }) {
   );
 }
 
+// ── Ajuste % sobre a FIPE — mora DENTRO do card (persistido na planilha) ─────
+function AjusteInline({ v, onAjuste }: { v: VeiculoFipe; onAjuste: (id: string, pct: number) => Promise<string | null> }) {
+  const [pct, setPct] = useState<number>(v.ajustePct ?? 0);
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { setPct(v.ajustePct ?? 0); }, [v.ajustePct, v.id]);
+
+  const salvar = async () => {
+    setSalvando(true); setMsg(null);
+    const erro = await onAjuste(v.id, Number.isFinite(pct) ? pct : 0);
+    setSalvando(false);
+    setMsg(erro ? `✗ ${erro}` : "✓ salvo na planilha");
+    setTimeout(() => setMsg(null), 4000);
+  };
+
+  return (
+    // stopPropagation: mexer no ajuste NÃO abre o popup do card
+    <div className="bns-aj" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <div className="bns-aj-row">
+        <span className="bns-aj-lbl">Ajuste FIPE</span>
+        <button className="bns-aj-btn" disabled={!v.ok} onClick={() => setPct((p) => Math.max(-90, Math.round((p - 1) * 100) / 100))} aria-label="Diminuir 1%">−</button>
+        <div className="bns-aj-input">
+          <input
+            type="number" inputMode="decimal" step="0.5" min={-90} max={100} disabled={!v.ok}
+            value={Number.isFinite(pct) ? pct : 0}
+            onChange={(e) => setPct(Number(e.target.value))}
+          />
+          <span>%</span>
+        </div>
+        <button className="bns-aj-btn" disabled={!v.ok} onClick={() => setPct((p) => Math.min(100, Math.round((p + 1) * 100) / 100))} aria-label="Aumentar 1%">+</button>
+        <button className="bns-aj-save" onClick={() => void salvar()} disabled={salvando || !v.ok || pct === (v.ajustePct ?? 0)}>
+          {salvando ? "…" : "Salvar"}
+        </button>
+      </div>
+      {msg
+        ? <span className={`bns-aj-msg${msg.startsWith("✓") ? " ok" : ""}`}>{msg}</span>
+        : v.ok && v.valorNum && Number.isFinite(pct) && pct !== (v.ajustePct ?? 0)
+          ? <span className="bns-aj-hint">vira <b>{fmtBRL(Math.round(v.valorNum * (1 + pct / 100)))}</b> ao salvar</span>
+          : null}
+    </div>
+  );
+}
+
 // ── Popup de detalhes ────────────────────────────────────────────────────────
-function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () => void; onAjuste: (id: string, pct: number) => Promise<string | null> }) {
+function DetalheModal({ v, onClose }: { v: VeiculoFipe; onClose: () => void }) {
   const bem = bemPorId(v.id);
   const [hist, setHist] = useState<PontoHist[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
-  // Ajuste sobre a tabela (persistido na planilha via /api/bens/ajuste)
-  const [pct, setPct] = useState<number>(v.ajustePct ?? 0);
-  const [salvando, setSalvando] = useState(false);
-  const [ajusteMsg, setAjusteMsg] = useState<string | null>(null);
-  useEffect(() => { setPct(v.ajustePct ?? 0); }, [v.ajustePct, v.id]);
-
-  const salvarAjuste = async () => {
-    setSalvando(true); setAjusteMsg(null);
-    const erro = await onAjuste(v.id, pct);
-    setSalvando(false);
-    setAjusteMsg(erro ? `✗ ${erro}` : "✓ salvo na planilha");
-  };
 
   useEffect(() => {
     const codigo = v.codigoFipe;
@@ -117,31 +148,6 @@ function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () =>
               </span>
             </div>
             {v.codigoFipe && <span className="bns-fipe-cod">FIPE {v.codigoFipe}</span>}
-          </div>
-
-          {/* Ajuste do dono sobre a tabela — persistido na planilha (app_config) */}
-          <div className="bns-aj">
-            <span className="bns-aj-lbl">Ajuste sobre a tabela</span>
-            <div className="bns-aj-row">
-              <button className="bns-aj-btn" onClick={() => setPct((p) => Math.max(-90, Math.round((p - 1) * 100) / 100))} aria-label="Diminuir 1%">−</button>
-              <div className="bns-aj-input">
-                <input
-                  type="number" inputMode="decimal" step="0.5" min={-90} max={100}
-                  value={Number.isFinite(pct) ? pct : 0}
-                  onChange={(e) => setPct(Number(e.target.value))}
-                />
-                <span>%</span>
-              </div>
-              <button className="bns-aj-btn" onClick={() => setPct((p) => Math.min(100, Math.round((p + 1) * 100) / 100))} aria-label="Aumentar 1%">+</button>
-              <button className="bns-aj-save" onClick={() => void salvarAjuste()} disabled={salvando || pct === (v.ajustePct ?? 0)}>
-                {salvando ? "salvando…" : "Salvar"}
-              </button>
-            </div>
-            <span className="bns-aj-hint">
-              {v.valorNum ? <>vira <b>{fmtBRL(Math.round(v.valorNum * (1 + (Number.isFinite(pct) ? pct : 0) / 100)))}</b> · </> : null}
-              +5 = acima da FIPE · −8 = abaixo · reflete no patrimônio
-            </span>
-            {ajusteMsg && <span className={`bns-aj-msg${ajusteMsg.startsWith("✓") ? " ok" : ""}`}>{ajusteMsg}</span>}
           </div>
 
           {histLoading && <p className="bns-md-hint">carregando histórico…</p>}
@@ -249,6 +255,7 @@ export default function BensPage() {
                   </div>
                   <span className="bns-mais">detalhes →</span>
                 </div>
+                <AjusteInline v={v} onAjuste={salvarAjuste} />
               </div>
             </article>
           ))}
@@ -273,7 +280,7 @@ export default function BensPage() {
         </div>
       </section>
 
-      {detalhe && <DetalheModal v={detalhe} onClose={fechar} onAjuste={salvarAjuste} />}
+      {detalhe && <DetalheModal v={detalhe} onClose={fechar} />}
 
       <style>{CSS}</style>
     </>
@@ -353,24 +360,27 @@ const CSS = `
 .bns-spec dt{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#8b969b);}
 .bns-spec dd{margin:0;font-size:12.5px;font-weight:600;color:#e6edef;}
 
-/* Ajuste sobre a tabela */
-.bns-aj{margin-top:4px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:7px;}
-.bns-aj-lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--muted,#8b969b);}
-.bns-aj-row{display:flex;align-items:center;gap:8px;}
-.bns-aj-btn{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:9px;font-size:16px;line-height:1;cursor:pointer;
+/* Ajuste % sobre a FIPE — compacto, DENTRO do card (clicar aqui não abre o popup) */
+.bns-aj{margin-top:8px;padding:8px 10px;border-radius:11px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);
+  display:flex;flex-direction:column;gap:5px;cursor:default;}
+.bns-aj-lbl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:var(--muted,#8b969b);margin-right:auto;}
+.bns-aj-row{display:flex;align-items:center;gap:6px;}
+.bns-aj-btn{width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:8px;font-size:15px;line-height:1;cursor:pointer;
   color:#e6edef;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);}
 .bns-aj-btn:active{background:rgba(255,255,255,0.12);}
-.bns-aj-input{display:flex;align-items:center;gap:3px;flex:1;max-width:110px;padding:0 10px;border-radius:9px;background:#0a0d10;border:1px solid rgba(255,255,255,0.12);}
-.bns-aj-input input{width:100%;font:inherit;font-size:14px;font-weight:700;color:#e9f2f4;background:transparent;border:none;outline:none;
-  padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield;}
+.bns-aj-btn:disabled{opacity:.35;cursor:default;}
+.bns-aj-input{display:flex;align-items:center;gap:2px;width:74px;flex:none;padding:0 8px;border-radius:8px;background:#0a0d10;border:1px solid rgba(255,255,255,0.12);}
+.bns-aj-input input{width:100%;font:inherit;font-size:13px;font-weight:700;color:#e9f2f4;background:transparent;border:none;outline:none;
+  padding:6px 0;text-align:right;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield;}
 .bns-aj-input input::-webkit-outer-spin-button,.bns-aj-input input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-.bns-aj-input span{font-size:12px;color:var(--muted,#8b969b);}
-.bns-aj-save{margin-left:auto;font:inherit;font-size:11.5px;font-weight:700;color:#04121a;cursor:pointer;
-  background:linear-gradient(180deg,#7fd6a8,#4aa87b);border:none;padding:8px 16px;border-radius:999px;}
+.bns-aj-input input:disabled{opacity:.4;}
+.bns-aj-input span{font-size:11px;color:var(--muted,#8b969b);}
+.bns-aj-save{font:inherit;font-size:11px;font-weight:700;color:#04121a;cursor:pointer;
+  background:linear-gradient(180deg,#7fd6a8,#4aa87b);border:none;padding:7px 13px;border-radius:999px;}
 .bns-aj-save:disabled{opacity:.4;cursor:default;}
 .bns-aj-hint{font-size:10px;color:var(--muted,#8b969b);}
 .bns-aj-hint b{color:#a9e6c8;}
-.bns-aj-msg{font-size:11px;color:#ffb3b3;}
+.bns-aj-msg{font-size:10.5px;color:#ffb3b3;}
 .bns-aj-msg.ok{color:#8ff0bf;}
 
 .bns-hist{margin-top:6px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);}
