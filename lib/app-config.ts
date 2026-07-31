@@ -23,7 +23,7 @@ export const APP_CONFIG_TAB = "app_config";
 const HEADERS = ["escopo", "chave", "valor"];
 const MARCADOR = "__migrado";
 
-export type EscopoConfig = "historico" | "alertas" | "alertas_estado" | "automacoes";
+export type EscopoConfig = "historico" | "alertas" | "alertas_estado" | "automacoes" | "bens";
 
 // Aba legada de cada escopo (fallback de leitura). `valorCol` porque a antiga
 // alertas_estado usava a coluna `data_envio` no lugar de `valor`.
@@ -32,6 +32,9 @@ const LEGADO: Record<EscopoConfig, { tab: string; valorCol: string }> = {
   alertas: { tab: "alertas_config", valorCol: "valor" },
   alertas_estado: { tab: "alertas_estado", valorCol: "data_envio" },
   automacoes: { tab: "automacoes_config", valorCol: "valor" },
+  // "bens" nasceu já na app_config — não existe aba legada (o fallback lê uma
+  // aba inexistente e devolve vazio, que é o comportamento certo).
+  bens: { tab: "bens_config", valorCol: "valor" },
 };
 
 async function fetchTabSeguro(tab: string): Promise<Record<string, unknown>[]> {
