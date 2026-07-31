@@ -20,6 +20,8 @@ export interface BemVeiculo {
   fotoBusca: string[];          // termos de busca, em ordem de preferência
   fotoRequer: string[];         // o TÍTULO do arquivo precisa conter TODOS (sem isso, ignora o resultado)
   fotoBonus: string[];          // pontos extras no ranking (ano, facelift, cor…)
+  // Ficha técnica (specs públicas do modelo) — mostrada no popup de detalhes
+  specs: Array<[string, string]>;
 }
 
 export const VEICULOS: BemVeiculo[] = [
@@ -37,6 +39,16 @@ export const VEICULOS: BemVeiculo[] = [
     fotoBusca: ["Volkswagen T-Cross facelift", "Volkswagen T-Cross 2024", "Volkswagen T-Cross"],
     fotoRequer: ["t-cross"],
     fotoBonus: ["facelift", "2024", "2025", "grey", "gray", "grau", "silver"],
+    specs: [
+      ["Motor", "1.4 TSI turbo flex (250 TSI)"],
+      ["Potência", "150 cv"],
+      ["Torque", "25,5 kgfm (250 Nm)"],
+      ["Câmbio", "Automático de 6 marchas"],
+      ["Tração", "Dianteira"],
+      ["Porta-malas", "373 L"],
+      ["Tanque", "52 L"],
+      ["Lugares", "5"],
+    ],
   },
   {
     id: "onix",
@@ -49,6 +61,16 @@ export const VEICULOS: BemVeiculo[] = [
     fotoBusca: ["Chevrolet Onix Joy", "Chevrolet Onix 2019", "Chevrolet Onix hatch"],
     fotoRequer: ["onix"],
     fotoBonus: ["joy", "white", "branco", "2019", "2020", "hatch"],
+    specs: [
+      ["Motor", "1.0 8V SPE/4 flex"],
+      ["Potência", "80 cv (etanol)"],
+      ["Torque", "9,8 kgfm"],
+      ["Câmbio", "Manual de 5 marchas"],
+      ["Tração", "Dianteira"],
+      ["Porta-malas", "280 L"],
+      ["Tanque", "54 L"],
+      ["Lugares", "5"],
+    ],
   },
 ];
 
