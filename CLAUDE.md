@@ -488,8 +488,11 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - O writer antigo (script Python externo) parou em jun/2026. O writer canônico
   agora é **`lib/historico-store.ts`** (`recordHistorico`), exposto em
   `/api/cron/historico` (Bearer `CRON_SECRET`). **`patrimonio_total` = o MESMO
-  valor do card "Patrimônio total" da Home** (IBKR Flex + BR + Cripto, via
-  `computeHomePatrimonio`), NÃO o total canônico do snapshot. A parte IBKR é
+  valor do card "Patrimônio total" da Home** (IBKR Flex + BR + Cripto + Bens,
+  via `computeHomePatrimonio`), NÃO o total canônico do snapshot. **Bens** =
+  metade do valor FIPE dos carros (`lib/bens-fipe.ts` × `FRACAO_BENS` 0,5 —
+  divisão de bens com a esposa, decisão do dono 31/07; best-effort: FIPE fora
+  do ar soma 0). A parte IBKR é
   **líquida da dívida de margem** (Net Liquidation Value — `buildIbkrOverview`
   abate `marginBalances`; sem isso, entrar em margem inflava Home e histórico).
   Só grava quando o book da IBKR entrou (`ibkr_ok`); senão pula (3×/dia dá redundância).

@@ -75,3 +75,7 @@ export const VEICULOS: BemVeiculo[] = [
 ];
 
 export const bemPorId = (id: string): BemVeiculo | undefined => VEICULOS.find((v) => v.id === id);
+
+// Divisão de bens (decisão do dono, 31/07): tudo é do casal — a visão DESTE app
+// é a do dono, então a parte que entra no PATRIMÔNIO é metade do valor de tabela.
+export const FRACAO_BENS = 0.5;
