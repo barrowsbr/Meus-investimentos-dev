@@ -65,7 +65,7 @@ export default function BensPage() {
                 <div className="bns-foot">
                   <div className="bns-valor-blk">
                     <span className="bns-valor">{carregando ? "…" : v.ok && v.valorNum ? fmtBRL(v.valorNum) : "—"}</span>
-                    <span className="bns-valor-lbl">{v.ok ? "valor FIPE" : carregando ? "consultando FIPE…" : "FIPE indisponível agora"}</span>
+                    <span className="bns-valor-lbl">{v.ok ? "valor FIPE" : carregando ? "consultando FIPE…" : `FIPE indisponível${v.erro ? ` — ${v.erro}` : ""}`}</span>
                   </div>
                   {v.codigoFipe && <span className="bns-fipe-cod">FIPE {v.codigoFipe}</span>}
                 </div>

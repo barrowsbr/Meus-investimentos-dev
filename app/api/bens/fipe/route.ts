@@ -15,6 +15,8 @@ const BASE = "https://parallelum.com.br/fipe/api/v1/carros";
 
 const norm = (v: string) =>
   v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+// Comparação SEM espaços/hífens: "t-cross", "T Cross" e "TCross" viram "tcross".
+const strip = (v: string) => norm(v).replace(/ /g, "");
 
 async function j<T>(url: string): Promise<T | null> {
   try {
@@ -46,15 +48,28 @@ export async function GET() {
     if (!marca) { out.push({ id: v.id, nome: v.nome, detalhe: v.detalhe, ok: false, erro: "marca não encontrada" }); continue; }
 
     const modelos = await j<{ modelos: Item[] }>(`${BASE}/marcas/${marca.codigo}/modelos`);
-    const tokens = v.modeloBusca.map(norm);
-    const candidatos = (modelos?.modelos ?? []).filter((m) => { const n = norm(m.nome); return tokens.every((t) => n.includes(t)); });
+    const lista = modelos?.modelos ?? [];
+    const tokens = v.modeloBusca.map(strip);
+    // 1º passe: TODOS os tokens no nome (comparação sem espaços/hífens — a FIPE
+    // ora escreve "T-Cross", ora "T Cross"/"TCROSS").
+    let candidatos = lista.filter((m) => { const n = strip(m.nome); return tokens.every((t) => n.includes(t)); });
+    // 2º passe (relaxado): só o 1º token (o modelo em si), rankeado por quantos
+    // dos demais tokens aparecem — melhor um match parcial que nenhum.
+    if (candidatos.length === 0 && tokens.length > 0) {
+      const score = (nome: string) => tokens.slice(1).filter((t) => strip(nome).includes(t)).length;
+      candidatos = lista.filter((m) => strip(m.nome).includes(tokens[0]))
+        .sort((a, b) => score(b.nome) - score(a.nome) || a.nome.length - b.nome.length);
+    }
     // Vários candidatos (ex.: variações de motor): fica com o nome mais curto —
     // costuma ser a versão "canônica" da busca.
     const modelo = candidatos.sort((a, b) => a.nome.length - b.nome.length)[0];
-    if (!modelo) { out.push({ id: v.id, nome: v.nome, detalhe: v.detalhe, ok: false, erro: "modelo não encontrado" }); continue; }
+    if (!modelo) { out.push({ id: v.id, nome: v.nome, detalhe: v.detalhe, ok: false, erro: "modelo não encontrado na FIPE" }); continue; }
 
     const anos = await j<Item[]>(`${BASE}/marcas/${marca.codigo}/modelos/${modelo.codigo}/anos`);
-    const ano = (anos ?? []).find((a) => a.codigo.startsWith(`${v.anoModelo}-`)) ?? (anos ?? [])[0];
+    // Ano-modelo exato → Zero KM (código 32000) → o mais novo disponível.
+    const ano = (anos ?? []).find((a) => a.codigo.startsWith(`${v.anoModelo}-`))
+      ?? (anos ?? []).find((a) => a.codigo.startsWith("32000"))
+      ?? (anos ?? [])[0];
     if (!ano) { out.push({ id: v.id, nome: v.nome, detalhe: v.detalhe, ok: false, erro: "ano não encontrado" }); continue; }
 
     const val = await j<FipeValor>(`${BASE}/marcas/${marca.codigo}/modelos/${modelo.codigo}/anos/${ano.codigo}`);

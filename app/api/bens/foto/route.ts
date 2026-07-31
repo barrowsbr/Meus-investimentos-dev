@@ -15,23 +15,36 @@ const RUIM = ["interior", "innenraum", "rear", "heck", "back", "engine", "motor"
 
 interface Pagina { title?: string; imageinfo?: Array<{ thumburl?: string; url?: string; mime?: string }> }
 
-async function buscarFoto(termo: string): Promise<string | null> {
+// Título sem espaços/hífens/acentos: "T-Cross"≈"T Cross"≈"TCross".
+const strip = (v: string) => v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "");
+
+// Busca um termo e devolve o MELHOR candidato: o título PRECISA conter todos os
+// `requer` (senão era isso que trazia carro errado) e ganha pontos por `bonus`.
+async function buscarFoto(termo: string, requer: string[], bonus: string[]): Promise<string | null> {
   const url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*" +
-    `&generator=search&gsrsearch=${encodeURIComponent(termo)}&gsrlimit=12&gsrnamespace=6` +
+    `&generator=search&gsrsearch=${encodeURIComponent(termo)}&gsrlimit=30&gsrnamespace=6` +
     "&prop=imageinfo&iiprop=url|mime&iiurlwidth=1100";
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(9000), headers: { "User-Agent": "meus-investimentos/1.0 (pessoal)" } });
     if (!r.ok) return null;
     const data = (await r.json()) as { query?: { pages?: Record<string, Pagina> } };
     const paginas = Object.values(data.query?.pages ?? {});
-    const boas = paginas.filter((p) => {
-      const t = (p.title ?? "").toLowerCase();
-      const info = p.imageinfo?.[0];
-      if (!info?.thumburl) return false;
-      if (!/^image\/(jpeg|png)$/.test(info.mime ?? "")) return false;
-      return !RUIM.some((w) => t.includes(w));
-    });
-    return boas[0]?.imageinfo?.[0]?.thumburl ?? null;
+    const boas = paginas
+      .filter((p) => {
+        const t = (p.title ?? "").toLowerCase();
+        const ts = strip(t);
+        const info = p.imageinfo?.[0];
+        if (!info?.thumburl) return false;
+        if (!/^image\/(jpeg|png)$/.test(info.mime ?? "")) return false;
+        if (RUIM.some((w) => t.includes(w))) return false;
+        return requer.every((req) => ts.includes(strip(req)));
+      })
+      .map((p) => {
+        const ts = strip(p.title ?? "");
+        return { p, score: bonus.filter((b) => ts.includes(strip(b))).length };
+      })
+      .sort((a, b) => b.score - a.score);
+    return boas[0]?.p.imageinfo?.[0]?.thumburl ?? null;
   } catch { return null; }
 }
 
@@ -56,7 +69,7 @@ export async function GET(req: NextRequest) {
   if (!bem) return fallback();
 
   for (const termo of bem.fotoBusca) {
-    const foto = await buscarFoto(termo);
+    const foto = await buscarFoto(termo, bem.fotoRequer, bem.fotoBonus);
     if (!foto) continue;
     try {
       const r = await fetch(foto, { signal: AbortSignal.timeout(10000), headers: { "User-Agent": "meus-investimentos/1.0 (pessoal)" } });
