@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const BASE = "https://parallelum.com.br/fipe/api/v1/carros";
+const BASE_V2 = "https://parallelum.com.br/fipe/api/v2";
 
 const norm = (v: string) =>
   v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -43,6 +44,28 @@ export async function GET() {
   }> = [];
 
   for (const v of VEICULOS) {
+    // Caminho 1 — código FIPE pinado (v2, consulta direta; imune a grafia de
+    // nome). Tenta os sufixos de combustível mais comuns (1=gasolina/flex, 3=diesel).
+    if (v.codigoFipe) {
+      let achou = false;
+      for (const suf of ["1", "3"]) {
+        const val = await j<{ price?: string; model?: string; codeFipe?: string; referenceMonth?: string }>(
+          `${BASE_V2}/cars/${encodeURIComponent(v.codigoFipe)}/years/${v.anoModelo}-${suf}`,
+        );
+        const num = parseValor(val?.price);
+        if (val && num != null) {
+          out.push({
+            id: v.id, nome: v.nome, detalhe: v.detalhe, ok: true,
+            valor: val.price, valorNum: num, fipeModelo: val.model,
+            codigoFipe: val.codeFipe ?? v.codigoFipe, mesReferencia: val.referenceMonth,
+          });
+          achou = true;
+          break;
+        }
+      }
+      if (achou) continue;
+      // sem resultado no código pinado → cai para a busca por nome abaixo
+    }
     if (!marcas) { out.push({ id: v.id, nome: v.nome, detalhe: v.detalhe, ok: false, erro: "FIPE inacessível" }); continue; }
     const marca = marcas.find((m) => norm(m.nome).includes(norm(v.marcaBusca)));
     if (!marca) { out.push({ id: v.id, nome: v.nome, detalhe: v.detalhe, ok: false, erro: "marca não encontrada" }); continue; }

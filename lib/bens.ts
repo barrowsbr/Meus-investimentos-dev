@@ -10,7 +10,9 @@ export interface BemVeiculo {
   nome: string;
   detalhe: string;              // ano · cor (como o dono descreve)
   cor: string;
-  // FIPE (resolução por BUSCA de nome — robusta a mudanças de código):
+  // FIPE — caminho 1 (preferido): código FIPE PINADO (consulta direta, sem
+  // casamento de nome); caminho 2 (fallback): busca por nome.
+  codigoFipe?: string;          // ex.: "005508-5"
   marcaBusca: string;           // substring do nome da marca na FIPE
   modeloBusca: string[];        // TODOS os tokens precisam aparecer no modelo
   anoModelo: number;
@@ -26,8 +28,11 @@ export const VEICULOS: BemVeiculo[] = [
     nome: "VW T-Cross Highline 250 TSI",
     detalhe: "2025 · Cinza",
     cor: "cinza",
+    // FIPE grafa ABREVIADO: "T-Cross Hig. 250 TSI 1.4 Flex 16V 5p Aut."
+    // ("highline" por extenso NUNCA casa — daí o código pinado + tokens "hig"/"250").
+    codigoFipe: "005508-5",
     marcaBusca: "volkswagen",
-    modeloBusca: ["t-cross", "highline"],
+    modeloBusca: ["t-cross", "hig", "250"],
     anoModelo: 2025,
     fotoBusca: ["Volkswagen T-Cross facelift", "Volkswagen T-Cross 2024", "Volkswagen T-Cross"],
     fotoRequer: ["t-cross"],
