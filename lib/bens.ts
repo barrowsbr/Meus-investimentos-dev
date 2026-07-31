@@ -16,7 +16,10 @@ export interface BemVeiculo {
   marcaBusca: string;           // substring do nome da marca na FIPE
   modeloBusca: string[];        // TODOS os tokens precisam aparecer no modelo
   anoModelo: number;
-  // Foto (Wikimedia Commons, via /api/bens/foto):
+  // Foto: arquivo LOCAL (public/bens — fotos reais enviadas pelo dono, fundo
+  // padronizado) tem prioridade; sem ele, o proxy /api/bens/foto busca no
+  // Wikimedia Commons pelos termos abaixo.
+  fotoLocal?: string;
   fotoBusca: string[];          // termos de busca, em ordem de preferência
   fotoRequer: string[];         // o TÍTULO do arquivo precisa conter TODOS (sem isso, ignora o resultado)
   fotoBonus: string[];          // pontos extras no ranking (ano, facelift, cor…)
@@ -36,6 +39,7 @@ export const VEICULOS: BemVeiculo[] = [
     marcaBusca: "volkswagen",
     modeloBusca: ["t-cross", "hig", "250"],
     anoModelo: 2025,
+    fotoLocal: "/bens/tcross.jpg",
     fotoBusca: ["Volkswagen T-Cross facelift", "Volkswagen T-Cross 2024", "Volkswagen T-Cross"],
     fotoRequer: ["t-cross"],
     fotoBonus: ["facelift", "2024", "2025", "grey", "gray", "grau", "silver"],
@@ -58,6 +62,7 @@ export const VEICULOS: BemVeiculo[] = [
     marcaBusca: "chevrolet",
     modeloBusca: ["onix", "hatch", "joy"],
     anoModelo: 2020,
+    fotoLocal: "/bens/onix.jpg",
     fotoBusca: ["Chevrolet Onix Joy", "Chevrolet Onix 2019", "Chevrolet Onix hatch"],
     fotoRequer: ["onix"],
     fotoBonus: ["joy", "white", "branco", "2019", "2020", "hatch"],

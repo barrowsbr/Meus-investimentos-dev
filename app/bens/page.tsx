@@ -23,6 +23,10 @@ interface PontoHist { mes: string; valor: string; valorNum: number }
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
+// Foto do carro: a LOCAL (real, do dono, fundo padronizado) tem prioridade;
+// sem ela, cai no proxy do Wikimedia.
+const fotoSrc = (id: string) => bemPorId(id)?.fotoLocal ?? `/api/bens/foto?id=${id}`;
+
 // ── Sparkline do histórico FIPE ──────────────────────────────────────────────
 function Sparkline({ pontos }: { pontos: PontoHist[] }) {
   if (pontos.length < 2) return null;
@@ -130,7 +134,7 @@ function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () =>
         <button className="bns-md-x" onClick={onClose} aria-label="Fechar"><X size={16} /></button>
         <div className="bns-md-foto">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/bens/foto?id=${v.id}`} alt={v.nome} />
+          <img src={fotoSrc(v.id)} alt={v.nome} />
         </div>
         <div className="bns-md-body">
           <span className="bns-detalhe">{v.detalhe}</span>
@@ -239,7 +243,7 @@ export default function BensPage() {
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetalhe(v); } }}>
               <div className="bns-foto">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/bens/foto?id=${v.id}`} alt={v.nome} loading="lazy" />
+                <img src={fotoSrc(v.id)} alt={v.nome} loading="lazy" />
               </div>
               <div className="bns-body">
                 <span className="bns-detalhe">{v.detalhe}</span>
