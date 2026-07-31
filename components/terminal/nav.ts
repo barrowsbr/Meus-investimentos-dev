@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays, Boxes, LayoutGrid, Smile, Radio,
+  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays, Boxes, LayoutGrid, Smile, Radio, Car,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -60,6 +60,7 @@ export const SPACES: Space[] = [
       { href: "/etf-cem", label: "ETF Cem", icon: Crown, sub: "As 100 maiores do mundo (via VOO)" },
       { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
       { href: "/caixa", label: "Caixa & Margem", icon: Scale, sub: "Liquidez (caixa) e margem — automático via IBKR" },
+      { href: "/bens", label: "Bens", icon: Car, sub: "Imóveis, carros e itens de alto valor — valor de tabela ao dia" },
       { href: "/ibkr", label: "IBKR", icon: Building2, sub: "Visão gerencial da conta Interactive Brokers (via Flex)" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
     ],

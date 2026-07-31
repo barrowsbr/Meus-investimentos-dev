@@ -557,7 +557,9 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   YouTube TV ao vivo (`YOUTUBE_API_KEY` opc. → resolve o live exato via Data API v3;
   sem ela, embed keyless 24/7 por canal — `TvAoVivoPanel` + `/api/tv/live`)
 - **Predições**: Polymarket (livre) · Kalshi (livre) · Metaculus (livre)
-- **Observatório & Geo**: Numista (`NUMISTA_API_KEY` opc. — catálogo numismático no dossiê da página Moedas) ·
+- **Observatório & Geo**: Tabela FIPE via parallelum.com.br (livre — valor dos carros na página Bens) ·
+  Wikimedia Commons (livre — fotos dos carros via proxy `/api/bens/foto`) ·
+  Numista (`NUMISTA_API_KEY` opc. — catálogo numismático no dossiê da página Moedas) ·
   NASA api.nasa.gov (`NASA_API_KEY` opc., aceita DEMO_KEY) ·
   NASA EONET (livre) · USGS Earthquakes (livre) · GDELT DOC 2.0 (livre, 1 req/5s) ·
   GDELT Events 2.0 CSV (livre) · World Bank (livre)

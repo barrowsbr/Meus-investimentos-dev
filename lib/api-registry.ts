@@ -450,6 +450,28 @@ export const API_REGISTRY: ApiDef[] = [
 
   // ── Observatório & Geo ─────────────────────────────────────────────────────
   {
+    key: "fipe", name: "Tabela FIPE (parallelum)", category: "Observatório & Geo",
+    host: "parallelum.com.br", purpose: "Valor de tabela dos carros na página Bens (espelho público da FIPE, sem chave)",
+    envVars: [],
+    docs: "https://deividfortuna.github.io/fipe/",
+    probe: async () => {
+      const { status, json } = await getJson("https://parallelum.com.br/fipe/api/v1/carros/marcas");
+      const n = Array.isArray(json) ? json.length : null;
+      return n ? { ok: true, detail: `${n} marcas na tabela` } : { ok: false, detail: `HTTP ${status}` };
+    },
+  },
+  {
+    key: "wikimedia", name: "Wikimedia Commons", category: "Observatório & Geo",
+    host: "commons.wikimedia.org", purpose: "Fotos com licença livre — proxy /api/bens/foto (carros da página Bens)",
+    envVars: [],
+    docs: "https://commons.wikimedia.org/w/api.php",
+    probe: async () => {
+      const { status, json } = await getJson("https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch=Volkswagen%20T-Cross&gsrlimit=1&gsrnamespace=6");
+      const ok = !!json?.query?.pages;
+      return ok ? { ok: true, detail: "busca de imagens ok" } : { ok: false, detail: `HTTP ${status}` };
+    },
+  },
+  {
     key: "numista", name: "Numista", category: "Observatório & Geo",
     host: "api.numista.com", purpose: "Catálogo numismático — tiragem, dimensões e descrições no dossiê da página Moedas",
     envVars: [{ name: "NUMISTA_API_KEY", required: false }],
