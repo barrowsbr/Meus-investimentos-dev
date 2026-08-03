@@ -384,6 +384,15 @@ export function enriquecerPosicoes(
       fxCostBasis = rate;
     }
 
+    // Sem cotação (live E golden falharam): igualar valorAtualBRL ao custo em BRL,
+    // para a posição contribuir ZERO ao lucro agregado. Antes valorAtualBRL usava
+    // custoTotal × fatorAtual (câmbio SPOT) enquanto custoTotalBRL usa o pmDólar
+    // (fxCusto) — a diferença de câmbio virava "valorização fantasma" no ΣlucroBRL
+    // do agregado RV, mesmo com o lucroBRL da própria posição sendo null.
+    if (precoAtual === null) {
+      valorAtualBRL = custoTotalBRL;
+    }
+
     const lucroBRL = precoAtual !== null ? valorAtualBRL - custoTotalBRL : null;
     const lucroPct = lucroBRL !== null && custoTotalBRL > 0
       ? (lucroBRL / custoTotalBRL) * 100
@@ -718,7 +727,12 @@ export function calcularSnapshot(
     rvClosed.reduce((s, p) => s + p.realizadoCambioBRL, 0);
   // Proventos from closed positions are already in prov.porTicker (not filtered by qty)
   const proventosClosedBRL = (() => {
-    const openTickers = new Set(rvPositions.map(p => p.ticker));
+    // prov.porTicker é chaveado por tickerBase (ex.: ITUB4), e a posição aberta
+    // já soma seus proventos por essa mesma base (p.proventosBRL, linha ~669).
+    // O set PRECISA usar tickerBase(p.ticker) — se usar a grafia crua (ITUB4.SA)
+    // o "if já-está-aberta" nunca casa e o provento da posição aberta é contado
+    // DE NOVO aqui, inflando o Retorno Total RV.
+    const openTickers = new Set(rvPositions.map(p => tickerBase(p.ticker)));
     let total = 0;
     for (const [ticker, val] of Object.entries(prov.porTicker)) {
       if (openTickers.has(ticker)) continue;

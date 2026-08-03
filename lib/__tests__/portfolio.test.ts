@@ -228,6 +228,28 @@ describe("blindagem — identidades de reconciliação do snapshot", () => {
   });
 });
 
+// ── Regressão: proventos de posição ABERTA com sufixo .SA não podem ser 2× ────
+// A planilha guarda a grafia crua do Yahoo (PETR4.SA), mas prov.porTicker é
+// chaveado por tickerBase (PETR4) e a posição aberta já soma esses proventos.
+// O set de "abertas" no cálculo de proventosClosedBRL precisa usar a base —
+// senão o "if já-está-aberta" nunca casa e o provento é contado de novo.
+describe("proventos de posição aberta .SA não são contados em dobro (regressão)", () => {
+  const snap = calcularSnapshot(
+    [compra("PETR4.SA", 100, 20, "BRL", "2023-01-02")],
+    [provento("PETR4.SA", 50, "BRL")],
+    [],
+    { "PETR4.SA": quote(25, "BRL") },
+    fx(5.0),
+    fx(5.0),
+  );
+  it("proventosRVBRL conta o provento uma única vez (50, não 100)", () => {
+    expect(snap.proventosRVBRL).toBeCloseTo(50, 6);
+  });
+  it("retorno total RV = valorização (500) + proventos (50) = 550, sem inflar", () => {
+    expect(snap.retornoTotalRVBRL).toBeCloseTo(550, 6);
+  });
+});
+
 // ── Exposição cambial inclui o caixa/RF manual (fixa_aberta), inclusive em USD ─
 describe("exposição cambial inclui caixa em dólar do fixa_aberta", () => {
   const snap = calcularSnapshot(
