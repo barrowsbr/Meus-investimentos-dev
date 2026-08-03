@@ -729,14 +729,22 @@ async function buildResponse(
         }
       }
 
-      // Enrich currency from Yahoo when the import doesn't have it right
-      if (meta.currency && meta.currency !== item.moeda && item.status === "novo") {
-        item.moeda = meta.currency;
+      // Enrich currency from Yahoo when the import doesn't have it right.
+      // Yahoo devolve "GBp" (pence) para ações de Londres — moeda INVÁLIDA que,
+      // gravada por cima do "GBP" do extrato, quebra os lookups de FX. Normaliza
+      // GBp/GBX→GBP nos dois lados antes de comparar e NUNCA grava a forma pence.
+      const normMoeda = (c: string) => {
+        const u = (c || "").toUpperCase().trim();
+        return u === "GBX" || u === "GBP" ? "GBP" : u;
+      };
+      const metaMoeda = normMoeda(meta.currency ?? "");
+      if (metaMoeda && metaMoeda !== normMoeda(item.moeda) && item.status === "novo") {
+        item.moeda = metaMoeda;
         for (const t of trades) {
-          if (t.Símbolo === item.ticker) t.Moeda = meta.currency;
+          if (t.Símbolo === item.ticker) t.Moeda = metaMoeda;
         }
         for (const p of proventos) {
-          if (p.ticker === item.ticker) p.moeda = meta.currency;
+          if (p.ticker === item.ticker) p.moeda = metaMoeda;
         }
       }
     }
