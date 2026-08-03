@@ -280,7 +280,9 @@ export async function GET(req: Request) {
     for (const p of positions) {
       if (p.lucroPct === null) continue;
       const lucroNaoRealizadoBRL = p.lucroBRL ?? 0;
-      const lucroRealizadoBRL = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
+      // Canônico: realizado em BRL pela PTAX da DATA DA VENDA (finalizeRealizado),
+      // não o realizado nativo × câmbio de HOJE — que divergia do snapshot/DRE.
+      const lucroRealizadoBRL = p.lucroRealizadoBRL;
       const proventosAtivo = proventosPorTicker[tickerBase(p.ticker)] ?? 0;
       const resultadoTotal = lucroNaoRealizadoBRL + lucroRealizadoBRL + proventosAtivo;
 
@@ -325,7 +327,8 @@ export async function GET(req: Request) {
       if (Math.abs(pos.lucroRealizado) < 0.01 && proventosAtivo < 0.01) continue;
       const setor = identificarSetor(ticker);
       const nativeFx = fxFactor(pos.moeda, fxAtual);
-      const lucroRealizadoBRL = pos.lucroRealizado * nativeFx;
+      // Canônico (PTAX da venda), não câmbio atual — reconcilia com o snapshot/DRE.
+      const lucroRealizadoBRL = pos.realizadoAtivoBRL + pos.realizadoCambioBRL;
       const resultadoTotal = lucroRealizadoBRL + proventosAtivo;
       const custoNativo = pos.custoVendido;
       const nativeProventos = nativeFx > 0 ? proventosAtivo / nativeFx : 0;
@@ -425,7 +428,10 @@ export async function GET(req: Request) {
         ticker: display, setor: sub, macro, moeda: agg.moeda,
         status: "Vendido", valor_atual_brl: 0, custo_brl: agg.compra * nativeFx,
         lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizado * nativeFx,
-        proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal * nativeFx,
+        // resultadoTotal mistura lucroRealizado (NATIVO) + proventosAtivo (já BRL);
+        // converter só a parcela nativa (proventos já está em BRL — antes eram
+        // convertidos 2× em RF de moeda estrangeira).
+        proventos_brl: proventosAtivo, resultado_total_brl: lucroRealizado * nativeFx + proventosAtivo,
         imposto_brl: agg.imposto * nativeFx,
         retorno_nao_realizado_pct: 0,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
