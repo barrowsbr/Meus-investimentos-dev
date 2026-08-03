@@ -124,7 +124,6 @@ async function fetchWBIndicator(iso: string, indicator: string): Promise<{ value
 }
 
 async function fetchExchangeRate(currency: string): Promise<{ vsUSD: number | null; vsBRL: number | null }> {
-  if (currency === "USD") return { vsUSD: 1, vsBRL: null };
   try {
     const res = await fetch(`https://open.er-api.com/v6/latest/USD`, {
       signal: AbortSignal.timeout(8000),
@@ -133,9 +132,13 @@ async function fetchExchangeRate(currency: string): Promise<{ vsUSD: number | nu
     if (!res.ok) return { vsUSD: null, vsBRL: null };
     const data = await res.json();
     const rates = data.rates ?? {};
-    const vsUSD = rates[currency] ?? null;
+    // Base USD: rates[X] = unidades de X por 1 USD; rates.BRL = BRL por 1 USD.
+    const vsUSD = currency === "USD" ? 1 : (rates[currency] ?? null);
     const brlRate = rates["BRL"] ?? null;
-    const vsBRL = (vsUSD && brlRate) ? vsUSD / brlRate : null;
+    // A UI (MacroTab) mostra "1 {moeda} = R$ X" → precisamos de BRL por 1 unidade
+    // da moeda local = brlRate / vsUSD. (Antes era vsUSD/brlRate = moeda por BRL,
+    // que invertia o valor; e USD vinha null.)
+    const vsBRL = (vsUSD && brlRate) ? brlRate / vsUSD : null;
     return { vsUSD, vsBRL };
   } catch {
     return { vsUSD: null, vsBRL: null };

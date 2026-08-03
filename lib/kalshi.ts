@@ -13,6 +13,15 @@ export interface KalshiEvent {
 
 const BASE = "https://api.elections.kalshi.com/trade-api/v2";
 
+// A API do Kalshi devolve preço de mercado em CENTAVOS inteiros (1–99) no campo
+// last_price/yes_bid — não existe yes_price. Sem normalizar, todo valor caía no
+// filtro `<= 1` e o feed vinha SEMPRE vazio. Divide por 100 quando > 1.
+function kalshiYesProb(m: Record<string, unknown>): number {
+  const raw = Number(m.last_price ?? m.yes_bid ?? m.yes_price ?? 0);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return raw > 1 ? raw / 100 : raw;
+}
+
 const CATEGORY_MAP: Record<string, string> = {
   Economics: "🏦 Macro & Economia",
   "Fed Funds Rate": "🏦 Macro & Economia",
@@ -107,7 +116,7 @@ export async function fetchKalshi(): Promise<KalshiEvent[]> {
 
         if (markets.length === 1) {
           const m = markets[0];
-          const yesP = Number(m.yes_price ?? m.last_price ?? 0);
+          const yesP = kalshiYesProb(m);
           if (yesP > 0 && yesP <= 1) {
             odds.push({ outcome: "Sim", percent: Math.round(yesP * 1000) / 10 });
             odds.push({ outcome: "Não", percent: Math.round((1 - yesP) * 1000) / 10 });
@@ -115,7 +124,7 @@ export async function fetchKalshi(): Promise<KalshiEvent[]> {
         } else {
           for (const m of markets.slice(0, 6)) {
             const label = String(m.title ?? m.subtitle ?? m.ticker ?? "");
-            const yesP = Number(m.yes_price ?? m.last_price ?? 0);
+            const yesP = kalshiYesProb(m);
             if (!label || yesP <= 0 || yesP > 1) continue;
             odds.push({ outcome: label, percent: Math.round(yesP * 1000) / 10 });
           }

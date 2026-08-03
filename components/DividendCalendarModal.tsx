@@ -38,7 +38,12 @@ export default function DividendCalendarModal({ onClose }: { onClose: () => void
       .then((d) => {
         if (!alive) return;
         if (d?.error) { setErro(d.error); setEventos([]); return; }
-        const evs: EventoDividendo[] = Array.isArray(d?.eventos) ? d.eventos : [];
+        // A rota também emite tipo "anuncio" (data de RESULTADOS/earnings, proxy
+        // de possível divulgação) — que NÃO é dividendo. Este modal é só de
+        // dividendos e não trata esse tipo (mostrava tudo como "Pagamento"),
+        // então filtramos; a página /agenda é quem exibe os 3 tipos.
+        const evs: EventoDividendo[] = (Array.isArray(d?.eventos) ? d.eventos : [])
+          .filter((e: { tipo?: string }) => e.tipo === "ex" || e.tipo === "pagamento");
         setEventos(evs);
         // Abre no mês do próximo evento e já seleciona esse dia.
         const prox = evs.find((e) => e.date >= todayISO()) ?? evs[0];
