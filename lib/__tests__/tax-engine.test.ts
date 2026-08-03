@@ -293,6 +293,8 @@ describe("cambio-ir — alíquota progressiva de ganho de capital", () => {
 });
 
 describe("cambio-ir — multi-moeda por preço médio", () => {
+  // PTAX p/ a isenção espécie (US$5k/ano em USD-equivalente): USD ~5,0.
+  const ptaxC: PtaxLookup = (m) => (m === "USD" ? 5.0 : m === "EUR" ? 6.0 : 1);
   const remessas = [
     { data: "2024-01-10", moeda_origem: "BRL", moeda_destino: "USD", valor_origem: 25000, valor_destino: 5000 }, // PM 5,00
     { data: "2024-02-10", moeda_origem: "BRL", moeda_destino: "EUR", valor_origem: 6000, valor_destino: 1000 },  // PM 6,00
@@ -302,7 +304,7 @@ describe("cambio-ir — multi-moeda por preço médio", () => {
     const r = apurarCambioIr([
       ...remessas,
       { data: "2024-06-10", moeda_origem: "USD", moeda_destino: "BRL", valor_origem: 1000, valor_destino: 5500 },
-    ]);
+    ], ptaxC);
     const usd2024 = r.anos.find(a => a.ano === "2024" && a.moeda === "USD")!;
     expect(usd2024.ganhoBRL).toBeCloseTo(500, 6);           // 5500 − 1000×5,00
     expect(usd2024.isentoEspecie).toBe(true);               // 1000 ≤ US$5k/ano
@@ -314,11 +316,23 @@ describe("cambio-ir — multi-moeda por preço médio", () => {
     expect(r.estoques.find(e => e.moeda === "EUR")!.pmBRL).toBeCloseTo(6.0, 6);
   });
 
+  it("soma TODAS as moedas no ano (USD-equivalente): 2 de ~US$3k perdem a isenção", () => {
+    const r = apurarCambioIr([
+      { data: "2024-01-05", moeda_origem: "BRL", moeda_destino: "EUR", valor_origem: 18000, valor_destino: 3000 },
+      { data: "2024-01-06", moeda_origem: "BRL", moeda_destino: "CAD", valor_origem: 12000, valor_destino: 3000 },
+      { data: "2024-06-10", moeda_origem: "EUR", moeda_destino: "BRL", valor_origem: 2000, valor_destino: 15000 }, // USD-equiv 15000/5=3000
+      { data: "2024-07-10", moeda_origem: "CAD", moeda_destino: "BRL", valor_origem: 2000, valor_destino: 15000 }, // USD-equiv 3000
+    ], ptaxC);
+    // 3000 + 3000 = 6000 > 5000 → nenhuma é isenta (antes, cada moeda sozinha passaria).
+    expect(r.anos.find(a => a.moeda === "EUR")!.isentoEspecie).toBe(false);
+    expect(r.anos.find(a => a.moeda === "CAD")!.isentoEspecie).toBe(false);
+  });
+
   it("alienação acima de US$5k/ano: perde a isenção espécie (15%)", () => {
     const r = apurarCambioIr([
       { data: "2024-01-10", moeda_origem: "BRL", moeda_destino: "USD", valor_origem: 30000, valor_destino: 6000 },
       { data: "2024-07-10", moeda_origem: "USD", moeda_destino: "BRL", valor_origem: 6000, valor_destino: 33000 },
-    ]);
+    ], ptaxC);
     const ano = r.anos[0];
     expect(ano.isentoEspecie).toBe(false);
     expect(ano.ganhoBRL).toBeCloseTo(3000, 6);
@@ -329,7 +343,7 @@ describe("cambio-ir — multi-moeda por preço médio", () => {
     const r = apurarCambioIr([
       { data: "2024-01-10", moeda_origem: "BRL", moeda_destino: "USD", valor_origem: 25000, valor_destino: 5000 },
       { data: "2024-03-10", moeda_origem: "USD", moeda_destino: "EUR", valor_origem: 1000, valor_destino: 900 },
-    ]);
+    ], ptaxC);
     expect(r.anos).toHaveLength(0); // nenhuma liquidação para BRL
     expect(r.usdEstoqueFinal).toBeCloseTo(4000, 6);
     const eur = r.estoques.find(e => e.moeda === "EUR")!;
@@ -341,7 +355,7 @@ describe("cambio-ir — multi-moeda por preço médio", () => {
     const r = apurarCambioIr([
       { data: "2024-01-10", moeda_origem: "BRL", moeda_destino: "USD", valor_origem: 5000, valor_destino: 1000 },
       { data: "2024-05-10", moeda_origem: "USD", moeda_destino: "BRL", valor_origem: 1500, valor_destino: 8000 },
-    ]);
+    ], ptaxC);
     const liq = r.anos[0].liquidacoes[0];
     expect(liq.aviso).toBeTruthy();
     expect(liq.aviso).toContain("sem estoque rastreado");

@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       .filter(e => e.modalidade === "acoes_swing" && e.month === mesAtual)
       .reduce((s, e) => s + e.proceedsBRL, 0);
 
-    const cambioIr = apurarCambioIr(cambioRows);
+    const cambioIr = apurarCambioIr(cambioRows, ptax);
 
     const extras = {
       posicoes: posicoesEnriquecidas,

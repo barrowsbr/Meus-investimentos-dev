@@ -20,6 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { toNumber } from "../format";
+import type { PtaxLookup } from "./engine";
 
 type Row = Record<string, unknown>;
 
@@ -102,7 +103,7 @@ function normalizeCurrency(s: string): string {
 
 interface FxStock { estoque: number; custoBRL: number; }
 
-export function apurarCambioIr(cambioRows: Row[]): CambioIr {
+export function apurarCambioIr(cambioRows: Row[], ptax: PtaxLookup): CambioIr {
   interface Op { data: string; orig: string; dest: string; valOrig: number; valDest: number }
   const ops: Op[] = [];
   for (const row of cambioRows) {
@@ -174,7 +175,18 @@ export function apurarCambioIr(cambioRows: Row[]): CambioIr {
     }
   }
 
-  // Agrega por (ano, moeda) — isenção é avaliada POR MOEDA por ano
+  // Isenção de pequeno valor (moeda em espécie): US$5.000 no TOTAL do ANO, com
+  // TODAS as moedas somadas em USD-equivalente — não por moeda nem na unidade da
+  // moeda (£4.800 ≈ US$6.100 NÃO é isento). USD-equiv = recebidoBRL / PTAX(USD).
+  const usdEquivPorAno = new Map<string, number>();
+  for (const l of liquidacoes) {
+    const ano = l.data.slice(0, 4);
+    const ptaxUsd = ptax("USD", l.data);
+    const usdEquiv = ptaxUsd > 0 ? l.recebidoBRL / ptaxUsd : 0;
+    usdEquivPorAno.set(ano, (usdEquivPorAno.get(ano) ?? 0) + usdEquiv);
+  }
+
+  // Agrega por (ano, moeda) para exibição; a isenção usa o total ANUAL acima.
   const anosKey = (ano: string, moeda: string) => `${ano}:${moeda}`;
   const anosMap = new Map<string, LiquidacaoBRL[]>();
   for (const l of liquidacoes) {
@@ -191,7 +203,7 @@ export function apurarCambioIr(cambioRows: Row[]): CambioIr {
       const recebidoBRL = ls.reduce((s, l) => s + l.recebidoBRL, 0);
       const custoBRL = ls.reduce((s, l) => s + l.custoBRL, 0);
       const ganhoBRL = recebidoBRL - custoBRL;
-      const isentoEspecie = fxAlienado <= LIMITE_ESPECIE_USD;
+      const isentoEspecie = (usdEquivPorAno.get(ano) ?? 0) <= LIMITE_ESPECIE_USD;
       const aliquotaEspecie = aliquotaGcapProgressiva(Math.max(0, ganhoBRL));
       const irEspecie = !isentoEspecie && ganhoBRL > 0 ? ganhoBRL * aliquotaEspecie : 0;
       return { ano, moeda, fxAlienado, recebidoBRL, custoBRL, ganhoBRL, isentoEspecie, aliquotaEspecie, irEspecie, liquidacoes: ls };
