@@ -87,13 +87,16 @@ export async function GET(request: Request) {
     ]);
 
     const txs = parseTransacoes(ativos);
-    const currencies = detectCurrencies(ativos);
+    // Moedas de TODAS as fontes (transações, proventos, RF) — senão um provento
+    // em CAD sem transação em CAD ficaria sem PTAX carregada do BCB.
+    const currencies = [...new Set([...detectCurrencies(ativos), ...detectCurrencies(proventos), ...detectCurrencies(rfRows)])];
     const { ptax, avisos: ptaxAvisos } = await buildMultiCurrencyPtaxDetalhado(ptaxRows, currencies);
     const eventos = parseEventos(eventosRows);
-    const fxHoje = ptax("USD", new Date().toISOString().slice(0, 10));
 
     const bens = bensDireitosRV(txs, eventos, ptax, year);
-    const rendimentos = classificarRendimentos(proventos, fxHoje).filter(r => r.ano === String(year));
+    // Converte cada provento pela PTAX da DATA do pagamento e por moeda (USD/EUR/
+    // CAD/GBP) — antes ia tudo pela PTAX do dólar de HOJE.
+    const rendimentos = classificarRendimentos(proventos, ptax).filter(r => r.ano === String(year));
     const rfRend = apurarRf(rfRows).filter(r => r.ano === String(year));
     const rfAbertas = rfPosicoesAbertas(rfRows, fixaAberta);
 

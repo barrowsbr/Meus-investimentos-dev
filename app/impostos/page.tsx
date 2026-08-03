@@ -59,7 +59,7 @@ interface CambioIr {
 interface IrResponse {
   year: number | null; meses: MesApuracao[]; exterior: AnoExterior[];
   prejuizoFinal: Record<OffsetBucket, number>; irTotalMensal: number; irTotalExterior: number;
-  posicoes: Posicao[]; fxHoje: number; mesAtual: string;
+  posicoes: Posicao[]; fxHoje: number; fxPorMoeda?: Record<string, number>; mesAtual: string;
   acoesVendasMesAtual: number; limiteIsencaoAcoes: number;
   cambioIr?: CambioIr;
   ptaxAvisos?: string[];
@@ -462,7 +462,9 @@ function Simulador({ data, scope }: { data: IrResponse; scope: "brasil" | "exter
     const q = Math.min(parseFloat(qtd) || 0, sel.qty);
     const p = parseFloat(preco) || 0;
     if (q <= 0 || p <= 0) return null;
-    const proceedsBRL = sel.moeda === "BRL" ? q * p : q * p * data.fxHoje;
+    // Câmbio da moeda da posição (não o do dólar): DPM.TO em CAD, VOW3.DE em EUR.
+    const fxSel = sel.moeda === "BRL" ? 1 : (data.fxPorMoeda?.[sel.moeda] ?? data.fxHoje);
+    const proceedsBRL = q * p * fxSel;
     const costBRL = q * sel.pmBRL;
     const gainBRL = proceedsBRL - costBRL;
     const prejDisp = data.prejuizoFinal?.[sel.bucket] ?? 0;

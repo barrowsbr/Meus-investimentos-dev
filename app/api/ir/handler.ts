@@ -23,14 +23,22 @@ export async function GET(request: Request) {
     const hoje = new Date().toISOString().slice(0, 10);
     const mesAtual = hoje.slice(0, 7);
     const fxHoje = ptax("USD", hoje);
+    // FX de HOJE por moeda (1 para BRL) — antes toda posição não-BRL usava a PTAX
+    // do DÓLAR, então DPM.TO (CAD) e VOW3.DE (EUR) saíam com valor/IR errados.
+    const fxPorMoeda: Record<string, number> = { BRL: 1 };
+    for (const p of posicoes) {
+      const m = (p.moeda || "BRL").toUpperCase();
+      if (!(m in fxPorMoeda)) fxPorMoeda[m] = m === "BRL" ? 1 : ptax(m, hoje);
+    }
     const posicoesEnriquecidas = posicoes.map(p => {
       const r = regra(p.modalidade, hoje);
+      const fx = fxPorMoeda[(p.moeda || "BRL").toUpperCase()] ?? fxHoje;
       return {
         ...p,
         bucket: r.offsetBucket,
         aliquota: r.aliquota,
         isentavel: r.isentavel ?? false,
-        valorAtualBRL: p.moeda === "BRL" ? p.qty * p.pmBRL : p.qty * p.pmNative * fxHoje,
+        valorAtualBRL: p.moeda === "BRL" ? p.qty * p.pmBRL : p.qty * p.pmNative * fx,
       };
     });
     // Vendas de ações já realizadas no mês corrente (contam para o limite de R$20k).
@@ -43,6 +51,7 @@ export async function GET(request: Request) {
     const extras = {
       posicoes: posicoesEnriquecidas,
       fxHoje,
+      fxPorMoeda,
       mesAtual,
       acoesVendasMesAtual,
       limiteIsencaoAcoes: regra("acoes_swing", hoje).isencaoMensalVendas ?? 20000,

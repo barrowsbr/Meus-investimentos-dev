@@ -95,8 +95,13 @@ function pdate(v: unknown): string {
   return br ? `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}` : s.slice(0, 10);
 }
 
-/** Classifica os proventos por ano. `fxUSD` converte dividendos em USD para BRL. */
-export function classificarRendimentos(proventos: Row[], fxUSD: number): RendimentosAno[] {
+/**
+ * Classifica os proventos por ano. Converte CADA linha em moeda estrangeira pela
+ * PTAX da DATA DO PAGAMENTO (não a de hoje), para QUALQUER moeda — USD, EUR, CAD,
+ * GBP. Antes só USD era convertido (pela taxa de hoje) e EUR/CAD/GBP entravam pelo
+ * valor de face como se fossem BRL, e ainda caíam como "isento BR".
+ */
+export function classificarRendimentos(proventos: Row[], ptax: PtaxLookup): RendimentosAno[] {
   const byAno = new Map<string, RendimentosAno>();
   const get = (ano: string) => {
     if (!byAno.has(ano)) byAno.set(ano, { ano, isentosDividendosBR: 0, isentosRendimentoFII: 0, exclusivaJCP: 0, tributavelExterior: 0, irrfRetido: 0 });
@@ -104,19 +109,22 @@ export function classificarRendimentos(proventos: Row[], fxUSD: number): Rendime
   };
 
   for (const row of proventos) {
-    const ano = pdate(row["data"] ?? row["date"]).slice(0, 4);
+    const dataISO = pdate(row["data"] ?? row["date"]);
+    const ano = dataISO.slice(0, 4);
     if (!ano || ano.length !== 4) continue;
     const lanc = String(row["lancamento"] ?? row["decisao"] ?? "").toLowerCase();
     const cat = String(row["categoria"] ?? "").toLowerCase();
-    const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
+    const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
     const valorRaw = toNumber(row["valor"] ?? row["value"] ?? row["liquido"]) ?? 0;
-    const valorBRL = moeda === "USD" ? valorRaw * fxUSD : valorRaw;
+    // ptax devolve BRL por 1 unidade da moeda na data (1 para BRL); forward-fill
+    // + fallback com aviso quando a data/moeda não tem PTAX.
+    const valorBRL = moeda === "BRL" ? valorRaw : valorRaw * ptax(moeda, dataISO);
     const r = get(ano);
 
     if (lanc.includes("imposto")) { r.irrfRetido += Math.abs(valorBRL); continue; }
     if (valorBRL <= 0) continue;
     if (lanc.includes("jcp") || lanc.includes("juros")) { r.exclusivaJCP += valorBRL; continue; }
-    const ehExterior = moeda === "USD" || cat.includes("internacional") || cat.includes("exterior");
+    const ehExterior = moeda !== "BRL" || cat.includes("internacional") || cat.includes("exterior");
     if (ehExterior) { r.tributavelExterior += valorBRL; continue; }
     if (cat.includes("fii") || lanc.includes("rend")) { r.isentosRendimentoFII += valorBRL; continue; }
     r.isentosDividendosBR += valorBRL; // dividendo de ação BR — isento
