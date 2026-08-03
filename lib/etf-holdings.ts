@@ -198,7 +198,7 @@ const TRUSTED_FULL_SOURCES = new Set(["fmp", "alphavantage", "live"]);
 
 // Monta os holdings finais de um ETF: escolhe a melhor fonte de pesos, ancora a
 // cobertura a um valor realista e anexa o bucket "Outros · diversificação".
-function assembleHoldings(
+export function assembleHoldings(
   ticker: string,
   rawHoldings: Holding[],
   rawSource: string,
