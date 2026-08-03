@@ -7,6 +7,7 @@ import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored, fetchHoldings, hasHoldingsProxy } from "@/lib/etf-holdings";
 import { computeCountryAllocation, listingCountryFromTicker } from "@/lib/ticker-country";
+import { toNumber } from "@/lib/format";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin, loadIbkrMarginBalances } from "@/lib/margin";
 import type { Position } from "@/lib/portfolio";
 import type { FxRates } from "@/lib/cotacoes";
@@ -207,7 +208,7 @@ export async function GET(req: Request) {
       else exterior += pos.valorAtualBRL;
     }
     for (const row of fixaAberta) {
-      const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
+      const valorRaw = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
@@ -246,7 +247,7 @@ export async function GET(req: Request) {
       const isVenda = tipo.includes("venda") || tipo.includes("resgate") || tipo.includes("vencimento");
       if (!isCompra && !isVenda) continue;
       const ticker = String(row["ticker"] ?? "").trim();
-      const valor = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
+      const valor = toNumber(row["valor"]) ?? 0;
       if (!ticker || valor <= 0) continue;
       if (isCashTicker(ticker)) continue;
       if (!isRendaFixaManual(identificarSetor(ticker))) continue;
@@ -357,7 +358,7 @@ export async function GET(req: Request) {
       const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
       if (!ticker || activeTickerSet.has(ticker.toUpperCase())) continue;
       if (!isRendaFixaManual(identificarSetor(ticker))) continue;
-      const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
+      const valorRaw = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
@@ -398,7 +399,7 @@ export async function GET(req: Request) {
       if (!isRendaFixaManual(identificarSetor(rawTicker))) continue;
       const key = normTicker(rawTicker);
       const tipo = String(row["tipo"] ?? "").toLowerCase();
-      const valorRaw = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
+      const valorRaw = toNumber(row["valor"]) ?? 0;
       const ehImposto = isImpostoTipo(tipo);
       if (valorRaw <= 0 && !ehImposto) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
