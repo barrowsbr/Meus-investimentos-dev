@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { AssetClass, Modalidade } from "./rules";
-import { identificarSetor } from "../sectors";
+import { identificarSetor, getMoedaEfetiva } from "../sectors";
 
 export interface RawTx {
   date: string;         // YYYY-MM-DD
@@ -165,7 +165,11 @@ export function processarVendas(
 
   for (const [ticker, grp] of byTicker) {
     const sample = grp.txs[0];
-    const moeda = (sample?.moeda || "BRL").toUpperCase();
+    // Resolve a moeda EFETIVA (meta do Yahoo + sufixo de bolsa), não a coluna
+    // crua da planilha: `moeda` vazia = BRL é estado normal, então um VOO/VOW3.DE
+    // sem moeda preenchida era classificado como nacional (tributação errada).
+    const setorTicker = identificarSetor(ticker);
+    const moeda = getMoedaEfetiva(ticker, (sample?.moeda || "").toUpperCase(), setorTicker);
     const cls = classifyAsset(ticker, moeda);
     const inv: Inventory = { qty: 0, pmNative: 0, custoTotalBRL: 0 };
 
