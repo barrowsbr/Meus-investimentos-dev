@@ -76,7 +76,10 @@ jobs:
           git config user.email "actions@github.com"
           # Continua a branch se ela já existe (histórico de commits = versões
           # antigas de graça); os ARQUIVOS são sempre sobrescritos com o estado atual.
-          git fetch --depth 1 "$REMOTE" backups && git checkout -q backups || true
+          # O refspec backups:backups CRIA a ref local (sem ele, o fetch por URL só
+          # grava FETCH_HEAD, o checkout falha e o push vira root novo → rejeitado
+          # por non-fast-forward, e a branch nunca recebia commits novos).
+          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || echo "branch backups ainda não existe — este é o 1º backup"
           find . -maxdepth 1 -name '*.csv' -delete; rm -f README.md
           cp ../csvs/* .
           git add -A
