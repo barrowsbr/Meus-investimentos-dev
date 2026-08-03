@@ -40,6 +40,19 @@ describe("parseHistoricoPatrimonio — formato LONGO (1 linha por período)", ()
     expect(s.partesKeys).not.toContain("variacao %");
     expect(s.partesKeys).not.toContain("cdi");
   });
+
+  it("ignora metadado (timestamp/hora/n_ativos) do writer canônico", () => {
+    const s = parseHistoricoPatrimonio([
+      { timestamp: 1738329000, data: "2026-01-31", hora: 10, patrimonio_total: 500000, rv: 300000, rf: 200000, variacao_dia_pct: 0.5, n_ativos: 42 },
+      { timestamp: 1738415400, data: "2026-02-01", hora: 14, patrimonio_total: 505000, rv: 303000, rf: 202000, variacao_dia_pct: 1.0, n_ativos: 42 },
+    ]);
+    expect(s.partesKeys.sort()).toEqual(["rf", "rv"]);
+    expect(s.partesKeys).not.toContain("timestamp");
+    expect(s.partesKeys).not.toContain("hora");
+    expect(s.partesKeys).not.toContain("n_ativos");
+    expect(s.pontos[0].total).toBe(500000);
+    expect(s.pontos[0].partes).toEqual({ rv: 300000, rf: 200000 });
+  });
 });
 
 describe("parseHistoricoPatrimonio — formato LARGO (anos como colunas)", () => {

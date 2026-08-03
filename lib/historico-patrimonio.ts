@@ -101,7 +101,10 @@ function labelFor(ts: number, kind: "day" | "month" | "year"): string {
 
 const RE_DATA = /(^|[\s_])(data|date|dia|mes|m[eê]s|ano|per[ií]odo|compet[eê]ncia|ref|referencia|refer[eê]ncia)([\s_]|$)/i;
 const RE_TOTAL = /(total|patrim|saldo|l[ií]quido|liquido|net.?worth)/i;
-const RE_IGNORE = /(percent|%|varia|cresc|rentab|taxa|cdi|ipca|obs|nota|coment)/i;
+// Além de %/variação, ignora colunas de METADADO que são numéricas mas não são
+// dinheiro (senão o gráfico de composição empilha timestamp/hora/nº de ativos
+// como se fossem R$): timestamp (serial/epoch), hora (0-23) e n_ativos (contagem).
+const RE_IGNORE = /(percent|%|varia|cresc|rentab|taxa|cdi|ipca|obs|nota|coment|timestamp|hora|n[_ ]?ativos)/i;
 
 export function parseHistoricoPatrimonio(rows: Row[]): SerieHistorico {
   if (!rows || rows.length === 0) return { pontos: [], partesKeys: [], formato: "month" };
