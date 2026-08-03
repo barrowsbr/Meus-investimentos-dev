@@ -6,7 +6,17 @@ import {
   makeProvento,
   makeTradeRow,
   makeCambioRow,
+  parseValor,
 } from "../broker-import";
+
+describe("parseValor — decimal BR e EN (separador decimal = o último)", () => {
+  it("número passa direto", () => expect(parseValor(1234.56)).toBeCloseTo(1234.56, 6));
+  it("BR só vírgula: 1,5 → 1.5", () => expect(parseValor("1,5")).toBeCloseTo(1.5, 6));
+  it("BR milhar+decimal: 1.234,56 → 1234.56", () => expect(parseValor("1.234,56")).toBeCloseTo(1234.56, 6));
+  it("EN milhar+decimal: 1,234.56 → 1234.56 (não 1.23456)", () => expect(parseValor("1,234.56")).toBeCloseTo(1234.56, 6));
+  it("EN grande: 1,234,567.89 → 1234567.89", () => expect(parseValor("1,234,567.89")).toBeCloseTo(1234567.89, 6));
+  it("só ponto decimal: 512.34 → 512.34", () => expect(parseValor("512.34")).toBeCloseTo(512.34, 6));
+});
 
 // Caso 1 e 4: planilha tem VOW3.DE (Yahoo exige o sufixo), a IBKR manda VOW3.
 describe("dedup — sufixo de bolsa (VOW3.DE ≡ VOW3)", () => {
