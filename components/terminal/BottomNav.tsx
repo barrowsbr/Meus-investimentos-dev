@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { spaceForPath, CONFIG_ITEM, INICIO_HREF, INICIO_ICON, LEGACY_MOBILE, type NavItem } from "./nav";
 import { useHubAtivo } from "@/lib/use-hub";
+import { getNavEstilo, NAV_ESTILO_EVENT, type NavEstilo } from "@/lib/nav-prefs";
 
 const SHORT: Record<string, string> = {
   "/inicio": "Início",
@@ -18,9 +20,25 @@ const SHORT: Record<string, string> = {
   "/configuracoes": "Config",
 };
 
+function useNavEstilo(): NavEstilo {
+  const [estilo, setEstilo] = useState<NavEstilo>("atual");
+  useEffect(() => {
+    setEstilo(getNavEstilo());
+    const onChange = () => setEstilo(getNavEstilo());
+    window.addEventListener(NAV_ESTILO_EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener(NAV_ESTILO_EVENT, onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, []);
+  return estilo;
+}
+
 export default function BottomNav() {
   const pathname = usePathname();
   const spacesMode = useHubAtivo();
+  const estilo = useNavEstilo();
   const space = spaceForPath(pathname);
   // MODO ESPAÇOS: Início (hub) + páginas-chave da categoria + Configurações.
   // MODO ANTIGO: o conjunto clássico global.
@@ -32,10 +50,61 @@ export default function BottomNav() {
       ]
     : LEGACY_MOBILE;
 
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+
+  if (estilo === "playstation") {
+    return (
+      <nav className="bottom-nav ps min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-end justify-around">
+        {/* varredura de luz sobre a superfície curva */}
+        <span className="ps-shine" aria-hidden />
+        {items.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className="relative flex flex-1 flex-col items-center justify-end gap-1 pb-2 pt-2.5"
+            >
+              {/* holofote sob o item ativo */}
+              {active && <span className="ps-glow" aria-hidden />}
+              <Icon
+                size={active ? 24 : 22}
+                strokeWidth={active ? 2.2 : 1.7}
+                className="relative z-[1] transition-all duration-300 ease-out"
+                style={{
+                  color: active ? "#fff" : "var(--muted)",
+                  transform: active ? "translateY(-1px)" : "none",
+                  filter: active
+                    ? "drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 70%, #fff 20%))"
+                    : "none",
+                }}
+              />
+              {/* só o item ATIVO mostra rótulo (como no app da PlayStation) */}
+              <span
+                className="relative z-[1] font-semibold leading-none transition-all duration-300"
+                style={{
+                  fontSize: 9.5,
+                  letterSpacing: ".02em",
+                  color: active ? "#fff" : "transparent",
+                  opacity: active ? 1 : 0,
+                  maxHeight: active ? 14 : 0,
+                }}
+              >
+                {SHORT[href] ?? label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+    );
+  }
+
+  // ── Estilo ATUAL (pill clássica) ──
   return (
     <nav className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around">
       {items.map(({ href, label, icon: Icon }) => {
-        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+        const active = isActive(href);
         return (
           <Link
             key={href}
