@@ -293,7 +293,7 @@ export function dedupTrades(
   incoming: TradeRow[],
 ): Map<number, "novo" | "existente" | "split"> {
   const existingTrades: Array<{
-    ticker: string; tipo: string; qty: number; preco: number; matched: boolean;
+    ticker: string; tipo: string; qty: number; preco: number; date: string; matched: boolean;
   }> = [];
 
   for (const row of existing) {
@@ -302,27 +302,42 @@ export function dedupTrades(
     const tipo = normalizeTipo(pick(row, "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo", "operação", "operacao"));
     const qty = Math.round(parseValor(pick(row, "quantidade", "qtd", "quantity", "qty") || "0") * 100) / 100;
     const preco = parseValor(pick(row, "preço", "preco", "precio", "price", "preço unitário", "preco unitario") || "0");
-    if (ticker) existingTrades.push({ ticker, tipo, qty, preco, matched: false });
+    const date = normalizeDate(pick(row, "data", "date", "data da transação", "data transacao", "data negócio", "data negocio") || "");
+    if (ticker) existingTrades.push({ ticker, tipo, qty, preco, date, matched: false });
   }
 
-  function findMatch(ticker: string, tipo: string, qty: number, preco: number): typeof existingTrades[0] | null {
-    const q = Math.round(qty);
-    const p = Math.round(preco);
+  // Igualdade aproximada: tolerância proporcional (0,5%) OU absoluta pequena —
+  // muito mais precisa que o Math.round a INTEIRO anterior (que fazia 10,20 ≈
+  // 10,49 e 0,4 ≈ 0,5 casarem falsamente).
+  const aprox = (a: number, b: number, rel = 0.005, abs = 0.01) =>
+    Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
+
+  function findMatch(ticker: string, tipo: string, qty: number, preco: number, date: string): typeof existingTrades[0] | null {
+    const dNorm = normalizeDate(date);
     for (const t of existingTrades) {
       if (t.matched) continue;
       if (t.ticker !== ticker) continue;
       if (t.tipo !== tipo) continue;
-      if (Math.round(t.qty) !== q) continue;
-      if (Math.round(t.preco) !== p) continue;
+      // A DATA é parte da identidade do trade: um re-import tem a MESMA data.
+      // Sem isto, aportes mensais idênticos (100 CMIG4 @ 10,20 em jan e fev)
+      // casavam entre si e a 2ª compra era descartada como "existente". Só exige
+      // igualdade quando ambos os lados têm data (fallback p/ linhas sem data).
+      if (t.date && dNorm && t.date !== dNorm) continue;
+      if (!aprox(t.qty, qty)) continue;
+      if (!aprox(t.preco, preco)) continue;
       return t;
     }
     return null;
   }
 
-  function findSplitMatch(ticker: string, tipo: string, totalValue: number): boolean {
+  function findSplitMatch(ticker: string, tipo: string, totalValue: number, date: string): boolean {
+    const dNorm = normalizeDate(date);
     for (const t of existingTrades) {
       if (t.matched) continue;
       if (t.ticker !== ticker || t.tipo !== tipo) continue;
+      // Split = ordem fragmentada no MESMO dia; sem a data, um aporte mensal de
+      // mesmo valor total viraria "split" do mês anterior.
+      if (t.date && dNorm && t.date !== dNorm) continue;
       const existVal = t.qty * t.preco;
       const diff = Math.abs(existVal - totalValue);
       if (totalValue > 0 && (diff < 5 || diff / totalValue < 0.01)) return true;
@@ -358,7 +373,7 @@ export function dedupTrades(
     const ticker = dedupTk(rows[0].Símbolo);
     const tipo = rows[0]["Tipo de transação"];
 
-    const match = findMatch(ticker, tipo, Math.round(totalQty * 100) / 100, avgPrice);
+    const match = findMatch(ticker, tipo, Math.round(totalQty * 100) / 100, avgPrice, rows[0].Data);
     if (match) {
       match.matched = true;
       for (const idx of indices) { processedIndices.add(idx); statuses.set(idx, "existente"); }
@@ -374,11 +389,11 @@ export function dedupTrades(
     const qty = Math.round(Math.abs(parseValor(row.Quantidade)) * 100) / 100;
     const preco = Math.abs(parseValor(row.Preço));
 
-    const match = findMatch(ticker, tipo, qty, preco);
+    const match = findMatch(ticker, tipo, qty, preco, row.Data);
     if (match) {
       match.matched = true;
       statuses.set(i, "existente");
-    } else if (findSplitMatch(ticker, tipo, qty * preco)) {
+    } else if (findSplitMatch(ticker, tipo, qty * preco, row.Data)) {
       statuses.set(i, "split");
     } else {
       statuses.set(i, "novo");

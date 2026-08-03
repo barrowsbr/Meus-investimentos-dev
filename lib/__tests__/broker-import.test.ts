@@ -33,6 +33,25 @@ describe("dedup — sufixo de bolsa (VOW3.DE ≡ VOW3)", () => {
   });
 });
 
+describe("dedup — a DATA faz parte da identidade do trade", () => {
+  const existente = [{ "símbolo": "CMIG4.SA", "tipo de transação": "Compra", quantidade: "100", "preço": "10,20", data: "2026-01-15" }];
+
+  it("compra IDÊNTICA em outra data é NOVO (aporte mensal não é descartado)", () => {
+    const incoming = [makeTradeRow({ data: "2026-02-15", tipo: "Compra", ticker: "CMIG4.SA", qtd: 100, preco: 10.20, valorBruto: 1020, comissao: 0, moeda: "BRL" })];
+    expect(dedupTrades(existente, incoming).get(0)).toBe("novo");
+  });
+
+  it("mesma compra reimportada (mesma data) é 'existente'", () => {
+    const incoming = [makeTradeRow({ data: "2026-01-15", tipo: "Compra", ticker: "CMIG4.SA", qtd: 100, preco: 10.20, valorBruto: 1020, comissao: 0, moeda: "BRL" })];
+    expect(dedupTrades(existente, incoming).get(0)).toBe("existente");
+  });
+
+  it("preços próximos mas distintos (10,20 vs 10,49) não casam por arredondamento", () => {
+    const incoming = [makeTradeRow({ data: "2026-01-15", tipo: "Compra", ticker: "CMIG4.SA", qtd: 100, preco: 10.49, valorBruto: 1049, comissao: 0, moeda: "BRL" })];
+    expect(dedupTrades(existente, incoming).get(0)).toBe("novo");
+  });
+});
+
 // Caso 2 e 3: forex USD.CAD — micro-ajustes filtrados; câmbio real reconhecido.
 describe("câmbio", () => {
   it("filtra micro-ajuste de câmbio (<10)", () => {
