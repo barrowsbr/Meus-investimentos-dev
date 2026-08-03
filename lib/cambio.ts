@@ -315,7 +315,9 @@ export function parsePtax(ptaxRows: Row[]): PtaxRates | null {
   for (const row of ptaxRows) {
     const data = String(fuzzyGet(row, "data", "date", "data cotação", "data cotacao") ?? "");
     const moeda = String(fuzzyGet(row, "moeda", "currency", "par") ?? "USD").toUpperCase();
-    const venda = toNumber(fuzzyGet(row, "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
+    // "taxa" é a coluna canônica da aba p_tax (é o que o updater grava) — sem ela
+    // aqui, toda linha vinha com venda=0 e era descartada.
+    const venda = toNumber(fuzzyGet(row, "taxa", "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
 
     if (!data || venda === 0) continue;
     const dataISO = normalizeDate(data);
@@ -338,9 +340,12 @@ export function buildFxDateMap(ptaxRows: Row[], cambioOps: CambioOp[]): Map<stri
   for (const row of ptaxRows) {
     const data = String(fuzzyGet(row, "data", "date", "data cotação", "data cotacao") ?? "");
     const moeda = String(fuzzyGet(row, "moeda", "currency", "par") ?? "USD").toUpperCase();
-    const venda = toNumber(fuzzyGet(row, "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
+    const venda = toNumber(fuzzyGet(row, "taxa", "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
     if (!data || venda === 0) continue;
-    if (moeda.includes("EUR")) continue;
+    // Este mapa é consumido como USD/BRL (fxByDate no FIFO). A p_tax é multi-moeda
+    // (USD/EUR/CAD/GBP) — só USD (ou linha legada sem coluna moeda, que cai no
+    // default "USD") pode entrar; antes só EUR era excluído e CAD/GBP contaminavam.
+    if (!moeda.includes("USD")) continue;
     const dateISO = normalizeDate(data);
     if (dateISO) map.set(dateISO, venda);
   }
