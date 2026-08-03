@@ -64,9 +64,10 @@ export default function BottomNav() {
         <div className="ps-row">
           {items.map(({ href, label, icon: Icon }, i) => {
             const active = isActive(href);
-            // Os ícones acompanham a curva: centro mais alto, pontas mais baixas.
+            // Os ícones acompanham a curva rasa: centro mais alto, pontas ~14px
+            // mais baixas (parábola suave, calibrada contra a referência do PS5).
             const t = n > 1 ? (i - (n - 1) / 2) / ((n - 1) / 2) : 0;
-            const dy = Math.round(12 * t * t);
+            const dy = Math.round(14 * t * t);
             return (
               <Link
                 key={href}
@@ -76,15 +77,17 @@ export default function BottomNav() {
                 className="ps-item"
                 style={{ transform: `translateY(${dy}px)` }}
               >
-                {/* luz que nasce da borda inferior, subindo por trás do ícone ativo */}
+                {/* luz suave que nasce da borda inferior, subindo por trás do
+                    ícone ativo (wash de baixa intensidade, não holofote) */}
                 {active && <span className="ps-bloom" aria-hidden />}
+                {active && <span className="ps-refl" aria-hidden />}
                 <Icon
-                  size={active ? 27 : 24}
-                  strokeWidth={active ? 2.2 : 1.8}
+                  size={active ? 28 : 25}
+                  strokeWidth={active ? 2.1 : 1.8}
                   className="relative z-[1] transition-all duration-300 ease-out"
                   style={{
                     color: active ? "#fff" : "#8f8f96",
-                    filter: active ? "drop-shadow(0 1px 6px rgba(255,255,255,0.35))" : "none",
+                    filter: active ? "drop-shadow(0 1px 5px rgba(255,255,255,0.30))" : "none",
                   }}
                 />
               </Link>
