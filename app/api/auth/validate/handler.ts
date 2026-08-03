@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
 import { DEMO_USER, DEMO_PASS, DEMO_COOKIE } from "@/lib/demo";
 import { USER_COOKIE } from "@/lib/user-sheet";
+import { setSession, clearSession } from "@/lib/auth-server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
         path: "/",
         maxAge: 60 * 60 * 12,
       });
+      clearSession(res); // demo não é o dono — sem sessão de servidor
       return res;
     }
 
@@ -44,8 +46,10 @@ export async function POST(req: NextRequest) {
 
     const ok = user.trim().toUpperCase() === validUser.toUpperCase() && password === validPass;
     const res = NextResponse.json({ ok });
-    // Login do dono limpa qualquer cookie de demo/conta extra remanescente.
+    // Login do dono: emite a sessão de servidor (cookie HttpOnly assinado, que as
+    // rotas mutantes exigem) e limpa cookies de demo/conta extra remanescentes.
     if (ok) {
+      setSession(res, Date.now());
       res.cookies.set(DEMO_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
       res.cookies.set(USER_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
     }

@@ -5,6 +5,7 @@ import { fetchTicker } from "@/lib/market-history";
 import { getDataStore } from "@/lib/data-store";
 import { yahooTicker } from "@/lib/cotacoes";
 import { identificarSetor, isRendaFixaManual } from "@/lib/sectors";
+import { requireOwner } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -24,6 +25,8 @@ function isWeekend(dateStr: string): boolean {
 // Must run in production where Yahoo is accessible.
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   const body = await request.json().catch(() => ({}));
   const lookbackYears = Math.min(Number(body.lookbackYears ?? 4), 10);
   const dryRun = body.dryRun === true;

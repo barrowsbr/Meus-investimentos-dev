@@ -4,6 +4,7 @@
 // writeTab → backup automático (bkp_<aba> + CSV) antes de sobrescrever.
 
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { listSheetNames, readTabRaw, writeTab, appendRows } from "@/lib/gsheets";
 import { isDemoRequest } from "@/lib/demo";
 
@@ -78,6 +79,8 @@ const rowEq = (a: string[], b: string[]) => {
 };
 
 export async function POST(req: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   if (isDemoRequest()) return NextResponse.json({ error: "Indisponível no modo demonstração" }, { status: 403 });
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { getDataStore } from "@/lib/data-store";
 import { backupTab } from "@/lib/backup";
 
@@ -187,6 +188,8 @@ function findMissingProventos(
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const store = getDataStore();
     const formData = await request.formData();

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { readGoldenSource, goldenSourceStatus } from "@/lib/db-cotacoes";
 import { runCotacoesSync, detectAnomalies } from "@/lib/sync-cotacoes";
 
@@ -26,6 +27,8 @@ export async function GET() {
 // ── POST: backfill or update (manual, from Configurações) ────────────────────────
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const action = body.action === "backfill" ? "backfill" : "update";

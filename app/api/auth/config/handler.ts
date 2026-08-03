@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { getDataStore } from "@/lib/data-store";
 
 const TAB = "config";
@@ -48,6 +49,8 @@ export async function GET() {
 
 /** POST — update password and/or protected pages in the config tab. */
 export async function POST(req: NextRequest) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const store = getDataStore();
     const body = await req.json();

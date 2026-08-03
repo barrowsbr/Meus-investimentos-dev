@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { isDemoRequest } from "@/lib/demo";
 import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 // planilha, mas tem efeito real (chega no Telegram do dono) — bloqueado em
 // modo demo para uma visita ao showcase não conseguir disparar notificação real.
 export async function POST() {
+  const denied = await requireOwner();
+  if (denied) return denied;
   if (isDemoRequest()) {
     return NextResponse.json({ error: "Indisponível em modo demonstração" }, { status: 403 });
   }

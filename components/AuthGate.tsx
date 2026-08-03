@@ -61,6 +61,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       .finally(() => setConfigLoaded(true));
   }, []);
 
+  // Sessão de servidor: quem estava "logado" só via sessionStorage (antes do
+  // deploy que introduziu o cookie HttpOnly) não tem sessão no servidor. Verifica
+  // e, se não houver (e não for demo), força re-login UMA vez. Fail-open no
+  // cliente: se a checagem falhar, mantém o estado atual.
+  useEffect(() => {
+    if (!mounted) return;
+    if (sessionStorage.getItem(AUTH_KEY) !== "1") return;
+    if (sessionStorage.getItem(DEMO_KEY) === "1") return;
+    let alive = true;
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && d && d.session === false) {
+          sessionStorage.removeItem(AUTH_KEY);
+          setAuthed(false);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [mounted]);
+
   // Tela inicial (hub) ativada → é a PRIMEIRA tela do app depois do login.
   // Dispara na ENTRADA do app (não só ao enviar o form de login), 1× por sessão:
   // assim funciona mesmo já autenticado ou com login desligado. Ordem garantida:

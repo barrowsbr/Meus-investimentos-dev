@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { google } from "googleapis";
 import { getDataStore } from "@/lib/data-store";
 import { getServiceAccountAuth } from "@/lib/gsheets";
@@ -36,6 +37,8 @@ export async function GET() {
 
 // POST — salva o conjunto COMPLETO de metas (reescrita idempotente da aba).
 export async function POST(req: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     // Modo demonstração (test/test) é somente leitura — escrita direta via
     // google.sheets não passa por writeTab, então o guard vem explícito aqui.

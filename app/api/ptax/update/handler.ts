@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { getDataStore } from "@/lib/data-store";
 import { getServiceAccountAuth } from "@/lib/gsheets";
 import { fetchPtaxUpdates, SUPPORTED_CURRENCIES } from "@/lib/ptax";
@@ -20,6 +21,8 @@ function formatBrDate(iso: string): string {
 }
 
 export async function POST() {
+  const denied = await requireOwner();
+  if (denied) return denied;
   if (!getServiceAccountAuth()) {
     return NextResponse.json(
       { error: "Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON" },
