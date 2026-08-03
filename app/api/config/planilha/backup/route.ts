@@ -66,12 +66,16 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
   // Export completo — auth por CRON_SECRET (dados financeiros; só o workflow).
+  // FAIL-CLOSED: sem o secret configurado, ninguém baixa o dump (antes o
+  // `if (secret && ...)` deixava o export ABERTO quando a env não estava setada).
   if (searchParams.get("export") === "all") {
     const secret = process.env.CRON_SECRET;
-    if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+    if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
-    const names = (await listSheetNames()).filter(elegivel);
+    // `config` (senha de login em texto puro) NUNCA entra no dump — os CSVs vão
+    // para a branch backups do GitHub; a senha não pode vazar para lá.
+    const names = (await listSheetNames()).filter((n) => elegivel(n) && n.trim().toLowerCase() !== "config");
     const tabs: Array<{ tab: string; linhas: number; csv: string }> = [];
     for (const tab of names) {
       try {

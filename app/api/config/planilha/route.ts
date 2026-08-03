@@ -17,6 +17,27 @@ const isEditable = (name: string) => {
   return n.length > 0 && !n.startsWith("bkp_") && n !== "db_cotacoes";
 };
 
+// Abas com SEGREDO em texto puro nunca saem por esta rota (o editor é aberto
+// como qualquer /api/* — o AuthGate é só client-side): `config` guarda a senha
+// de login e `app_config` guarda o token do Telegram (escopo alertas).
+const SENSIVEL = new Set(["config"]);
+const isSensivel = (name: string) => SENSIVEL.has(name.trim().toLowerCase());
+// Mascara valores de chaves-segredo em abas escopo/chave/valor (app_config).
+const CHAVE_SECRETA = /token|secret|senha|password|chat[_-]?id|api[_-]?key/i;
+function mascararGrid(tab: string, grid: { headers: string[]; rows: string[][] }) {
+  if (tab.trim().toLowerCase() !== "app_config") return grid;
+  const iChave = grid.headers.findIndex((h) => h.trim().toLowerCase() === "chave");
+  const iValor = grid.headers.findIndex((h) => h.trim().toLowerCase() === "valor");
+  if (iChave < 0 || iValor < 0) return grid;
+  const rows = grid.rows.map((r) => {
+    if (CHAVE_SECRETA.test(r[iChave] ?? "") && (r[iValor] ?? "").length > 0) {
+      const c = [...r]; c[iValor] = "••••••• (oculto)"; return c;
+    }
+    return r;
+  });
+  return { ...grid, rows };
+}
+
 export async function GET(req: Request) {
   if (isDemoRequest()) return NextResponse.json({ error: "Indisponível no modo demonstração" }, { status: 403 });
   const { searchParams } = new URL(req.url);
@@ -26,15 +47,16 @@ export async function GET(req: Request) {
       // TODAS as abas: as de dados são editáveis; backups (bkp_*) e o golden
       // source (db_cotacoes) entram como SOMENTE LEITURA — dá para conferir a
       // fotografia diária sem risco de editá-la.
-      const nomes = (await listSheetNames()).filter((n) => n.trim() !== "");
+      const nomes = (await listSheetNames()).filter((n) => n.trim() !== "" && !isSensivel(n));
       const tabs = [
         ...nomes.filter(isEditable).map((name) => ({ name, ro: false })),
         ...nomes.filter((n) => !isEditable(n)).map((name) => ({ name, ro: true })),
       ];
       return NextResponse.json({ tabs });
     }
+    if (isSensivel(tab)) return NextResponse.json({ error: "Aba protegida (contém segredo)" }, { status: 403 });
     // Leitura liberada para qualquer aba existente (edição segue restrita no POST).
-    const grid = await readTabRaw(tab);
+    const grid = mascararGrid(tab, await readTabRaw(tab));
     return NextResponse.json({ tab, readonly: !isEditable(tab), ...grid });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao ler planilha" }, { status: 500 });
