@@ -112,17 +112,48 @@ export function apurar(events: RealizedEvent[]): Apuracao {
   const exteriorOut: AnoExterior[] = [];
   for (const ano of anos) {
     const ref = `${ano}-01-01`;
-    const resultado = exteriores.filter(e => e.year === ano).reduce((s, e) => s + e.gainBRL, 0);
-    const aliquota = regra("exterior", ref).aliquota;
+    const rule = regra("exterior", ref);
+    const evsAno = exteriores.filter(e => e.year === ano);
+    const resultado = evsAno.reduce((s, e) => s + e.gainBRL, 0);
+    const aliquota = rule.aliquota;
     const prejuizoAcumIni = prejuizo.exterior;
-    let base = resultado - prejuizoAcumIni;
-    let prejuizoAcumFim = 0;
-    if (base < 0) { prejuizoAcumFim = -base; base = 0; }
-    prejuizo.exterior = prejuizoAcumFim;
-    exteriorOut.push({
-      ano, resultado, prejuizoAcumIni, baseTributavel: base, prejuizoAcumFim,
-      aliquota, irDevido: base * aliquota,
-    });
+
+    if (rule.apuracao === "mensal") {
+      // Regime ANTIGO (pré-Lei 14.754/23): apuração MENSAL com isenção de pequeno
+      // valor — alienações ≤ isencaoMensalVendas (R$35k) no mês são ISENTAS e não
+      // geram ganho tributável nem perda dedutível. Meses acima do limite tributam
+      // o ganho à alíquota, com compensação de prejuízo carregada mês a mês.
+      const limite = rule.isencaoMensalVendas ?? 35000;
+      const mesesAno = [...new Set(evsAno.map(e => e.month))].sort();
+      let prej = prejuizoAcumIni;
+      let irAno = 0;
+      let baseAno = 0;
+      for (const mes of mesesAno) {
+        const evsMes = evsAno.filter(e => e.month === mes);
+        const proceeds = evsMes.reduce((s, e) => s + e.proceedsBRL, 0);
+        if (proceeds <= limite) continue; // isento — sem ganho tributável nem perda
+        const ganhoMes = evsMes.reduce((s, e) => s + e.gainBRL, 0);
+        let base = ganhoMes - prej;
+        if (base < 0) { prej = -base; base = 0; } else { prej = 0; }
+        baseAno += base;
+        irAno += base * aliquota;
+      }
+      prejuizo.exterior = prej;
+      exteriorOut.push({
+        ano, resultado, prejuizoAcumIni, baseTributavel: baseAno,
+        prejuizoAcumFim: prej, aliquota, irDevido: irAno,
+      });
+    } else {
+      // Lei 14.754/23 (2024+): 15% ANUAL, sem isenção de pequeno valor.
+      let base = resultado - prejuizoAcumIni;
+      let prejuizoAcumFim = 0;
+      if (base < 0) { prejuizoAcumFim = -base; base = 0; }
+      prejuizo.exterior = prejuizoAcumFim;
+      exteriorOut.push({
+        ano, resultado, prejuizoAcumIni, baseTributavel: base, prejuizoAcumFim,
+        aliquota, irDevido: base * aliquota,
+      });
+    }
   }
 
   return {

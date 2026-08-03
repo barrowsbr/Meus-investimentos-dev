@@ -267,6 +267,19 @@ describe("apurador — exterior anual (Lei 14.754/23)", () => {
   });
 });
 
+describe("apurador — exterior pré-2024 (regime mensal + isenção R$35k)", () => {
+  it("mês com alienações ≤ R$35k é isento; mês acima tributa 15% do ganho", () => {
+    const ap = apurar([
+      mk({ modalidade: "exterior", assetClass: "exterior", year: "2023", month: "2023-03", date: "2023-03-10", moeda: "USD", proceedsBRL: 30000, gainBRL: 5000 }),
+      mk({ modalidade: "exterior", assetClass: "exterior", year: "2023", month: "2023-07", date: "2023-07-10", moeda: "USD", proceedsBRL: 50000, gainBRL: 8000 }),
+    ]);
+    const ex = ap.exterior.find(e => e.ano === "2023")!;
+    // mar/23 isento (30k ≤ 35k, não tributa nem gera perda); jul/23: 8000 × 15% = 1200.
+    expect(ex.baseTributavel).toBeCloseTo(8000, 6);
+    expect(ex.irDevido).toBeCloseTo(1200, 6);
+  });
+});
+
 // ── cambio-ir.ts ─────────────────────────────────────────────────────────────
 
 describe("cambio-ir — alíquota progressiva de ganho de capital", () => {
