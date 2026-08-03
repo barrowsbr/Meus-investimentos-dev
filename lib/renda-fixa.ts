@@ -166,7 +166,12 @@ export function calcularRendaFixaPosicoes(
   for (const { ticker, atual, moeda, tipo } of openEntries) {
     const isCaixa = isCashTicker(ticker, tipo);
     const txData = txByTicker[ticker];
-    const investido = txData?.compra ?? 0;
+    const investidoBruto = txData?.compra ?? 0;
+    const resgatado = txData?.venda ?? 0;
+    // Resgate PARCIAL devolve capital: o investido "ainda aplicado" é o líquido
+    // (compra − venda, piso 0). Antes usava só a compra e o lucro (atual −
+    // investido) ignorava o resgate, subestimando o resultado.
+    const investido = Math.max(0, investidoBruto - resgatado);
     const proventos = proventosPorTicker[ticker] ?? 0;
     const atualBRL = toBRL(atual, moeda);
     const investidoBRL = toBRL(investido, moeda);
@@ -182,11 +187,14 @@ export function calcularRendaFixaPosicoes(
       continue;
     }
 
-    const lucro = investido > 0 ? atual - investido : 0;
+    // lucro = atual − investidoLíquido  ≡  atual + resgatado − compra (ganho
+    // total, contando o capital já devolvido). Rentabilidade sobre o BRUTO
+    // aplicado (retorno real do que foi colocado), não sobre o líquido.
+    const lucro = investidoBruto > 0 ? atual - investido : 0;
     const lucroBRL = toBRL(lucro, moeda);
     const resultadoTotal = lucro + proventos;
     const resultadoTotalBRL = lucroBRL + proventosBRL;
-    const rentabilidade = investido > 0 ? (resultadoTotal / investido) * 100 : 0;
+    const rentabilidade = investidoBruto > 0 ? (resultadoTotal / investidoBruto) * 100 : 0;
 
     abertas.push({
       ticker, moeda, atual, atualBRL, investido, investidoBRL, lucro, lucroBRL,
