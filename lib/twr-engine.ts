@@ -59,6 +59,11 @@ export interface ParsedTx {
   taxas: number;
   moeda: string;
   setor: string;
+  // Bonificação/subscrição: o flow deve usar o PREÇO DA TRANSAÇÃO (0 na
+  // bonificação, preço de subscrição na subscrição), não o de mercado — senão
+  // vira um "aporte" fantasma a preço de mercado que anula o ganho das ações
+  // recebidas (subestima TWR/MWR).
+  precoTransacao?: boolean;
 }
 
 export function parseRVTransactions(rows: Row[]): ParsedTx[] {
@@ -82,6 +87,7 @@ export function parseRVTransactions(rows: Row[]): ParsedTx[] {
     if (tipoRaw.includes("compra") || tipoRaw.includes("buy") || tipoRaw.includes("aporte") || tipoRaw.includes("subscri") || tipoRaw.includes("bonif")) tipo = "Compra";
     else if (tipoRaw.includes("venda") || tipoRaw.includes("sell") || tipoRaw.includes("resgate")) tipo = "Venda";
     if (!tipo) continue;
+    const precoTransacao = tipoRaw.includes("subscri") || tipoRaw.includes("bonif");
 
     const quantidade = Math.abs(toNumber(row["quantidade"] ?? row["qtd"] ?? row["quantity"]) ?? 0);
     if (quantidade < 0.000001) continue;
@@ -93,7 +99,7 @@ export function parseRVTransactions(rows: Row[]): ParsedTx[] {
     const date = toYMD(row["data"] ?? row["date"]);
     if (!date) continue;
 
-    result.push({ date, bizDate: tradeDateFor(date, setor), ticker, tipo, quantidade, preco, taxas, moeda, setor });
+    result.push({ date, bizDate: tradeDateFor(date, setor), ticker, tipo, quantidade, preco, taxas, moeda, setor, precoTransacao });
   }
 
   return result.sort((a, b) => a.date.localeCompare(b.date));
@@ -937,7 +943,13 @@ export function calcularTWR(input: TwrInput): TwrResult {
       const tx = sortedTxs[txIdx++];
       let marketPrice = getPrice(tx.ticker, i, prices);
       if (marketPrice == null && i > 0) marketPrice = getPrice(tx.ticker, i - 1, prices);
-      const price = (marketPrice != null && marketPrice > 0) ? marketPrice : tx.preco;
+      // Bonificação/subscrição: o flow usa o preço da TRANSAÇÃO (0 na bonificação,
+      // preço de subscrição na subscrição), não o de mercado — as ações recebidas
+      // entram no NAV a mercado, mas não houve aporte a mercado (senão o "aporte"
+      // fantasma anularia o ganho das ações grátis, subestimando o retorno).
+      const price = tx.precoTransacao
+        ? tx.preco
+        : ((marketPrice != null && marketPrice > 0) ? marketPrice : tx.preco);
       const txFx = fxFactor(tx.moeda, fx);
       const value = tx.quantidade * price * txFx;
       const taxasBrl = tx.taxas * txFx;
