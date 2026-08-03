@@ -162,9 +162,8 @@ export async function GET(req: Request) {
       );
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
-      const valorBRL = moeda === "USD" ? valorRaw * fxAtual.USDBRL
-        : moeda === "EUR" ? valorRaw * fxAtual.EURBRL
-        : valorRaw;
+      // fxFactor cobre USD/EUR/CAD/GBP (o ternário antigo tratava CAD/GBP como BRL).
+      const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
       const { macro, sub: subSetor } = classificarCamadas(ticker, "Renda Fixa");
       if (!macroMap.has(macro)) macroMap.set(macro, new Map());
       const setorMap = macroMap.get(macro)!;
