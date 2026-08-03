@@ -138,25 +138,19 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
   headers duplicados, moedas estranhas, lock mensal corrompido)
 - **Biblioteca**: `googleapis` (Node.js)
 
-## Multiusuário (planilha por conta — sem banco de dados)
+## Multiusuário — REMOVIDO (decisão do dono)
 
-- Contas extras (ex.: esposa) têm a PRÓPRIA planilha Google. Config via env
-  **`EXTRA_USERS_JSON`**: `[{"user":"maria","password":"...","spreadsheetId":"1AbC..."}]`.
-- Login de conta extra seta cookie **HttpOnly `mi_user`**; `lib/user-sheet.ts`
-  (`activeSpreadsheetId`) roteia TODA leitura/escrita do gsheets para a planilha
-  da conta. Sem cookie (dono, cron, scripts) vale `SPREADSHEET_ID`. Login do dono
-  limpa o cookie.
-- A planilha extra precisa de: compartilhamento por link como **Leitor** (leitura
-  via API key) e o e-mail do service account como **Editor** (escrita/backup).
-- **CDN**: `middleware.ts` roda antes do cache da Vercel e reescreve `/api/*` com
-  `?__acct=<conta>` quando há cookie de conta extra ou demo — cada conta tem sua
-  entrada de cache (sem isso a resposta cacheada do dono vazaria para a outra
-  conta dentro do s-maxage).
-- Exceções que ficam na planilha principal: **db_cotacoes** (golden source de
-  preços — dado de mercado, compartilhado; `lib/db-cotacoes.ts` tem o próprio
-  SPREADSHEET_ID) e o **sync IBKR Flex** (token do dono; bloqueado para extras).
-- Caveat (igual ao demo): o Python (`api/index.py`) lê a planilha direto e NÃO
-  segue o cookie — agente IA/fluxos mostram os dados do dono.
+- O app tem **uma única conta** (o dono). As antigas contas extras
+  (`EXTRA_USERS_JSON` / cookie `mi_user`, roteando para outra planilha) foram
+  retiradas. Em `lib/user-sheet.ts`, `activeUserKey()` sempre retorna `null` e
+  `activeSpreadsheetId()` sempre retorna a planilha principal (`SPREADSHEET_ID`).
+  Os guards espalhados (`if (activeUserKey()) …`, `skipIbkr = !!activeUserKey()`)
+  viram no-ops inertes — o dono vê tudo. Não reintroduzir contas extras sem
+  pedido explícito.
+- **CDN**: `middleware.ts` (antes do cache da Vercel) reescreve `/api/*` com
+  `?__acct=demo` **só** para o modo demo (cookie `mi_demo`), dando entrada de
+  cache própria; sem cookie a URL fica intacta e um `?__acct` forjado pelo
+  cliente é REMOVIDO (senão envenenaria o cache do demo com dados reais).
 
 ## Modo demonstração (showcase)
 
