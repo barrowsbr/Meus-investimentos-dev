@@ -304,21 +304,30 @@ body {
   border-radius: 50% 50% 0 0 / 300px 300px 0 0;
   pointer-events: none;
 }
-/* véu translúcido: o conteúdo aparece ESMAECIDO por trás do topo do arco */
+/* CAMADA 1 — véu: bem TRANSLÚCIDO com blur leve. É por aqui que o conteúdo do
+   app aparece ESMAECIDO e borrado através do "ombro" do arco (a capa/os cards
+   vazam atenuados, como o jogo no app do PS5). */
 .bottom-nav.ps .ps-veil {
-  top: 2px;
-  background: rgba(9, 9, 12, 0.55);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  top: -2px;
+  background: rgba(10, 10, 13, 0.40);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
-/* superfície sólida — degradê vertical muito sutil + fio de brilho no topo */
+/* CAMADA 2 — superfície: degradê de OPACIDADE (translúcida no topo → quase
+   opaca na base) sobre um blur mais forte. A diferença de transparência entre
+   esta camada e o véu é o que DEFINE as camadas (o degrau visível do PS5). */
 .bottom-nav.ps .ps-surface {
-  top: 20px;
-  background: linear-gradient(180deg, #202024 0%, #1b1b1f 34%, #141418 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  top: 22px;
+  background: linear-gradient(180deg,
+    rgba(24, 24, 28, 0.52) 0%,
+    rgba(18, 18, 22, 0.80) 34%,
+    rgba(13, 13, 17, 0.93) 100%);
+  backdrop-filter: blur(16px) saturate(1.05);
+  -webkit-backdrop-filter: blur(16px) saturate(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .bottom-nav.ps .ps-row {
-  position: absolute; left: 0; right: 0; top: 34px;
+  position: absolute; left: 0; right: 0; top: 36px;
   display: flex; align-items: center; justify-content: space-around;
   height: 50px;
 }
