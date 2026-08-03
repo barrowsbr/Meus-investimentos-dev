@@ -69,6 +69,26 @@ describe("dia-âncora (day 0)", () => {
   });
 });
 
+// ── Bonificação: ações grátis são GANHO, não aporte a preço de mercado ────────
+describe("bonificação/subscrição no flow", () => {
+  const bonif = (ticker: string, qty: number, data: string) =>
+    ({ "símbolo": ticker, "tipo de transação": "Bonificação", quantidade: qty, "preço": 0, moeda: "BRL", data } as Record<string, unknown>);
+
+  it("bonificação vira ganho (~+10%), não é anulada por um aporte fantasma", () => {
+    const dates = ["2025-06-02", "2025-06-03", "2025-06-04", "2025-06-05"];
+    const transacoes = [
+      compra("AAAA3", 100, 10, "2025-06-03"), // dia 1: flow 1000, NAV 1000, ret 0
+      bonif("AAAA3", 10, "2025-06-04"),        // dia 2: +10 ações grátis
+    ];
+    const prices: PriceMatrix = { AAAA3: [10, 10, 10, 10] }; // preço FLAT
+    const twr = calcularTWR({ transacoes, dates, prices, fxHistory: fxHist(dates) });
+    // NAV: 1000 → 1100 (110×10) com flow=0 → ret dia2 = +10%.
+    // Com o bug (flow a mercado = 100), o ganho das ações grátis seria anulado (~0%).
+    expect(twr.twrTotal).toBeGreaterThan(0.09);
+    expect(twr.twrTotal).toBeLessThan(0.11);
+  });
+});
+
 // ── MWR: proventos são fluxo do investidor ───────────────────────────────────
 describe("MWR (XIRR)", () => {
   it("XIRR bate com a taxa anual exata num caso fechado (sem fluxos)", () => {
