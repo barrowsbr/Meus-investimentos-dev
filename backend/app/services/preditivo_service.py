@@ -32,13 +32,19 @@ def _build_price_df(rows: list[dict], tickers: list[str] | None = None) -> pd.Da
     headers = list(rows[0].keys())
     date_col = headers[0]
 
-    # Exclude known non-asset columns (FX, indices)
-    skip = {"brl=x", "usd=x", "eur=x", "^bvsp", "^gspc", "^ixic", "^dji"}
+    # Exclude known non-asset columns (índices + QUALQUER par de câmbio: as
+    # colunas FX reais do db_cotacoes são BRL=X, EURBRL=X, CADBRL=X, GBPBRL=X —
+    # o skip fixo só cobria BRL=X/USD=X/EUR=X, deixando EURBRL/CADBRL/GBPBRL
+    # entrarem como se fossem ativos da carteira no Monte Carlo/ARIMA.
+    skip = {"^bvsp", "^gspc", "^ixic", "^dji"}
     if tickers is not None:
         ticker_set = {t.upper() for t in tickers}
         ticker_cols = [h for h in headers[1:] if h.upper() in ticker_set]
     else:
-        ticker_cols = [h for h in headers[1:] if h.lower() not in skip]
+        ticker_cols = [
+            h for h in headers[1:]
+            if h.lower() not in skip and not h.lower().endswith("=x")
+        ]
 
     if not ticker_cols:
         return pd.DataFrame()
