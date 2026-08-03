@@ -50,6 +50,7 @@ export interface MarginEntryMetrics extends MarginEntry {
   jurosAcumNative: number;           // ACT/360 desde a abertura
   jurosAcumBRL: number;
   custoAnualBRL: number;
+  fxAusente?: boolean;               // true = câmbio da moeda não veio; usou proxy (nunca 0)
 }
 
 export interface MarginResumo {
@@ -230,7 +231,19 @@ export function computeMarginResumo(
   const hoje = new Date().toISOString().slice(0, 10);
 
   const entradas: MarginEntryMetrics[] = entries.map(e => {
-    const fx = e.moeda === "BRL" ? 1 : (fxBRL[e.moeda] ?? 0);
+    // Câmbio da moeda da dívida. Se faltar, NUNCA usar 0 (zerar a dívida some com
+    // ela do total e infla o Net/patrimônio sem aviso): cai no dólar e, em último
+    // caso, num proxy ~5, marcando fxAusente para a UI sinalizar a estimativa.
+    let fx: number;
+    let fxAusente = false;
+    if (e.moeda === "BRL") {
+      fx = 1;
+    } else if (fxBRL[e.moeda] && fxBRL[e.moeda] > 0) {
+      fx = fxBRL[e.moeda];
+    } else {
+      fx = (fxBRL["USD"] && fxBRL["USD"] > 0) ? fxBRL["USD"] : 5;
+      fxAusente = true;
+    }
     const live = benchmarks?.[e.benchmark]?.rate ?? null;
     const taxaBench = live ?? e.taxaBenchmark;
     const taxaTotal = taxaBench + e.spread;
@@ -248,6 +261,7 @@ export function computeMarginResumo(
       jurosAcumNative,
       jurosAcumBRL: jurosAcumNative * fx,
       custoAnualBRL: valorBRL * (taxaTotal / 100),
+      fxAusente,
     };
   });
 
