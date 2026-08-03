@@ -7,9 +7,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const fetchTab = vi.fn();
 const writeTab = vi.fn();
 const ensureTab = vi.fn();
+const listSheetNames = vi.fn();
 
 vi.mock("@/lib/data-store", () => ({ getDataStore: () => ({ fetchTab }) }));
-vi.mock("@/lib/gsheets", () => ({ ensureTab: (...a: unknown[]) => ensureTab(...a), writeTab: (...a: unknown[]) => writeTab(...a) }));
+vi.mock("@/lib/gsheets", () => ({
+  ensureTab: (...a: unknown[]) => ensureTab(...a),
+  writeTab: (...a: unknown[]) => writeTab(...a),
+  listSheetNames: (...a: unknown[]) => listSheetNames(...a),
+}));
 
 import { lerEscopo, gravarEscopo, APP_CONFIG_TAB } from "@/lib/app-config";
 
@@ -17,6 +22,9 @@ beforeEach(() => {
   fetchTab.mockReset();
   writeTab.mockReset().mockResolvedValue(undefined);
   ensureTab.mockReset().mockResolvedValue(undefined);
+  // Default: app_config ainda não existe entre as abas (usado só quando a leitura
+  // estrita cai no catch — a maioria dos testes tem fetchTab bem-sucedido).
+  listSheetNames.mockReset().mockResolvedValue(["meus_ativos", "alertas_estado"]);
 });
 
 describe("lerEscopo", () => {
@@ -100,12 +108,20 @@ describe("gravarEscopo", () => {
 
   it("primeira gravação com app_config inexistente cria a aba do zero", async () => {
     fetchTab.mockRejectedValue(new Error("aba não existe"));
+    listSheetNames.mockResolvedValue(["meus_ativos"]); // app_config ausente → prossegue
     await gravarEscopo("automacoes", [["cron_cotacoes", "false"]]);
     const rows = writeTab.mock.calls[0][2];
     expect(rows).toEqual([
       ["automacoes", "__migrado", "1"],
       ["automacoes", "cron_cotacoes", "false"],
     ]);
+  });
+
+  it("leitura falha com a aba JÁ existente → aborta (não apaga os outros escopos)", async () => {
+    fetchTab.mockRejectedValue(new Error("429 rate limit"));
+    listSheetNames.mockResolvedValue(["meus_ativos", "app_config"]); // existe → erro transitório
+    await expect(gravarEscopo("historico", [["ativo", "false"]])).rejects.toThrow(/abortada/);
+    expect(writeTab).not.toHaveBeenCalled();
   });
 
   it("escopo gravado vazio mantém só o marcador (round-trip não ressuscita o legado)", async () => {

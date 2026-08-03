@@ -17,7 +17,7 @@
 // throttle diário dos alertas — e o writeTab faz backup automático da aba.
 
 import { getDataStore } from "@/lib/data-store";
-import { ensureTab, writeTab } from "@/lib/gsheets";
+import { ensureTab, writeTab, listSheetNames } from "@/lib/gsheets";
 
 export const APP_CONFIG_TAB = "app_config";
 const HEADERS = ["escopo", "chave", "valor"];
@@ -66,7 +66,19 @@ export async function lerEscopo(escopo: EscopoConfig): Promise<Map<string, strin
 /** Regrava TODAS as chaves de um escopo em app_config, preservando as linhas
  *  dos demais escopos. RAW para o Sheets não reinterpretar "18,19" como número. */
 export async function gravarEscopo(escopo: EscopoConfig, valores: Iterable<readonly string[]>): Promise<void> {
-  const atuais = await fetchTabSeguro(APP_CONFIG_TAB);
+  // Leitura ESTRITA: se a app_config existe mas a leitura falha (429/timeout),
+  // ABORTAR — senão reescreveríamos a aba só com este escopo, APAGANDO os demais.
+  // Se a aba ainda não existe, é a 1ª gravação: seguimos (ensureTab a cria).
+  let atuais: Record<string, unknown>[];
+  try {
+    atuais = await getDataStore().fetchTab(APP_CONFIG_TAB);
+  } catch {
+    const norm = (s: string) => s.toLowerCase().replace(/[_\s]/g, "");
+    let existe = true; // se nem listar as abas der, assumir que existe e abortar (fail-safe)
+    try { existe = (await listSheetNames()).some((n) => norm(n) === norm(APP_CONFIG_TAB)); } catch { /* mantém true */ }
+    if (existe) throw new Error(`app_config: leitura falhou; gravação de "${escopo}" abortada para não apagar os outros escopos`);
+    atuais = [];
+  }
   const outras: string[][] = [];
   for (const r of atuais) {
     const esc = String(r["escopo"] ?? "").trim();
