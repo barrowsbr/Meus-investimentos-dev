@@ -30,7 +30,7 @@ export async function backupTab(tabName: string): Promise<{ backupName: string; 
 
   // Snapshot PERSISTENTE numa aba da planilha (rollback real — o CSV em /tmp é
   // efêmero na Vercel). Best-effort: só acontece se a aba bkp_<tab> existir.
-  await snapshotTabToSheet(tabName, rows).catch(() => {});
+  await snapshotTabToSheet(tabName).catch(() => {});
 
   const csv = tabToCsv(rows);
   const backupName = `bkp_${tabName}_${ts()}`;
@@ -51,25 +51,22 @@ function normName(s: string): string {
  *  existir). É o ponto de rollback persistente — sobrescrito a cada backup,
  *  guardando o último estado bom ANTES da escrita. A SA não cria abas, então
  *  a aba de backup precisa existir (criada uma vez pelo dono). */
-export async function snapshotTabToSheet(
-  tabName: string,
-  rows?: Record<string, unknown>[],
-): Promise<boolean> {
+export async function snapshotTabToSheet(tabName: string): Promise<boolean> {
   if (normName(tabName).startsWith("bkp")) return false; // não faz backup do backup
   const store = getDataStore();
   const bkpName = `bkp_${tabName}`;
 
-  const { listSheetNames } = await import("./gsheets");
+  const { listSheetNames, readTabRaw } = await import("./gsheets");
   let names: string[] = [];
   try { names = await listSheetNames(); } catch { return false; }
   if (!names.some((n) => normName(n) === normName(bkpName))) return false; // sem aba de backup → pula
 
-  const data = rows ?? await store.fetchTab(tabName);
-  if (!data || data.length === 0) return false;
-
-  const headers = Object.keys(data[0]);
-  const outRows = data.map((r) => headers.map((h) => (r[h] == null ? "" : String(r[h]))));
-  await store.writeTab(bkpName, headers, outRows);
+  // Ler FORMATADO (o que o dono vê, ex. "0,755853") e regravar com USER_ENTERED
+  // preserva números/datas no locale pt-BR. Ler UNFORMATTED (fetchTab) e regravar
+  // corrompia decimais: 0.755853 (ponto) era reinterpretado como 755853.
+  const { headers, rows } = await readTabRaw(tabName);
+  if (headers.length === 0 || rows.length === 0) return false;
+  await store.writeTab(bkpName, headers, rows);
   return true;
 }
 
@@ -83,13 +80,13 @@ export async function restoreTabFromSheet(tabName: string): Promise<{ ok: boolea
   if (!names.some((n) => normName(n) === normName(bkpName)))
     return { ok: false, rows: 0, error: `aba de backup "${bkpName}" não existe` };
 
-  const data = await store.fetchTab(bkpName);
-  if (!data || data.length === 0) return { ok: false, rows: 0, error: "backup vazio" };
-
-  const headers = Object.keys(data[0]);
-  const outRows = data.map((r) => headers.map((h) => (r[h] == null ? "" : String(r[h]))));
-  await store.writeTab(tabName, headers, outRows);
-  return { ok: true, rows: outRows.length };
+  // Round-trip FORMATADO → USER_ENTERED (mesmo motivo do snapshot: preservar o
+  // locale pt-BR e não corromper decimais na restauração).
+  const { readTabRaw } = await import("./gsheets");
+  const { headers, rows } = await readTabRaw(bkpName);
+  if (headers.length === 0 || rows.length === 0) return { ok: false, rows: 0, error: "backup vazio" };
+  await store.writeTab(tabName, headers, rows);
+  return { ok: true, rows: rows.length };
 }
 
 async function pruneOldBackups(tabName: string, dir: string) {

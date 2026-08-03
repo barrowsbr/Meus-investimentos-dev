@@ -528,34 +528,29 @@ export async function loadFromGSheets(): Promise<{ stored: Record<string, Holdin
 
 export async function saveToGSheets(perEtf: PerEtfResult): Promise<boolean> {
   try {
-    const { google } = await import("googleapis");
-    // Escrita no Sheets exige service account — API key é rejeitada (401).
-    const auth = getServiceAccountAuth();
-    const spreadsheetId = process.env.SPREADSHEET_ID;
-    if (!auth || !spreadsheetId) return false;
-
-    const sheets = google.sheets({ version: "v4", auth });
+    const headers = ["etf", "ticker", "name", "weight_pct", "source", "updated_at"];
     const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
 
-    const rows: string[][] = [["etf", "ticker", "name", "weight_pct", "source", "updated_at"]];
+    const dataRows: string[][] = [];
     for (const [etfTicker, data] of Object.entries(perEtf)) {
       if (data.status !== "ok" || !data.holdings) continue;
       for (const h of data.holdings) {
         if (h.ticker.startsWith("OUTROS.")) continue;
-        rows.push([etfTicker, h.ticker, h.name, String(h.weight_pct), data.source, nowStr]);
+        dataRows.push([etfTicker, h.ticker, h.name, String(h.weight_pct), data.source, nowStr]);
       }
     }
 
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId,
-      range: "composicao!A:F",
-    });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: "composicao!A1",
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: rows },
-    });
+    // NUNCA limpar a aba quando não veio holding nenhum (quota Alpha Vantage
+    // estourada + Yahoo instável → a composicao virava vazia, sem backup).
+    if (dataRows.length === 0) {
+      console.warn("[etf-holdings] saveToGSheets: nenhum holding obtido — aba composicao preservada");
+      return false;
+    }
+
+    // writeTab canônico: backup automático da aba ANTES de sobrescrever +
+    // assertNotDemo (bloqueia escrita em modo demo) + roteamento por planilha.
+    const { writeTab } = await import("./gsheets");
+    await writeTab("composicao", headers, dataRows);
     return true;
   } catch (e) {
     console.error("[etf-holdings] saveToGSheets error:", e);
