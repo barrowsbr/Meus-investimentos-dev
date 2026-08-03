@@ -13,6 +13,24 @@ from typing import Any, Optional
 
 from app.core.format import to_number
 from app.core.utils import parse_date_br
+from app.models.schemas import FxRates
+
+
+def _fx_to_brl(moeda: str, fx: FxRates) -> float:
+    """BRL por 1 unidade da moeda (multi-moeda). Antes o ledger só convertia USD
+    e tratava EUR/CAD/GBP como 1:1, jogando o valor de face nos cards de Fluxos."""
+    cur = (moeda or "BRL").upper()
+    if cur == "BRL":
+        return 1.0
+    if cur == "USD":
+        return fx.USDBRL
+    if cur == "EUR":
+        return fx.EURBRL
+    if cur == "GBP":
+        return fx.GBPBRL
+    if cur == "CAD":
+        return fx.CADBRL
+    return 1.0
 
 
 class FlowType(str, Enum):
@@ -99,7 +117,7 @@ class FlowLedger:
 
 def build_ledger_from_transacoes(
     transacoes: list[dict],
-    fx_atual_usdbrl: float = 5.7,
+    fx: FxRates,
 ) -> FlowLedger:
     """Builds a FlowLedger from meus_ativos rows."""
     ledger = FlowLedger()
@@ -133,20 +151,20 @@ def build_ledger_from_transacoes(
 
         taxas = abs(to_number(row.get("taxa de corretagem") or row.get("taxas") or 0) or 0)
 
-        fx = fx_atual_usdbrl if moeda == "USD" else 1.0
-        amount_brl = valor_liq * fx
+        fx_rate = _fx_to_brl(moeda, fx)
+        amount_brl = valor_liq * fx_rate
 
         if any(w in tipo_raw for w in ("compra", "buy", "aporte", "subscri", "bonif")):
             flow_type = FlowType.COMPRA_ATIVO
             ledger.add(CashFlow(
                 date=d, amount=valor_liq, currency=moeda,
                 flow_type=flow_type, amount_brl=amount_brl,
-                ticker=ticker, fx_rate=fx,
+                ticker=ticker, fx_rate=fx_rate,
             ))
             if taxas > 0:
                 ledger.add(CashFlow(
                     date=d, amount=-taxas, currency=moeda,
-                    flow_type=FlowType.TAXA, amount_brl=-taxas * fx,
+                    flow_type=FlowType.TAXA, amount_brl=-taxas * fx_rate,
                     ticker=ticker,
                 ))
 
@@ -154,7 +172,7 @@ def build_ledger_from_transacoes(
             ledger.add(CashFlow(
                 date=d, amount=-valor_liq, currency=moeda,
                 flow_type=FlowType.VENDA_ATIVO, amount_brl=-amount_brl,
-                ticker=ticker, fx_rate=fx,
+                ticker=ticker, fx_rate=fx_rate,
             ))
 
     return ledger
@@ -162,7 +180,7 @@ def build_ledger_from_transacoes(
 
 def build_ledger_from_proventos(
     proventos: list[dict],
-    fx_atual_usdbrl: float = 5.7,
+    fx: FxRates,
 ) -> FlowLedger:
     """Builds a FlowLedger from meus_proventos rows."""
     ledger = FlowLedger()
@@ -183,11 +201,11 @@ def build_ledger_from_proventos(
         if valor <= 0:
             continue
 
-        fx = fx_atual_usdbrl if moeda == "USD" else 1.0
+        fx_rate = _fx_to_brl(moeda, fx)
         ledger.add(CashFlow(
             date=d, amount=valor, currency=moeda,
-            flow_type=FlowType.DIVIDENDO, amount_brl=valor * fx,
-            ticker=ticker, fx_rate=fx,
+            flow_type=FlowType.DIVIDENDO, amount_brl=valor * fx_rate,
+            ticker=ticker, fx_rate=fx_rate,
         ))
 
     return ledger

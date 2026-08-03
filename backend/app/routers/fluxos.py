@@ -44,15 +44,16 @@ async def get_fluxos(tipo: str = ""):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Fetch current FX for BRL conversion
+    # Fetch current FX for BRL conversion (multi-moeda: USD/EUR/GBP/CAD)
     try:
         cotacoes = await fetch_cotacoes([{"ticker": "USDBRL", "moeda": "USD", "corretora": ""}])
-        usdbrl = cotacoes["fx"].USDBRL
+        fx = cotacoes["fx"]
     except Exception:
-        usdbrl = 5.7
+        from app.services.market_service import DEFAULTS_FX
+        fx = DEFAULTS_FX
 
-    ledger_ativos = build_ledger_from_transacoes(transacoes, usdbrl)
-    ledger_prov = build_ledger_from_proventos(proventos, usdbrl)
+    ledger_ativos = build_ledger_from_transacoes(transacoes, fx)
+    ledger_prov = build_ledger_from_proventos(proventos, fx)
     ledger_cambio = build_ledger_from_cambio(cambio_rows)
     full_ledger = merge_ledgers(ledger_ativos, ledger_prov, ledger_cambio)
 
