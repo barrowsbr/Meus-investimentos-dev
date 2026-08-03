@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react";
 import {
   Lock, Upload, XCircle, FileText, RefreshCw, Shield, Info,
-  Database, Palette, ShieldCheck, Bell, Activity, History, Zap, Search, Newspaper, Gamepad2,
+  Database, Palette, ShieldCheck, Bell, Activity, History, Zap, Search, Newspaper, Gamepad2, LayoutGrid,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useTheme } from "@/components/terminal";
@@ -22,6 +22,7 @@ import TickerAuditSection from "@/components/config/TickerAuditSection";
 import NumistaSection from "@/components/config/NumistaSection";
 import ThemeSection from "@/components/config/ThemeSection";
 import InicioSection from "@/components/config/InicioSection";
+import NavEstiloSection from "@/components/config/NavEstiloSection";
 import AutomacoesSection from "@/components/config/AutomacoesSection";
 import HistoricoSection from "@/components/config/HistoricoSection";
 import ApiHealthSection from "@/components/config/ApiHealthSection";
@@ -121,6 +122,7 @@ export default function ConfiguracoesPage() {
     { id: "preferencias", grupo: "aparencia", title: "Preferências do Sistema", desc: "Tema visual, HoloGlobo, privacidade da Home e termômetro de pregões", icon: <Palette size={16} />, keywords: "tema dark light matrix cores hologlobo globo privacidade olho pregoes termometro home fonte", el: <ThemeSection /> },
     { id: "noticias", grupo: "aparencia", title: "Notícias — Perfil de interesses", desc: "Temas que o feed \"Para você\" prioriza e filtro de briga política", icon: <Newspaper size={16} />, keywords: "noticias interesses macro geopolitica tecnologia ciencia cripto briga politica feed personalizado", el: <NoticiasPerfilCard /> },
     { id: "inicio", grupo: "aparencia", title: "Modo espaços (tela inicial + sidebar por categoria)", desc: "Liga a tela inicial Game Select e a sidebar por categoria; desligado, volta à sidebar com todas as páginas", icon: <Gamepad2 size={16} />, keywords: "modo espacos tela inicial inicio hub game select cartucho game boy pos login sidebar categoria barra menu navegacao todas paginas antigo desativar fundo 3d", el: <InicioSection /> },
+    { id: "navestilo", grupo: "aparencia", title: "Menu inferior (mobile) — Atual ou PlayStation", desc: "Escolhe o visual da barra de navegação inferior no celular: pill clássica ou barra curva estilo PlayStation", icon: <LayoutGrid size={16} />, keywords: "menu inferior barra navegacao mobile celular playstation ps curva holofote item ativo rodape bottom nav estilo pill", el: <NavEstiloSection /> },
     { id: "planilha", grupo: "dados", title: "Planilha (gdados) — Editor", desc: "Editar abas sem abrir o Google · saúde dos dados · backup CSV e restauração", icon: <FileText size={16} />, keywords: "editor abas linhas editar apagar buscar csv backup restaurar saude teste compactar twr", el: <PlanilhaCard /> },
     { id: "cotacoes", grupo: "dados", title: "Base de Cotações (Golden Source)", desc: "db_cotacoes — preços de fechamento que alimentam a Performance/TWR", icon: <Database size={16} />, keywords: "db_cotacoes precos golden source yahoo atualizar fechamento auditoria", el: <GoldenSourceSection /> },
     { id: "historico", grupo: "dados", title: "Histórico patrimonial (GitHub Action)", desc: "Série da página Patrimônio — gravada 3×/dia em dias úteis", icon: <History size={16} />, keywords: "patrimonio evolucao serie 3x dia registrar workflow", el: <HistoricoSection /> },
