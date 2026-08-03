@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { google } from "googleapis";
 import { getDataStore } from "@/lib/data-store";
 import { getServiceAccountAuth } from "@/lib/gsheets";
@@ -150,6 +151,8 @@ export async function GET() {
 
 // POST — save all cash positions (replace entire cash section in fixa_aberta)
 export async function POST(req: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const body = await req.json();
     const positions: { ticker: string; atual: number; moeda: string }[] = body.positions;

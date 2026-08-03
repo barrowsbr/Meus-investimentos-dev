@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { isDemoRequest } from "@/lib/demo";
 import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { buildDigest, buildDigestCaption, resolveAppUrl } from "@/lib/digest";
@@ -11,6 +12,8 @@ export const maxDuration = 60;
 // Envio manual do resumo do dia (botão em Configurações). Tem efeito real
 // (chega no Telegram) → bloqueado em modo demonstração.
 export async function POST() {
+  const denied = await requireOwner();
+  if (denied) return denied;
   if (isDemoRequest()) {
     return NextResponse.json({ error: "Indisponível em modo demonstração" }, { status: 403 });
   }

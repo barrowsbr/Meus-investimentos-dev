@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { getDataStore } from "@/lib/data-store";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const store = getDataStore();
     const body = await request.json();

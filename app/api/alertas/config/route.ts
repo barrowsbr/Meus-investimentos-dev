@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { readAlertasConfig, writeAlertasConfig } from "@/lib/alertas-store";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,8 @@ export async function GET() {
 // preserva o token já salvo (para "Salvar" não apagar o token existente quando
 // o campo é deixado em branco, já que o GET nunca reenvia o token pro cliente).
 export async function POST(req: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const body = await req.json();
     const existing = await readAlertasConfig();

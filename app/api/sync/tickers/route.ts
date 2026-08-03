@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { getDataStore } from "@/lib/data-store";
 import { updateCells } from "@/lib/gsheets";
 import {
@@ -120,6 +121,8 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const body = await req.json().catch(() => ({}));
     const de = String(body?.de ?? "").trim().toUpperCase();

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import * as XLSX from "xlsx";
 import { getDataStore } from "@/lib/data-store";
 import { backupTab } from "@/lib/backup";
@@ -519,6 +520,8 @@ function parseB3Excel(rows: Record<string, unknown>[]): { proventos: ProventoRow
 // ── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

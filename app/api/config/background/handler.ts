@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { google } from "googleapis";
 import { getDataStore } from "@/lib/data-store";
 import { getServiceAccountAuth } from "@/lib/gsheets";
@@ -29,6 +30,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const { path } = await request.json();
     if (typeof path !== "string") {

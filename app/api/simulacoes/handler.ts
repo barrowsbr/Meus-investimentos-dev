@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwner } from "@/lib/auth-server";
 import { google } from "googleapis";
 import { getDataStore } from "@/lib/data-store";
 import {
@@ -61,6 +62,8 @@ export async function GET() {
 // ── POST — save scenario (replace if exists, then append new rows) ──────────
 
 export async function POST(req: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const body = await req.json();
     const cenario = String(body.cenario ?? "").trim();
@@ -142,6 +145,8 @@ export async function POST(req: Request) {
 // ── DELETE — remove all rows for a given cenario ─────────────────────────────
 
 export async function DELETE(req: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(req.url);
     const cenario = (searchParams.get("cenario") ?? "").trim();
