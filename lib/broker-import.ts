@@ -118,7 +118,15 @@ export function parseValor(v: string | number): number {
   if (typeof v === "number") return v;
   const s = String(v).trim();
   if (s.includes(",") && !s.includes(".")) return parseFloat(s.replace(",", ".")) || 0;
-  if (s.includes(",") && s.includes(".")) return parseFloat(s.replace(/\./g, "").replace(",", ".")) || 0;
+  if (s.includes(",") && s.includes(".")) {
+    // Ambos presentes: o separador DECIMAL é o que aparece por ÚLTIMO; o outro é
+    // milhar. Cobre BR "1.234,56" (decimal=vírgula) E EN "1,234.56" (decimal=ponto).
+    // Antes assumia sempre a ordem BR e transformava "1,234.56" em 1.23456 —
+    // valor 1000x menor, corrompendo os extratos EN do IBKR.
+    const decSep = s.lastIndexOf(",") > s.lastIndexOf(".") ? "," : ".";
+    const thouSep = decSep === "," ? "." : ",";
+    return parseFloat(s.split(thouSep).join("").replace(decSep, ".")) || 0;
+  }
   return parseFloat(s) || 0;
 }
 
