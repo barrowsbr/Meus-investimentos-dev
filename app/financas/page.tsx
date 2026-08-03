@@ -1037,6 +1037,11 @@ export default function FinancasPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const initialLoaded = useRef(false);
+  // O próprio load seta os 3 estados, o que dispararia o efeito de autosave e
+  // regravaria (3 writeTab + 3 backups) a cada F5 — e sobrescreveria a aba com
+  // VAZIO se o load viesse incompleto. Este flag ignora o 1º disparo pós-load;
+  // só edições reais do usuário (mudanças de estado seguintes) salvam.
+  const skipNextSave  = useRef(true);
   const saveTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load
@@ -1085,6 +1090,8 @@ export default function FinancasPage() {
 
   useEffect(() => {
     if (!initialLoaded.current) return;
+    // 1ª mudança de estado é a do próprio load — não salvar (evita regravar no F5).
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveStatus("idle");
     saveTimer.current = setTimeout(() => {
