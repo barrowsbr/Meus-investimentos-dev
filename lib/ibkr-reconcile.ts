@@ -48,10 +48,16 @@ export async function reconcileProventoValues(opts: { dryRun?: boolean } = {}): 
   if (valorIdx < 0) throw new Error("Coluna 'valor' não encontrada em meus_proventos");
   const valorCol = colLetter(valorIdx);
 
-  // Valor correto da IBKR por (ticker | data | tipo).
-  const ibkr = new Map<string, string>();
+  // Valores da IBKR por (ticker | data | tipo). Pode haver MAIS de um lançamento
+  // na mesma chave (dividendo ordinário + distribuição especial no mesmo dia, ou
+  // dois lotes) — por isso uma LISTA por chave, não um valor last-wins que
+  // corromperia ambas as linhas da planilha para o mesmo número.
+  const ibkrByKey = new Map<string, { valor: string; num: number; used: boolean }[]>();
   for (const p of proventos) {
-    ibkr.set(`${dedupTk(p.ticker)}|${normalizeDate(p.data)}|${typeOf(p.decisao)}`, p.valor);
+    const k = `${dedupTk(p.ticker)}|${normalizeDate(p.data)}|${typeOf(p.decisao)}`;
+    const arr = ibkrByKey.get(k) ?? [];
+    arr.push({ valor: p.valor, num: Math.abs(parseValor(p.valor)), used: false });
+    ibkrByKey.set(k, arr);
   }
 
   const detalhes: ReconcileResult["detalhes"] = [];
@@ -60,12 +66,24 @@ export async function reconcileProventoValues(opts: { dryRun?: boolean } = {}): 
   for (let i = 0; i < existing.length; i++) {
     const row = existing[i];
     const key = `${dedupTk(String(row.ticker ?? ""))}|${normalizeDate(String(row.data ?? ""))}|${typeOf(String(row.decisao ?? row.lancamento ?? ""))}`;
-    const ibValor = ibkr.get(key);
-    if (ibValor === undefined) continue; // sem contrapartida na IBKR — não mexe
+    const cands = ibkrByKey.get(key);
+    if (!cands || cands.length === 0) continue; // sem contrapartida na IBKR — não mexe
 
     const sheetRaw = String(row.valor ?? "0");
     const sheetNum = parseValor(sheetRaw);
-    if (Math.round(Math.abs(sheetNum) * 100) === Math.round(Math.abs(parseValor(ibValor)) * 100)) continue; // já igual
+    const sheetAbs = Math.abs(sheetNum);
+    // Casa esta linha ao lançamento IBKR NÃO usado mais próximo em valor, e o
+    // consome — assim 2 proventos no mesmo dia mapeiam 1-para-1 sem colidir.
+    let best = -1, bestDiff = Infinity;
+    for (let j = 0; j < cands.length; j++) {
+      if (cands[j].used) continue;
+      const d = Math.abs(cands[j].num - sheetAbs);
+      if (d < bestDiff) { bestDiff = d; best = j; }
+    }
+    if (best < 0) continue; // todos os lançamentos dessa chave já foram consumidos
+    cands[best].used = true;
+    const ibValor = cands[best].valor;
+    if (Math.round(sheetAbs * 100) === Math.round(cands[best].num * 100)) continue; // já igual
 
     const newValue = (sheetNum < 0 ? "-" : "") + ibValor; // corrige magnitude, preserva sinal
     const rowNumber = i + 2; // linha 1 = cabeçalho
