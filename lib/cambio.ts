@@ -62,6 +62,7 @@ export interface CambioMetrics {
   totalCustoBRL: number;
   ganhoTotal_BRL: number;
   ganhoTotalPct: number;
+  ganhoRepatriadoBRL: number; // ganho/prejuízo realizado das repatriações USD→BRL
   numMoedas: number;
 
   // PM rates (for portfolio cost basis)
@@ -119,6 +120,11 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
   let usdComprado = 0;
   let usdVendido = 0;
   let totalEnviadoBRL = 0;
+  // Repatriação USD → BRL: USD vendidos de volta para reais e o BRL recebido.
+  // Sem isto, o custo do USD repatriado ficava em brlGastoUSD mas o valor
+  // recebido sumia → a operação virava prejuízo fantasma no ganho total.
+  let usdRepatriado = 0;
+  let brlRecebidoRepat = 0;
 
   // Track USD → other conversions
   const usdToOther: Record<string, { usdGasto: number; qtdRecebida: number }> = {};
@@ -162,6 +168,11 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
         if (!usdToOther[moedaDest]) usdToOther[moedaDest] = { usdGasto: 0, qtdRecebida: 0 };
         usdToOther[moedaDest].usdGasto += valorOrig;
         usdToOther[moedaDest].qtdRecebida += valorDest;
+      } else if (moedaDest === "BRL" || moedaDest === "") {
+        // Repatriação: USD → BRL. O BRL recebido é valor realizado que precisa
+        // entrar no total (senão só o custo do USD conta e vira prejuízo falso).
+        usdRepatriado += valorOrig;
+        brlRecebidoRepat += valorDest;
       }
     }
   }
@@ -228,7 +239,13 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
 
   // ── Totals (matching Streamlit lines 2962-2965) ────────────────────────────
 
-  const totalValBRL = valorUsdHoje + fx2.reduce((s, c) => s + c.valBRL, 0);
+  // brlRecebidoRepat = valor realizado das repatriações USD→BRL. Somá-lo ao valor
+  // total fecha a conta: o custo do USD repatriado está em brlGastoUSD (custo) e
+  // agora o BRL recebido está no valor → o ganho/prejuízo cambial da repatriação
+  // aparece no total em vez de sumir. (Ganho realizado = brlRecebidoRepat −
+  // usdRepatriado × pmDolar, exposto p/ a página mostrar separado se quiser.)
+  const ganhoRepatriadoBRL = brlRecebidoRepat - usdRepatriado * pmDolar;
+  const totalValBRL = valorUsdHoje + brlRecebidoRepat + fx2.reduce((s, c) => s + c.valBRL, 0);
   const brlDirectOther = Object.values(brlToOther).reduce((s, d) => s + d.brlGasto, 0);
   const totalCustoBRL = brlGastoUSD + brlDirectOther;
   const ganhoTotal_BRL = totalValBRL - totalCustoBRL;
@@ -270,6 +287,7 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
     totalCustoBRL,
     ganhoTotal_BRL,
     ganhoTotalPct,
+    ganhoRepatriadoBRL,
     numMoedas,
 
     pmEuro,
