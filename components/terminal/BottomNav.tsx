@@ -53,49 +53,50 @@ export default function BottomNav() {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   if (estilo === "playstation") {
+    const n = items.length;
+    const ativo = items.find((it) => isActive(it.href));
     return (
-      <nav className="bottom-nav ps min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-end justify-around">
-        {/* varredura de luz sobre a superfície curva */}
-        <span className="ps-shine" aria-hidden />
-        {items.map(({ href, label, icon: Icon }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              className="relative flex flex-1 flex-col items-center justify-end gap-1 pb-2 pt-2.5"
-            >
-              {/* holofote sob o item ativo */}
-              {active && <span className="ps-glow" aria-hidden />}
-              <Icon
-                size={active ? 24 : 22}
-                strokeWidth={active ? 2.2 : 1.7}
-                className="relative z-[1] transition-all duration-300 ease-out"
-                style={{
-                  color: active ? "#fff" : "var(--muted)",
-                  transform: active ? "translateY(-1px)" : "none",
-                  filter: active
-                    ? "drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 70%, #fff 20%))"
-                    : "none",
-                }}
-              />
-              {/* só o item ATIVO mostra rótulo (como no app da PlayStation) */}
-              <span
-                className="relative z-[1] font-semibold leading-none transition-all duration-300"
-                style={{
-                  fontSize: 9.5,
-                  letterSpacing: ".02em",
-                  color: active ? "#fff" : "transparent",
-                  opacity: active ? 1 : 0,
-                  maxHeight: active ? 14 : 0,
-                }}
+      <nav className="bottom-nav ps min-[1100px]:hidden fixed z-40">
+        {/* véu translúcido — o conteúdo aparece esmaecido através do arco superior */}
+        <span className="ps-veil" aria-hidden />
+        {/* superfície sólida com o topo CONVEXO (horizonte que sobe no centro) */}
+        <span className="ps-surface" aria-hidden />
+        <div className="ps-row">
+          {items.map(({ href, label, icon: Icon }, i) => {
+            const active = isActive(href);
+            // Os ícones acompanham a curva: centro mais alto, pontas mais baixas.
+            const t = n > 1 ? (i - (n - 1) / 2) / ((n - 1) / 2) : 0;
+            const dy = Math.round(12 * t * t);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
+                className="ps-item"
+                style={{ transform: `translateY(${dy}px)` }}
               >
-                {SHORT[href] ?? label}
-              </span>
-            </Link>
-          );
-        })}
+                {/* luz que nasce da borda inferior, subindo por trás do ícone ativo */}
+                {active && <span className="ps-bloom" aria-hidden />}
+                <Icon
+                  size={active ? 27 : 24}
+                  strokeWidth={active ? 2.2 : 1.8}
+                  className="relative z-[1] transition-all duration-300 ease-out"
+                  style={{
+                    color: active ? "#fff" : "#8f8f96",
+                    filter: active ? "drop-shadow(0 1px 6px rgba(255,255,255,0.35))" : "none",
+                  }}
+                />
+              </Link>
+            );
+          })}
+        </div>
+        {/* rótulo do item ATIVO, centralizado embaixo (como o "Jogar" do console) */}
+        {ativo && (
+          <span className="ps-label" aria-hidden>
+            {SHORT[ativo.href] ?? ativo.label}
+          </span>
+        )}
       </nav>
     );
   }

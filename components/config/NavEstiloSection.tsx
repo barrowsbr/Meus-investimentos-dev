@@ -16,44 +16,48 @@ const OPCOES: { id: NavEstilo; nome: string; desc: string }[] = [
 // Miniatura vetorial de cada estilo (prévia sem depender do menu real).
 function Preview({ estilo }: { estilo: NavEstilo }) {
   const ps = estilo === "playstation";
+  if (ps) {
+    // Barra full-bleed com horizonte convexo, ícones na curva, bloom no ativo
+    // (canto esquerdo) e rótulo centralizado embaixo — como o app do console.
+    return (
+      <div className="relative mt-2 h-14 w-full overflow-hidden rounded-lg" style={{ background: "#0b0b0d", border: "1px solid var(--line)" }}>
+        <span className="absolute" style={{ left: "50%", top: 8, transform: "translateX(-50%)", width: "220%", height: 120, borderRadius: "100% 100% 0 0 / 60px 60px 0 0", background: "linear-gradient(180deg,#232328,#141417)", boxShadow: "0 -1px 0 rgba(255,255,255,0.08)" }} />
+        <div className="absolute left-0 right-0 flex items-center justify-around" style={{ top: 12, height: 20 }}>
+          {[0, 1, 2, 3, 4].map((i) => {
+            const active = i === 0;
+            const t = (i - 2) / 2;
+            return (
+              <span key={i} className="relative flex items-center justify-center" style={{ transform: `translateY(${Math.round(5 * t * t)}px)` }}>
+                {active && (
+                  <span className="absolute" style={{ top: 2, left: "50%", transform: "translateX(-50%)", width: 34, height: 34, filter: "blur(4px)", background: "radial-gradient(52% 78% at 50% 100%, rgba(232,163,61,0.85), transparent 72%)" }} />
+                )}
+                <span className="relative rounded-[3px]" style={{ width: active ? 10 : 8, height: active ? 10 : 8, background: active ? "#fff" : "#77777e" }} />
+              </span>
+            );
+          })}
+        </div>
+        <span className="absolute left-0 right-0 text-center" style={{ bottom: 4, fontSize: 8, fontWeight: 600, color: "#fff" }}>Início</span>
+      </div>
+    );
+  }
   return (
-    <div
-      className="relative mt-2 h-12 w-full overflow-hidden rounded-xl"
-      style={{
-        background: ps
-          ? "radial-gradient(120% 90% at 50% 120%, rgba(232,163,61,0.20), transparent 60%), linear-gradient(180deg,#1b1b1e,#141416)"
-          : "rgba(255,255,255,0.03)",
-        border: "1px solid var(--line)",
-        borderRadius: ps ? "14px 14px 10px 10px" : "12px",
-      }}
-    >
+    <div className="relative mt-2 h-14 w-full rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--line)" }}>
       <div className="flex h-full items-center justify-around px-3">
         {[0, 1, 2, 3, 4].map((i) => {
           const active = i === 1;
           return (
             <div key={i} className="relative flex flex-col items-center gap-1">
-              {ps && active && (
-                <span
-                  className="absolute -bottom-1.5 h-6 w-8 rounded-full"
-                  style={{ background: "radial-gradient(60% 100% at 50% 100%, rgba(232,163,61,0.9), transparent 65%)", filter: "blur(1px)" }}
-                />
-              )}
               <span
-                className="relative rounded-md"
+                className="rounded-md"
                 style={{
                   width: active ? 11 : 9,
                   height: active ? 11 : 9,
-                  background: active ? (ps ? "#fff" : "var(--accent)") : "var(--muted)",
+                  background: active ? "var(--accent)" : "var(--muted)",
                   opacity: active ? 1 : 0.55,
-                  boxShadow: active && !ps ? "0 0 8px rgba(232,163,61,0.5)" : "none",
+                  boxShadow: active ? "0 0 8px rgba(232,163,61,0.5)" : "none",
                 }}
               />
-              {(!ps || active) && (
-                <span
-                  className="rounded-full"
-                  style={{ width: 12, height: 2, background: active ? (ps ? "#fff" : "var(--accent)") : "var(--faint)", opacity: ps && !active ? 0 : 0.7 }}
-                />
-              )}
+              <span className="rounded-full" style={{ width: 12, height: 2, background: active ? "var(--accent)" : "var(--faint)", opacity: 0.7 }} />
             </div>
           );
         })}
