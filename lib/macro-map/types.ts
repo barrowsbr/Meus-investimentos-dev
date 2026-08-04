@@ -5,7 +5,7 @@
 export type Familia = "energia" | "juros" | "fx" | "credito" | "brasil";
 export type Direcao = "queda" | "alta";
 export type Confianca = "alta" | "media" | "baixa";
-export type Prontidao = "pronto" | "backfill" | "fonte_nova";
+export type Prontidao = "pronto" | "backfill" | "integrado" | "fonte_nova";
 
 export interface Efeito {
   ativo: string;
@@ -64,8 +64,9 @@ export interface RuleEvaluation {
   titulo: string;
   familia: Familia;
   estado: Estado;
-  disponivel: boolean; // false quando faltam dados (fonte_nova / fetch falhou)
+  disponivel: boolean; // false só quando falta o driver OU todos os efeitos
   driversFaltando: string[];
+  efeitosNaoMedidos: string[]; // efeitos sem fonte (regra roda nos demais)
   choque: { driver: string; metrica: string; direcao: Direcao; limiar_sigma: number };
   choqueAtivo: boolean;
   ultimoChoque: { date: string; z60: number; z250: number } | null;

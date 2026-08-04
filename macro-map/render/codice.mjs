@@ -28,6 +28,7 @@ const FAMILIAS = [
 const PRONTIDAO = {
   pronto: { label: "PRONTO", nota: "série já persistida (db_cotacoes)" },
   backfill: { label: "BACKFILL", nota: "Yahoo já sabe buscar; falta persistir" },
+  integrado: { label: "INTEGRADO", nota: "fonte externa ligada (FRED/BCB/proxy)" },
   fonte_nova: { label: "FONTE NOVA", nota: "não existe no app — integrar" },
 };
 
@@ -152,7 +153,7 @@ function ruleCard(r) {
 
 // ── tabela de prontidão dos drivers (o achado da Fase 0, no próprio códice) ────
 function readinessTable() {
-  const order = { pronto: 0, backfill: 1, fonte_nova: 2 };
+  const order = { pronto: 0, backfill: 1, integrado: 2, fonte_nova: 3 };
   const rows = [...drivers]
     .sort((a, b) => (order[a.prontidao] - order[b.prontidao]) || a.simbolo.localeCompare(b.simbolo))
     .map(
@@ -281,6 +282,7 @@ table.readiness td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-
   padding:1px 5px;border-radius:2px;white-space:nowrap;}
 .rd.pronto{color:var(--up);border:1px solid rgba(30,110,56,.4);}
 .rd.backfill{color:#9A6412;border:1px solid rgba(154,100,18,.4);}
+.rd.integrado{color:#1F6F8C;border:1px solid rgba(31,111,140,.45);}
 .rd.fonte_nova{color:var(--down);border:1px solid rgba(163,35,28,.4);}
 
 .regime{margin-bottom:11px;}

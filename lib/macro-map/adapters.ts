@@ -8,6 +8,7 @@
 
 import { fetchHistory } from "@/lib/cotacoes";
 import { classifyRule, summarize, DEFAULT_PARAMS, type Series, type EngineParams } from "./engine";
+import { fetchFred, fetchFocusSelic } from "./sources";
 import { RULES, DRIVERS } from "./rules.generated";
 import type { DivergenceReport, RuleEvaluation, Estado } from "./types";
 
@@ -23,13 +24,32 @@ function toSeries(rows: { date: string; close: number }[]): Series {
   return { dates, values: dates.map((d) => byDate.get(d)!) };
 }
 
+// Proxy de prêmio de risco Brasil: razão S&P 500 / EWZ (Brasil, USD). Sobe quando
+// o Brasil desempenha PIOR que os EUA — ou seja, cresce com o prêmio de risco. Os
+// dois já vêm do Yahoo, então isso vira uma série de 5 anos sem fonte externa.
+async function fetchRatio(numer: string, denom: string): Promise<{ date: string; close: number }[]> {
+  const [ra, rb] = await Promise.all([fetchHistory(numer, "5y", "1d"), fetchHistory(denom, "5y", "1d")]);
+  const mb = new Map(rb.map((r) => [r.date, r.close]));
+  const out: { date: string; close: number }[] = [];
+  for (const r of ra) {
+    const vb = mb.get(r.date);
+    if (vb && vb > 0 && r.close > 0) out.push({ date: r.date, close: r.close / vb });
+  }
+  return out;
+}
+
 async function fetchSeries(sym: string): Promise<Series | undefined> {
   const d = driverBySym.get(sym);
-  if (!d || d.fonte !== "yahoo" || d.prontidao === "fonte_nova") return undefined; // fonte não integrada
+  if (!d) return undefined;
   try {
+    let rows: { date: string; close: number }[];
+    if (sym === "BR_RISK_PREMIUM") rows = await fetchRatio("^GSPC", "EWZ"); // proxy S&P/EWZ
     // 5 anos: choques >= 2σ são raros; janela curta demais deixa a taxa de
-    // concordância com n minúsculo (n=2). O z-score segue em 60/250d.
-    const rows = await fetchHistory(d.simbolo_fonte, "5y", "1d");
+    // concordância com n minúsculo. O z-score segue em 60/250d.
+    else if (d.fonte === "yahoo") rows = await fetchHistory(d.simbolo_fonte, "5y", "1d");
+    else if (d.fonte === "fred") rows = await fetchFred(d.simbolo_fonte);
+    else if (d.fonte === "bcb") rows = await fetchFocusSelic();
+    else return undefined; // fonte ainda não integrada (ex.: BR_10Y — sem fonte livre)
     if (!rows.length) return undefined;
     const s = toSeries(rows);
     return s.dates.length ? s : undefined;
