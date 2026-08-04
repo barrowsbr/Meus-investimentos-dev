@@ -1,0 +1,49 @@
+id: juros.ponta_curta_cede.risk_on_smallcaps
+version: 1
+familia: juros
+titulo: "Ponta curta cedendo com curva inclinando lidera risk-on em small caps"
+
+canal: >
+  A ponta curta da curva (2 anos) precifica a trajetória esperada do Fed.
+  Quando o 2 anos cede e a curva 10y-2y desinverte / inclina, o mercado está
+  precificando alívio monetário à frente. Small caps são as mais alavancadas
+  a crédito e ao ciclo doméstico americano: reagem mais que as large caps ao
+  barateamento do custo de capital. Lideram o risk-on na virada.
+
+choque:
+  driver: US02Y
+  metrica: variacao_bps_5d
+  direcao: queda
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: US_SMALLCAP
+    sinal: 1
+    defasagem_dias: [0, 5]
+    confianca: media
+  - ativo: SPX
+    sinal: 1
+    defasagem_dias: [0, 3]
+    confianca: media
+
+regime:
+  vale_quando: "A queda do 2 anos vem com a curva 10y-2y inclinando (bull steepening)."
+  inverte_quando: >
+    O 2 anos cede porque o mercado precifica RECESSÃO iminente, com a ponta
+    longa caindo junto ou mais (bull flattening / fuga para qualidade). Aí o
+    corte esperado é defensivo, não estimulante, e small caps caem em vez de
+    liderar.
+  proxy_de_regime: "sinal e tendência da inclinação 10y-2y (US10Y menos US02Y)"
+
+evidencia:
+  janela: 24m
+  metodo: "event study em quedas >= 2 sigma do 2 anos condicionadas ao sinal da inclinação"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três episódios consecutivos de queda >= 2 sigma do 2 anos com a curva
+  inclinando e as small caps NÃO superando a queda média do mercado na janela
+  [0,5].
+
+relevancia_portfolio: [VWRA]

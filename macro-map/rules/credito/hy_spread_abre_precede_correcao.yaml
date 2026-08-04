@@ -1,0 +1,43 @@
+id: credito.hy_spread_abre.precede_correcao
+version: 1
+familia: credito
+titulo: "Abertura do spread de high yield precede correção de bolsa"
+
+canal: >
+  O mercado de crédito high yield costuma precificar deterioração antes da
+  bolsa. Quando o spread (OAS) abre de forma significativa, investidores estão
+  exigindo mais prêmio para carregar risco corporativo — sinal de aperto nas
+  condições de financiamento que antecede, com defasagem, a reprecificação do
+  S&P. O crédito lidera; o equity segue.
+
+choque:
+  driver: HY_SPREAD
+  metrica: variacao_bps_5d
+  direcao: alta
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: SPX
+    sinal: -1
+    defasagem_dias: [1, 10]
+    confianca: media
+
+regime:
+  vale_quando: "Spread partindo de nível comprimido (crédito sai da complacência)."
+  inverte_quando: >
+    O spread já está largo e em tendência de fechamento: uma abertura pontual
+    dentro de um regime de estresse que se resolve não antecede correção — é
+    ruído dentro de um piso alto.
+  proxy_de_regime: "nível absoluto e percentil de 24m do HY_SPREAD"
+
+evidencia:
+  janela: 24m
+  metodo: "event study em aberturas >= 2 sigma do spread, retorno forward do SPX em [1,10]"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três episódios consecutivos de abertura >= 2 sigma do spread partindo de
+  nível comprimido sem retorno negativo do SPX na janela [1,10].
+
+relevancia_portfolio: [VWRA]

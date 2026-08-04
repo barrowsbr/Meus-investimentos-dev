@@ -1,0 +1,45 @@
+id: credito.vix_comprimido_breadth_estreito.fragilidade
+version: 1
+familia: credito
+titulo: "VIX comprimido com breadth estreitando sinaliza fragilidade estrutural"
+
+canal: >
+  Volatilidade implícita baixa (VIX comprimido) sinaliza complacência; quando
+  ela coexiste com breadth estreitando — o índice sobe carregado por poucos
+  nomes enquanto a maioria enfraquece — a alta é frágil por dentro. Não é um
+  gatilho de timing, é uma condição de vulnerabilidade: a base de sustentação
+  do mercado encolhe sob a superfície calma, e choques posteriores encontram
+  menos amortecimento. Confiança baixa e defasagem longa por construção.
+
+choque:
+  driver: VIX
+  metrica: nivel_percentil
+  direcao: queda
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: SPX
+    sinal: -1
+    defasagem_dias: [5, 20]
+    confianca: baixa
+
+regime:
+  vale_quando: "Breadth estreitando (participação em queda) enquanto o índice sobe ou lateraliza."
+  inverte_quando: >
+    O VIX está comprimido MAS com breadth ampla e saudável (participação
+    crescente): aí a calma reflete força genuína, não fragilidade, e não
+    antecede fraqueza.
+  proxy_de_regime: "linha de avanço-declínio / % de ações acima da média móvel de 200 dias"
+
+evidencia:
+  janela: 24m
+  metodo: "condicionamento por percentil de VIX x breadth + retorno forward do SPX em [5,20]"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Ao longo de 24 meses, episódios de VIX no percentil baixo com breadth
+  estreitando não produzem retorno forward do SPX pior que a média na janela
+  [5,20] — a coocorrência não carrega informação de fragilidade.
+
+relevancia_portfolio: [VWRA]

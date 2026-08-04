@@ -1,0 +1,50 @@
+id: brasil.premio_risco.brl_e_juros_longos
+version: 1
+familia: brasil
+titulo: "Choque de prêmio de risco doméstico move real e juros longos juntos"
+
+canal: >
+  Um choque de prêmio de risco doméstico — deterioração fiscal, ruído
+  eleitoral, sanções — não escolhe um só mercado: repreça o Brasil como um
+  bloco. O real enfraquece (USDBRL sobe) e o juro longo abre (BR_10Y sobe) ao
+  mesmo tempo, porque ambos precificam o mesmo prêmio maior para carregar risco
+  Brasil. A assinatura da regra é a COMOVIMENTAÇÃO: câmbio e juro longo subindo
+  juntos, sem driver global correspondente. 2026 é ano de eleição geral — o
+  prêmio de risco POLÍTICO é driver nomeado, não resíduo.
+
+choque:
+  driver: BR_RISK_PREMIUM
+  metrica: retorno_3d
+  direcao: alta
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: USDBRL
+    sinal: 1
+    defasagem_dias: [0, 3]
+    confianca: alta
+  - ativo: BR_10Y
+    sinal: 1
+    defasagem_dias: [0, 3]
+    confianca: alta
+
+regime:
+  vale_quando: "O choque é doméstico e específico do Brasil (sem contraparte global no DXY / bloco emergente)."
+  inverte_quando: >
+    O movimento é, na verdade, parte de um risk-off GLOBAL (DXY subindo, bloco
+    emergente inteiro sofrendo). Aí a regra doméstica não se aplica — o driver
+    é externo e o caso pertence a fx.dxy_alta.emergentes_sofrem.
+  proxy_de_regime: "co-movimento de USDBRL com o bloco emergente vs. descolamento idiossincrático (ver fx.usdbrl_alta.confirma_dxy)"
+
+evidencia:
+  janela: 24m
+  metodo: "event study em choques >= 2 sigma do proxy de risco + concordância de sinal USDBRL/BR_10Y"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três choques consecutivos >= 2 sigma do prêmio de risco doméstico sem alta
+  CONJUNTA de USDBRL e BR_10Y na janela [0,3] — quebra da assinatura de
+  comovimento que define a regra.
+
+relevancia_portfolio: [SHV, VWRA, PATRIMONIO_BRL]

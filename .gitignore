@@ -38,3 +38,6 @@ backups/
 
 # MediaPipe WASM (copiado do node_modules no prebuild — não versionar)
 public/mediapipe/wasm/
+
+# Códice do Mapa de Transmissão Macro — saída gerada (regenerar com render/codice.mjs)
+macro-map/render/dist/

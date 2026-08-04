@@ -1,0 +1,50 @@
+id: energia.brent_queda.desinflacao_eua
+version: 1
+familia: energia
+titulo: "Queda do Brent comprime yields americanos"
+
+choque:
+  driver: BRENT
+  metrica: retorno_5d
+  direcao: queda
+  limiar_sigma: 2.0
+
+canal: >
+  Petróleo é insumo difuso no CPI americano. Queda sustentada derruba as
+  expectativas de inflação implícita, o que comprime o yield nominal de 10
+  anos e, por tabela, reduz o custo de oportunidade de ativos sem carrego
+  como o ouro. Bolsa se beneficia da queda da taxa de desconto.
+
+efeitos:
+  - ativo: US10Y
+    sinal: -1
+    defasagem_dias: [0, 3]
+    confianca: alta
+  - ativo: GOLD
+    sinal: 1
+    defasagem_dias: [0, 2]
+    confianca: media
+  - ativo: SPX
+    sinal: 1
+    defasagem_dias: [0, 2]
+    confianca: media
+
+regime:
+  vale_quando: "Inflação é a variável dominante do mercado."
+  inverte_quando: >
+    Queda do petróleo está sendo lida como sinal de recessão. Nesse caso o
+    yield cai igual, mas a bolsa cai junto e o ouro sobe por outro motivo
+    (demanda por proteção, não custo de oportunidade).
+  proxy_de_regime: "correlação rolante 60d entre SPX e US10Y"
+
+evidencia:
+  janela: 24m
+  metodo: "correlação rolante + event study em choques >= 2 sigma"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três episódios consecutivos de choque >= 2 sigma de queda no Brent sem o
+  movimento esperado de queda no US10Y dentro da janela de defasagem [0,3].
+
+relevancia_portfolio: [VWRA, SHV]
