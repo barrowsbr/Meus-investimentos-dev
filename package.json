@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/copy-mediapipe-wasm.mjs",
+    "prebuild": "node scripts/copy-mediapipe-wasm.mjs && node macro-map/build-rules.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

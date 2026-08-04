@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays, Boxes, LayoutGrid, Smile, Radio, Car,
+  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays, Boxes, LayoutGrid, Smile, Radio, Car, Network,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -51,6 +51,7 @@ export const SPACES: Space[] = [
       { href: "/opcoes", label: "Opções", icon: Crosshair, sub: "Posições em opções e estruturas" },
       { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
       { href: "/radar", label: "Radar", icon: Radar, sub: "Mapa-múndi geoeconômico: índices, moedas e países", mobileShow: true },
+      { href: "/macro-map", label: "Transmissão Macro", icon: Network, sub: "Detector de divergência macro — o que deveria acontecer vs. o que aconteceu (EUA/Brasil)" },
       { href: "/noticias", label: "Notícias & Previsões", icon: Newspaper, sub: "Jornal do mercado + trabalho + mercados preditivos" },
       { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },

@@ -109,4 +109,14 @@ describe("macro-map — fonte única de verdade", () => {
     const cobertas = new Set(rules.map((r) => r.rule.familia));
     for (const f of FAMILIAS) expect(cobertas, `família sem regra: ${f}`).toContain(f);
   });
+
+  it("rules.generated.ts está em sincronia com os YAMLs (rode: node macro-map/build-rules.mjs)", async () => {
+    const gen = await import("../../lib/macro-map/rules.generated");
+    const idsYaml = rules.map((r) => r.rule.id).sort();
+    const idsGen = gen.RULES.map((r) => r.id).sort();
+    expect(idsGen, "regras compiladas divergem dos YAMLs — regenere").toEqual(idsYaml);
+    const symsYaml = [...VOCAB].sort();
+    const symsGen = gen.DRIVERS.map((d) => d.simbolo).sort();
+    expect(symsGen, "drivers compilados divergem de drivers.yaml — regenere").toEqual(symsYaml);
+  });
 });
