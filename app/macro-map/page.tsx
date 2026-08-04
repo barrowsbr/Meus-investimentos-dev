@@ -99,6 +99,17 @@ function RuleCard({ a }: { a: RuleEvaluation }) {
           )}
         </div>
 
+        {a.estado === "quiescente" && a.ultimoChoqueGeral && (
+          <div className="font-mono mt-1.5" style={{ fontSize: 10.5, color: "var(--faint)" }}>
+            último disparo {a.ultimoChoqueGeral.date}{" "}
+            {a.ultimoChoqueGeral.primarioConfirmado == null
+              ? "· aguardando janela"
+              : a.ultimoChoqueGeral.primarioConfirmado
+                ? "· efeito veio ✓"
+                : "· efeito não veio ✕"}
+          </div>
+        )}
+
         {a.estado === "sem_dados" ? (
           <div className="flex items-center gap-2 mt-2" style={{ fontSize: 11, color: "var(--faint)" }}>
             <AlertTriangle size={13} />

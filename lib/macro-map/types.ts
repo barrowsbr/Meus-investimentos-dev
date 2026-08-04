@@ -69,6 +69,10 @@ export interface RuleEvaluation {
   choque: { driver: string; metrica: string; direcao: Direcao; limiar_sigma: number };
   choqueAtivo: boolean;
   ultimoChoque: { date: string; z60: number; z250: number } | null;
+  // Último choque da série INTEIRA (mesmo fora da janela de "hoje") — mantém o
+  // card informativo em dia calmo. primarioConfirmado: efeito primário veio?
+  // (null = janela ainda não decorreu).
+  ultimoChoqueGeral: { date: string; z60: number; z250: number; primarioConfirmado: boolean | null } | null;
   efeitos: EffectOutcome[];
   // taxa de concordância de sinal MEDIDA ao vivo na janela (a "métrica central").
   // Distinta da evidencia.taxa_acerto do YAML (essa é a priori/Fase 2 formal).

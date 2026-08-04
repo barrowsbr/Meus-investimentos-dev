@@ -27,7 +27,9 @@ async function fetchSeries(sym: string): Promise<Series | undefined> {
   const d = driverBySym.get(sym);
   if (!d || d.fonte !== "yahoo" || d.prontidao === "fonte_nova") return undefined; // fonte não integrada
   try {
-    const rows = await fetchHistory(d.simbolo_fonte, "2y", "1d");
+    // 5 anos: choques >= 2σ são raros; janela curta demais deixa a taxa de
+    // concordância com n minúsculo (n=2). O z-score segue em 60/250d.
+    const rows = await fetchHistory(d.simbolo_fonte, "5y", "1d");
     if (!rows.length) return undefined;
     const s = toSeries(rows);
     return s.dates.length ? s : undefined;

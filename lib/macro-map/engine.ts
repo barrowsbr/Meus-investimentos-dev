@@ -193,6 +193,7 @@ export function classifyRule(
       driversFaltando: [...new Set(faltando)],
       choqueAtivo: false,
       ultimoChoque: null,
+      ultimoChoqueGeral: null,
       efeitos: [],
       taxaAcertoLive: null,
       nEventos: 0,
@@ -225,6 +226,19 @@ export function classifyRule(
     if (outcome.observado === primary.sinal) conf++;
   }
   const taxaAcertoLive = tot > 0 ? conf / tot : null;
+
+  // ── último choque da série inteira (informa o card mesmo em dia calmo) ──
+  let ultimoChoqueGeral: RuleEvaluation["ultimoChoqueGeral"] = null;
+  if (shocks.length) {
+    const sh = shocks[shocks.length - 1];
+    const idx = forwardIdx(cal, sh.date);
+    let primarioConfirmado: boolean | null = null;
+    if (idx + primary.defasagem_dias[1] <= lastIdx) {
+      const { outcome, hasSpan } = effectReturn(primaryPrice, cal, idx, primary.defasagem_dias[0], primary.defasagem_dias[1], lastIdx, params.deadband);
+      if (hasSpan && outcome) primarioConfirmado = outcome.observado === primary.sinal;
+    }
+    ultimoChoqueGeral = { date: sh.date, z60: round(zcMap.get(sh.date) ?? sh.z), z250: round(zlMap.get(sh.date) ?? 0), primarioConfirmado };
+  }
 
   // ── estado de hoje: choque mais recente dentro da janela ──
   const recentes = shocks.filter((s) => withinLastDays(cal, s.date, params.janelaChoqueDias));
@@ -261,6 +275,7 @@ export function classifyRule(
     ultimoChoque: ultimo
       ? { date: ultimo.date, z60: round(zcMap.get(ultimo.date) ?? ultimo.z), z250: round(zlMap.get(ultimo.date) ?? 0) }
       : null,
+    ultimoChoqueGeral,
     efeitos,
     taxaAcertoLive,
     nEventos: tot,
