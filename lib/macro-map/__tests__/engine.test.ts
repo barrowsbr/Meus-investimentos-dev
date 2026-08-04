@@ -106,6 +106,17 @@ describe("classifyRule", () => {
     expect(ev.choqueAtivo).toBe(false);
   });
 
+  it("EFEITO PARCIAL: com 1 de N efeitos disponível, a regra roda nos demais e lista o não medido", () => {
+    const RULE1 = RULES.find((r) => r.id === "energia.brent_queda.desinflacao_eua") as Rule; // efeitos: US10Y, GOLD, SPX
+    const driver = mkSeries(300, { 299: -0.08 }); // Brent cai forte (retorno_5d, queda)
+    const spx = mkSeries(300, { 299: 0.02 }); // SPX sobe (efeito esperado +1)
+    const ev = classifyRule(RULE1, driver, { SPX: spx }); // só SPX disponível
+    expect(ev.disponivel).toBe(true);
+    expect(ev.estado).toBe("confirmado");
+    expect(ev.efeitosNaoMedidos.sort()).toEqual(["GOLD", "US10Y"]);
+    expect(ev.efeitos.map((e) => e.ativo)).toEqual(["SPX"]);
+  });
+
   it("taxa de concordância ao vivo: mede episódios passados com janela decorrida", () => {
     // choque no meio (d0280) para a defasagem já ter decorrido; efeito confirma
     const driver = mkSeries(300, { 280: 0.03 });

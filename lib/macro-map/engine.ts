@@ -181,16 +181,22 @@ export function classifyRule(
     falsificacao: rule.falsificacao,
   };
 
-  const faltando: string[] = [];
-  if (!driverPrice || driverPrice.values.length < params.zLongo) faltando.push(rule.choque.driver);
-  for (const ef of rule.efeitos) if (!effectPrices[ef.ativo]) faltando.push(ef.ativo);
+  const driverOk = !!driverPrice && driverPrice.values.length >= params.zLongo;
+  const efeitosDisponiveis = rule.efeitos.filter((e) => !!effectPrices[e.ativo]);
+  const efeitosNaoMedidos = rule.efeitos.filter((e) => !effectPrices[e.ativo]).map((e) => e.ativo);
 
-  if (!driverPrice || driverPrice.values.length < params.zLongo || faltando.length) {
+  // sem_dados só quando falta o DRIVER ou TODOS os efeitos. Com o driver e ao
+  // menos um efeito, a regra roda nos disponíveis (os demais viram "não medido").
+  if (!driverOk || efeitosDisponiveis.length === 0) {
+    const faltando: string[] = [];
+    if (!driverOk) faltando.push(rule.choque.driver);
+    faltando.push(...efeitosNaoMedidos);
     return {
       ...base,
       estado: "sem_dados" as Estado,
       disponivel: false,
       driversFaltando: [...new Set(faltando)],
+      efeitosNaoMedidos,
       choqueAtivo: false,
       ultimoChoque: null,
       ultimoChoqueGeral: null,
@@ -200,11 +206,12 @@ export function classifyRule(
     };
   }
 
-  const cal = driverPrice.dates;
-  const shocks = detectShocks(driverPrice, rule.choque.metrica, rule.choque.limiar_sigma, rule.choque.direcao, params);
+  const dp = driverPrice!;
+  const cal = dp.dates;
+  const shocks = detectShocks(dp, rule.choque.metrica, rule.choque.limiar_sigma, rule.choque.direcao, params);
 
   // z das duas janelas para exibir no último choque
-  const metric = metricSeries(driverPrice, rule.choque.metrica);
+  const metric = metricSeries(dp, rule.choque.metrica);
   const zcSeries = rollingZ(metric, params.zCurto);
   const zlSeries = rollingZ(metric, params.zLongo);
   const zcMap = new Map(zcSeries.dates.map((d, i) => [d, zcSeries.values[i]]));
@@ -213,7 +220,7 @@ export function classifyRule(
   const lastIdx = cal.length - 1;
 
   // ── taxa de concordância ao vivo: episódios com defasagem JÁ decorrida ──
-  const primary = pickPrimary(rule.efeitos);
+  const primary = pickPrimary(efeitosDisponiveis);
   const primaryPrice = effectPrices[primary.ativo]!;
   let conf = 0;
   let tot = 0;
@@ -248,7 +255,7 @@ export function classifyRule(
   let efeitos: EffectOutcome[] = [];
   if (ultimo) {
     const shockIdx = forwardIdx(cal, ultimo.date);
-    efeitos = rule.efeitos
+    efeitos = efeitosDisponiveis
       .map((ef): EffectOutcome | null => {
         const { outcome, hasSpan } = effectReturn(effectPrices[ef.ativo]!, cal, shockIdx, ef.defasagem_dias[0], ef.defasagem_dias[1], lastIdx, params.deadband);
         if (!hasSpan || !outcome) return null;
@@ -271,6 +278,7 @@ export function classifyRule(
     estado,
     disponivel: true,
     driversFaltando: [],
+    efeitosNaoMedidos,
     choqueAtivo: !!ultimo,
     ultimoChoque: ultimo
       ? { date: ultimo.date, z60: round(zcMap.get(ultimo.date) ?? ultimo.z), z250: round(zlMap.get(ultimo.date) ?? 0) }

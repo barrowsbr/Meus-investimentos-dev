@@ -77,8 +77,8 @@ drivers:
     fonte: fred
     simbolo_fonte: "DFII10"
     persistido: false
-    prontidao: fonte_nova
-    nota: "Yield real (protegido de inflação) NÃO existe no app. FRED DFII10 é livre (CSV/fredgraph, sem key). Driver correto p/ custo de oportunidade do ouro."
+    prontidao: integrado
+    nota: "INTEGRADO via FRED DFII10 (CSV/fredgraph, livre, sem key). Driver correto p/ custo de oportunidade do ouro."
 
   # ── Ações / volatilidade EUA ───────────────────────────────────────────────
   - simbolo: SPX
@@ -121,8 +121,8 @@ drivers:
     fonte: fred
     simbolo_fonte: "BAMLH0A0HYM2"
     persistido: false
-    prontidao: fonte_nova
-    nota: "AUSENTE do app (nenhum HYG/JNK/OAS). FRED BAMLH0A0HYM2 (ICE BofA HY OAS) é livre. Proxy alternativo: razão HYG/IEF via Yahoo (backfill)."
+    prontidao: integrado
+    nota: "INTEGRADO via FRED BAMLH0A0HYM2 (ICE BofA US HY OAS, livre). Era ausente do app (nenhum HYG/JNK/OAS)."
 
   # ── Brasil — juros e prêmio de risco ───────────────────────────────────────
   - simbolo: SELIC_EXP
@@ -131,8 +131,8 @@ drivers:
     fonte: bcb
     simbolo_fonte: "Olinda/Expectativas (Focus)"
     persistido: false
-    prontidao: fonte_nova
-    nota: "Selic META existe app-side (BCB SGS 432 em lib/margin.ts) mas é NÍVEL, não EXPECTATIVA, e não está no Radar. Focus (expectativa) é fonte nova via API Olinda do BCB (livre)."
+    prontidao: integrado
+    nota: "INTEGRADO via BCB Olinda/Expectativas (Focus, livre): mediana da Selic esperada para o ano seguinte (horizonte rolante). Diferente da Selic META (SGS 432, que é nível)."
   - simbolo: BR_10Y
     nome: "Juro longo Brasil (NTN-B / DI longo)"
     classe: br_rate
@@ -145,7 +145,7 @@ drivers:
     nome: "Prêmio de risco Brasil (proxy)"
     classe: risk
     fonte: proxy
-    simbolo_fonte: "EWZ/SPX ou CDS 5y"
+    simbolo_fonte: "^GSPC / EWZ"
     persistido: false
-    prontidao: fonte_nova
-    nota: "Não existe. Proxy observável: razão EWZ/SPX (ambos Yahoo → backfill) capta prêmio de risco relativo do Brasil; CDS 5y Brasil seria ideal mas não tem fonte livre. Driver nomeado do ciclo eleitoral 2026."
+    prontidao: integrado
+    nota: "INTEGRADO via proxy razão S&P 500 / EWZ (ambos Yahoo): sobe quando o Brasil desempenha pior que os EUA — cresce com o prêmio de risco. CDS 5y seria ideal mas não tem fonte livre. Driver nomeado do ciclo eleitoral 2026."

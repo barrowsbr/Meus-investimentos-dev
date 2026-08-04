@@ -122,6 +122,11 @@ function RuleCard({ a }: { a: RuleEvaluation }) {
                 {a.efeitos.map((e) => <EfeitoRow key={e.ativo} e={e} />)}
               </div>
             )}
+            {a.efeitosNaoMedidos.length > 0 && (
+              <div className="font-mono mt-1" style={{ fontSize: 10, color: "var(--faint)" }}>
+                não medido (sem fonte): {a.efeitosNaoMedidos.join(", ")}
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3 mt-2 pt-2" style={{ borderTop: "1px solid var(--line)", fontSize: 11 }}>
               <span className="font-mono" style={{ color: "var(--muted)" }}>
                 concordância de sinal (ao vivo):{" "}
@@ -215,10 +220,10 @@ export default function MacroMapPage() {
             </div>
 
             <p style={{ fontSize: 11, color: "var(--faint)", lineHeight: 1.5 }}>
-              MVP: z-score rolante 60/250d (disparo exige concordância das duas janelas); a concordância de sinal é medida
-              ao vivo na janela de 2 anos. Regras marcadas &ldquo;sem dados&rdquo; dependem de fontes ainda não integradas
-              (yield real, spread de high yield, Focus, juro longo BR). Detecção automática de &ldquo;regime rompido&rdquo;
-              vem na próxima etapa.
+              z-score rolante 60/250d (disparo exige concordância das duas janelas); a concordância de sinal é medida ao
+              vivo em 5 anos. Fontes: Yahoo (preços), FRED (yield real, spread de high yield), BCB Focus (expectativa de
+              Selic) e proxy S&amp;P/EWZ (prêmio de risco BR). Falta só o juro longo BR (NTN-B/DI, sem fonte livre) —
+              aparece como &ldquo;não medido&rdquo;. Detecção automática de &ldquo;regime rompido&rdquo; vem na próxima etapa.
             </p>
           </>
         )}

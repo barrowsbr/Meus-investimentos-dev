@@ -168,6 +168,17 @@ export const API_REGISTRY: ApiDef[] = [
     },
   },
   {
+    key: "fred", name: "FRED (St. Louis Fed)", category: "Câmbio & Juros",
+    host: "fred.stlouisfed.org", purpose: "Séries macro EUA — yield real 10a (DFII10) e spread de high yield (OAS) do Mapa de Transmissão Macro",
+    envVars: [],
+    probe: async () => {
+      const r = await httpGet("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFII10&cosd=2024-01-01");
+      const txt = r.ok ? await r.text() : "";
+      const linhas = txt.trim().split(/\r?\n/).length;
+      return r.ok && linhas > 1 ? { ok: true, detail: `DFII10 ${linhas - 1} pontos` } : { ok: false, detail: `HTTP ${r.status}` };
+    },
+  },
+  {
     key: "awesomeapi", name: "AwesomeAPI", category: "Câmbio & Juros",
     host: "economia.awesomeapi.com.br", purpose: "Câmbio USD/BRL (fonte primária do dólar)",
     envVars: [],
