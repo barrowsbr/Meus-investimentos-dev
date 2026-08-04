@@ -1,12 +1,14 @@
 "use client";
 
-// Extraído de app/configuracoes/page.tsx — card retrátil das Configurações
-// (com chips de status no cabeçalho e persistência dos cards abertos na sessão).
+// Linha retrátil das Configurações (lista agrupada estilo iOS). Renderiza como
+// UMA LINHA dentro de um contêiner de grupo — sem card próprio: ícone em tile
+// tingido com a cor do grupo (amarra visualmente), título + descrição, chips de
+// status e conteúdo que expande logo abaixo. Cards abertos persistem na sessão.
 
 import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 
-// Chip de status no cabeçalho do card — mostra o estado SEM precisar abrir.
+// Chip de status no cabeçalho — mostra o estado SEM precisar abrir.
 export type CardChip = { label: string; tone: "ok" | "warn" | "off" | "muted" };
 
 const CHIP_TONE: Record<CardChip["tone"], React.CSSProperties> = {
@@ -22,11 +24,12 @@ function readOpenSet(): Set<string> {
   try { return new Set(JSON.parse(sessionStorage.getItem(OPEN_KEY) ?? "[]")); } catch { return new Set(); }
 }
 
-export function SectionCard({ id, title, desc, icon, chips, children, defaultOpen = false }: {
+export function SectionCard({ id, title, desc, icon, cor = "var(--muted)", chips, children, defaultOpen = false }: {
   id?: string;
   title: string;
   desc?: string;
   icon: React.ReactNode;
+  cor?: string;
   chips?: CardChip[];
   children: React.ReactNode;
   defaultOpen?: boolean;
@@ -49,12 +52,25 @@ export function SectionCard({ id, title, desc, icon, chips, children, defaultOpe
   });
 
   return (
-    <div className="glass-card overflow-hidden mb-3 transition-colors hover:border-zinc-700/70">
-      <button className="w-full flex items-center gap-3 p-4 sm:px-5 text-left hover:bg-white/[0.02] transition-colors" onClick={toggle}>
-        <span className="text-zinc-400 shrink-0">{icon}</span>
+    <div style={{ background: open ? "color-mix(in srgb, var(--fg) 3%, transparent)" : "transparent", transition: "background .2s" }}>
+      <button
+        className="w-full flex items-center gap-3 px-3.5 sm:px-4 py-3.5 text-left"
+        onClick={toggle}
+      >
+        <span
+          className="grid place-items-center rounded-xl shrink-0"
+          style={{
+            width: 36, height: 36,
+            background: `color-mix(in srgb, ${cor} 13%, transparent)`,
+            border: `1px solid color-mix(in srgb, ${cor} 32%, transparent)`,
+            color: cor,
+          }}
+        >
+          {icon}
+        </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-zinc-200 text-sm truncate">{title}</span>
-          {desc && <span className="block text-[11px] text-zinc-600 truncate mt-0.5">{desc}</span>}
+          <span className="block font-semibold text-[13.5px] leading-tight truncate" style={{ color: "var(--fg)" }}>{title}</span>
+          {desc && <span className="block text-[11px] leading-snug mt-0.5 truncate" style={{ color: "var(--faint)" }}>{desc}</span>}
         </span>
         {chips && chips.length > 0 && (
           <span className="hidden sm:flex items-center gap-1.5 shrink-0">
@@ -65,10 +81,10 @@ export function SectionCard({ id, title, desc, icon, chips, children, defaultOpe
             ))}
           </span>
         )}
-        <ChevronDown size={15} className="text-zinc-500 shrink-0 transition-transform duration-200" style={{ transform: open ? "rotate(180deg)" : "none" }} />
+        <ChevronDown size={16} className="shrink-0 transition-transform duration-200" style={{ color: "var(--faint)", transform: open ? "rotate(180deg)" : "none" }} />
       </button>
       {open && (
-        <div className="px-4 sm:px-5 pb-5 border-t border-zinc-800/50 pt-4">
+        <div className="px-3.5 sm:px-4 pb-5 pt-0">
           {/* Chips visíveis no mobile quando aberto (no fechado economizam espaço) */}
           {chips && chips.length > 0 && (
             <div className="sm:hidden flex flex-wrap gap-1.5 mb-3">
