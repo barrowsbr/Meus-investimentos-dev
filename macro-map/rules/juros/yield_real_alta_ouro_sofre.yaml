@@ -1,0 +1,45 @@
+id: juros.yield_real_alta.ouro_sofre
+version: 1
+familia: juros
+titulo: "Alta do yield real de 10 anos pressiona o ouro"
+
+canal: >
+  O ouro não paga carrego. Seu preço é uma função inversa do custo de
+  oportunidade de segurá-lo, e esse custo é o yield REAL (protegido de
+  inflação), não o nominal. Quando o yield real de 10 anos sobe, guardar um
+  ativo que não rende fica mais caro e o ouro sofre. Usar o yield nominal
+  aqui seria erro: a alta nominal puxada por inflação pode conviver com ouro
+  em alta.
+
+choque:
+  driver: US10Y_REAL
+  metrica: variacao_bps_5d
+  direcao: alta
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: GOLD
+    sinal: -1
+    defasagem_dias: [0, 3]
+    confianca: alta
+
+regime:
+  vale_quando: "Não há estresse sistêmico de risco em curso (sem corrida para proteção)."
+  inverte_quando: >
+    Um choque de risco geopolítico ou de crédito coloca demanda por proteção
+    no comando. Nesse regime o ouro sobe mesmo com yield real subindo, porque
+    o prêmio de segurança domina o custo de oportunidade.
+  proxy_de_regime: "nível do VIX e spread de high yield (HY_SPREAD)"
+
+evidencia:
+  janela: 24m
+  metodo: "regressão log-linear de GOLD sobre US10Y_REAL + event study em choques >= 2 sigma"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três episódios consecutivos de alta >= 2 sigma do yield real de 10 anos com
+  o ouro subindo (ou estável) na janela [0,3], fora de qualquer regime de
+  estresse de risco.
+
+relevancia_portfolio: [VWRA]

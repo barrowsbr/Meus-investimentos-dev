@@ -1,0 +1,31 @@
+name: macro-map — validar regras
+
+# Fonte única de verdade: valida cada regra em macro-map/rules/**/*.yaml contra
+# rule.schema.json e cruza os drivers/ativos com drivers.yaml. Se PDF e runtime
+# usam os mesmos YAMLs, esta checagem impede que uma regra malformada entre.
+
+on:
+  push:
+    paths:
+      - "macro-map/**"
+      - ".github/workflows/macro-map.yml"
+      - "vitest.config.ts"
+  pull_request:
+    paths:
+      - "macro-map/**"
+      - ".github/workflows/macro-map.yml"
+      - "vitest.config.ts"
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci
+      - name: Validar regras contra o schema
+        run: npx vitest run macro-map

@@ -1,0 +1,47 @@
+id: fx.dxy_alta.emergentes_sofrem
+version: 1
+familia: fx
+titulo: "Alta do DXY castiga moedas emergentes em bloco"
+
+canal: >
+  Força ampla do dólar (DXY) aperta as condições financeiras globais: encarece
+  a dívida em dólar dos emergentes, drena fluxo de portfólio de volta aos EUA
+  e comprime moedas e bolsas emergentes em bloco. O real e o Ibovespa andam
+  como parte desse bloco quando o driver é global — a distinção crucial vem na
+  regra irmã (fx.usdbrl_alta.confirma_dxy), que separa força global de risco
+  doméstico.
+
+choque:
+  driver: DXY
+  metrica: retorno_2d
+  direcao: alta
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: USDBRL
+    sinal: 1
+    defasagem_dias: [0, 2]
+    confianca: alta
+  - ativo: IBOV
+    sinal: -1
+    defasagem_dias: [0, 3]
+    confianca: media
+
+regime:
+  vale_quando: "O movimento do dólar é amplo (contra várias moedas), não idiossincrático a um par."
+  inverte_quando: >
+    A alta do DXY é puxada por fraqueza específica de euro/iene sem aperto real
+    das condições globais — o bloco emergente pode descolar e o real resistir.
+  proxy_de_regime: "dispersão do movimento do dólar entre pares (DXY vs cesta ampla de moedas)"
+
+evidencia:
+  janela: 24m
+  metodo: "correlação rolante DXY x USDBRL + event study em altas >= 2 sigma"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três episódios consecutivos de alta >= 2 sigma do DXY sem enfraquecimento do
+  real (USDBRL) na janela [0,2], em regime de dólar amplo.
+
+relevancia_portfolio: [VWRA, SHV, PATRIMONIO_BRL]

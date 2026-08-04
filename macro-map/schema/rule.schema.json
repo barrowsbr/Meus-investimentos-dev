@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://meus-investimentos/macro-map/rule.schema.json",
+  "title": "Regra do Mapa de Transmissão Macro",
+  "description": "Uma regra de transmissão de duas pernas (EUA/Brasil) com sinal, defasagem e regime de validade explícitos. Fonte única de verdade: este schema valida cada arquivo em macro-map/rules/**/*.yaml em CI. taxa_acerto e n_eventos NUNCA são escritos à mão — são output da Fase 2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "familia",
+    "titulo",
+    "choque",
+    "canal",
+    "efeitos",
+    "regime",
+    "evidencia",
+    "falsificacao",
+    "relevancia_portfolio"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Identificador estável em namespace pontuado: familia.gatilho.desdobramento (ex.: energia.brent_queda.desinflacao_eua).",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9_]+)+$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Versão da regra. Sobe a cada revisão de conteúdo econômico."
+    },
+    "familia": {
+      "type": "string",
+      "enum": ["energia", "juros", "fx", "credito", "brasil"],
+      "description": "Família da regra — casa com a subpasta em rules/."
+    },
+    "titulo": {
+      "type": "string",
+      "minLength": 4,
+      "description": "Título humano curto, uma linha."
+    },
+    "choque": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["driver", "metrica", "direcao", "limiar_sigma"],
+      "description": "O gatilho: um movimento estatisticamente significativo de um driver.",
+      "properties": {
+        "driver": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "Símbolo do driver no vocabulário canônico (macro-map/drivers.yaml). Nome simbólico, NÃO ticker de fonte — o adapter resolve."
+        },
+        "metrica": {
+          "type": "string",
+          "minLength": 2,
+          "description": "Métrica do movimento (ex.: retorno_1d, retorno_5d, nivel, variacao_bps_5d)."
+        },
+        "direcao": {
+          "type": "string",
+          "enum": ["queda", "alta"],
+          "description": "Direção do choque."
+        },
+        "limiar_sigma": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Quantos desvios-padrão (z-score rolante) o movimento precisa cruzar para acionar."
+        }
+      }
+    },
+    "canal": {
+      "type": "string",
+      "minLength": 40,
+      "description": "MECANISMO econômico proposto (causalidade proposta em prosa). Nunca se confunde com a estatística de coocorrência de 'evidencia'."
+    },
+    "efeitos": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ativos que o choque deve atingir. Lista porque um choque atinge vários ativos com defasagens diferentes.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ativo", "sinal", "defasagem_dias", "confianca"],
+        "properties": {
+          "ativo": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "description": "Símbolo do ativo afetado no vocabulário canônico (macro-map/drivers.yaml)."
+          },
+          "sinal": {
+            "type": "integer",
+            "enum": [-1, 1],
+            "description": "+1 (sobe) ou -1 (cai). NUNCA uma palavra — permite avaliação programática."
+          },
+          "defasagem_dias": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "integer", "minimum": 0 },
+            "description": "Janela de defasagem [min, max] em dias úteis. min <= max (verificado no teste)."
+          },
+          "confianca": {
+            "type": "string",
+            "enum": ["alta", "media", "baixa"],
+            "description": "Confiança QUALITATIVA a priori no efeito. Não é a taxa de acerto medida (essa é 'evidencia')."
+          }
+        }
+      }
+    },
+    "regime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vale_quando", "inverte_quando", "proxy_de_regime"],
+      "description": "Condição de validade. Uma regra sem regime é uma armadilha.",
+      "properties": {
+        "vale_quando": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Estado de mundo em que a regra vale."
+        },
+        "inverte_quando": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Estado em que o mesmo choque produz o efeito OPOSTO (ou nenhum)."
+        },
+        "proxy_de_regime": {
+          "type": "string",
+          "minLength": 6,
+          "description": "Medida observável que classifica o regime atual (ex.: correlação rolante 60d entre SPX e US10Y)."
+        }
+      }
+    },
+    "evidencia": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["janela", "metodo", "taxa_acerto", "n_eventos"],
+      "description": "Coocorrência MEDIDA. Distinta do 'canal' (mecanismo proposto). taxa_acerto/n_eventos são output da Fase 2.",
+      "properties": {
+        "janela": {
+          "type": "string",
+          "description": "Janela de estimação (ex.: 24m)."
+        },
+        "metodo": {
+          "type": "string",
+          "description": "Método estatístico (ex.: correlação rolante + event study em choques >= 2 sigma)."
+        },
+        "taxa_acerto": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fração de concordância de sinal na janela. null na Fase 1 → o códice renderiza 'não quantificado'. NUNCA escrito à mão."
+        },
+        "n_eventos": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Nº de episódios de choque >= limiar na janela. null na Fase 1. NUNCA escrito à mão."
+        }
+      }
+    },
+    "falsificacao": {
+      "type": "string",
+      "minLength": 30,
+      "description": "Condição concreta que mostra que a regra parou de valer. Se não há teste que a derrube, não é regra — é narrativa."
+    },
+    "relevancia_portfolio": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Exposições/ativos do portfólio de referência que esta regra ilumina (ex.: VWRA, SHV, PATRIMONIO_BRL)."
+    }
+  }
+}

@@ -1,0 +1,48 @@
+id: fx.usdbrl_alta.confirma_dxy
+version: 1
+familia: fx
+titulo: "USD/BRL sobe sem o DXY confirmar → risco idiossincrático doméstico"
+
+canal: >
+  O real raramente se move sozinho. Uma alta relevante do dólar contra o real
+  costuma vir ACOMPANHADA de força global do dólar — o DXY sobe junto. Essa é
+  a relação esperada, e esta regra existe para verificá-la. O produto NÃO é o
+  caso confirmado; é a DIVERGÊNCIA: quando o USDBRL sobe e o DXY fica parado
+  ou cai, o movimento não é força global do dólar — é risco idiossincrático
+  brasileiro (fiscal, político, fluxo). Foi o fato relevante de 04/08/2026:
+  DXY praticamente parado (+0,01%) enquanto o USD/BRL subia 0,84%. A quebra da
+  relação é que carregava a informação.
+
+choque:
+  driver: USDBRL
+  metrica: retorno_1d
+  direcao: alta
+  limiar_sigma: 1.5
+
+efeitos:
+  - ativo: DXY
+    sinal: 1
+    defasagem_dias: [0, 1]
+    confianca: alta
+
+regime:
+  vale_quando: "Condições normais de mercado, em que o real é majoritariamente dirigido pelo dólar global."
+  inverte_quando: >
+    Há um driver doméstico ativo e conhecido (choque fiscal, ruído eleitoral,
+    intervenção): nesse caso a NÃO-confirmação do DXY é o esperado, e a regra
+    deixa de medir surpresa para medir intensidade do risco local.
+  proxy_de_regime: "beta rolante 60d de USDBRL sobre DXY"
+
+evidencia:
+  janela: 24m
+  metodo: "beta rolante USDBRL~DXY + taxa de concordância de sinal dia a dia"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Em janela de 24 meses, a alta do USDBRL deixa de ser acompanhada pela alta
+  do DXY na maioria dos episódios >= 1,5 sigma — sinal de que o real passou a
+  ser dirigido por fator doméstico de forma estrutural, e a regra de
+  confirmação global perdeu validade.
+
+relevancia_portfolio: [SHV, VWRA, PATRIMONIO_BRL]

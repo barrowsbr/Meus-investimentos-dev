@@ -1,0 +1,51 @@
+id: energia.brent_queda.termos_troca_brasil
+version: 1
+familia: energia
+titulo: "Queda do Brent piora os termos de troca do Brasil"
+
+canal: >
+  A mesma queda do Brent que é desinflacionária para os EUA é um choque
+  NEGATIVO de termos de troca para o Brasil, exportador líquido de petróleo
+  e de commodities correlacionadas. Menos dólar de exportação entra, o fluxo
+  cambial piora e o real perde suporte (USDBRL sobe). O Ibovespa, pesado em
+  Petrobras e mineração, sofre no componente de commodities. É a perna
+  brasileira, de sinal oposto à americana — por isso um mapa de uma perna só
+  produz conclusão errada para um patrimônio contabilizado em BRL.
+
+choque:
+  driver: BRENT
+  metrica: retorno_5d
+  direcao: queda
+  limiar_sigma: 2.0
+
+efeitos:
+  - ativo: USDBRL
+    sinal: 1
+    defasagem_dias: [0, 5]
+    confianca: media
+  - ativo: IBOV
+    sinal: -1
+    defasagem_dias: [0, 3]
+    confianca: baixa
+
+regime:
+  vale_quando: "Preço de commodity é o driver dominante do fluxo cambial brasileiro."
+  inverte_quando: >
+    A queda do petróleo vem junto de um movimento global de risk-on que
+    derruba o DXY com mais força do que o choque de termos de troca — aí o
+    real PODE se fortalecer apesar do Brent mais barato, dominado pelo canal
+    do dólar global.
+  proxy_de_regime: "correlação rolante 60d entre BRENT e USDBRL"
+
+evidencia:
+  janela: 24m
+  metodo: "correlação rolante + event study em choques >= 2 sigma"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Três episódios consecutivos de choque >= 2 sigma de queda no Brent sem
+  enfraquecimento do real (USDBRL) dentro da janela [0,5], em regime de
+  commodity dominante.
+
+relevancia_portfolio: [VWRA, SHV, PATRIMONIO_BRL]
