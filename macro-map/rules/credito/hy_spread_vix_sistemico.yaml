@@ -1,0 +1,51 @@
+id: credito.hy_spread_vix.sistemico
+version: 1
+familia: credito
+titulo: "Spread de high yield abrindo com VIX subindo → risk-off sistêmico"
+
+choque:
+  driver: HY_SPREAD
+  metrica: variacao_bps_5d
+  direcao: alta
+  limiar_sigma: 2.0
+
+canal: >
+  Uma abertura do spread de high yield ISOLADA pode ser um soluço de crédito.
+  Mas quando ela vem ACOMPANHADA de volatilidade em alta, crédito e ações estão
+  se confirmando: é risk-off sistêmico, amplo e correlacionado — bolsa americana
+  e emergente caem juntas e o real enfraquece. É a versão ampla e multi-ativo do
+  sinal de crédito (a regra credito.hy_spread_abre trata do lead isolado sobre o
+  S&P; esta trata da confirmação sistêmica).
+
+efeitos:
+  - ativo: SPX
+    sinal: -1
+    defasagem_dias: [0, 5]
+    confianca: media
+  - ativo: IBOV
+    sinal: -1
+    defasagem_dias: [0, 5]
+    confianca: baixa
+  - ativo: USDBRL
+    sinal: 1
+    defasagem_dias: [0, 5]
+    confianca: media
+
+regime:
+  vale_quando: "A abertura do spread vem COM o VIX subindo (crédito e volatilidade se confirmam)."
+  inverte_quando: >
+    O spread abre com a volatilidade calma (VIX parado): é estresse idiossincrático
+    de crédito, não sistêmico, e não se espalha para bolsa e câmbio.
+  proxy_de_regime: "co-movimento (correlação rolante) entre HY_SPREAD e VIX"
+
+evidencia:
+  janela: 24m
+  metodo: "event study em aberturas >= 2 sigma do spread condicionadas ao VIX subindo"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Em 24 meses, as aberturas conjuntas de spread e VIX não produzem queda ampla
+  (S&P e Ibov) nem enfraquecimento do real na janela [0,5].
+
+relevancia_portfolio: [VWRA, PATRIMONIO_BRL]
