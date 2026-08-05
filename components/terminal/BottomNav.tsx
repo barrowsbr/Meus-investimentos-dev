@@ -57,9 +57,8 @@ export default function BottomNav() {
     const ativo = items.find((it) => isActive(it.href));
     return (
       <nav className="bottom-nav ps min-[1100px]:hidden fixed z-40">
-        {/* véu translúcido — o conteúdo aparece esmaecido através do arco superior */}
-        <span className="ps-veil" aria-hidden />
-        {/* superfície sólida com o topo CONVEXO (horizonte que sobe no centro) */}
+        {/* superfície única — crista sólida no topo, abre pra transparente na base
+            (sem véu: era ele que criava o "ombro" fosco na crista) */}
         <span className="ps-surface" aria-hidden />
         <div className="ps-row">
           {items.map(({ href, label, icon: Icon }, i) => {
