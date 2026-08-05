@@ -1,0 +1,48 @@
+id: juros.curva_desinverte.antecede_risco
+version: 1
+familia: juros
+titulo: "Curva de juros EUA desinverte rápido → antecede risk-off"
+
+choque:
+  driver: US_CURVE
+  metrica: variacao_bps_5d
+  direcao: alta
+  limiar_sigma: 2.0
+
+canal: >
+  A inclinação 10a−2a é um dos sinais mais estudados de ciclo. Depois de um
+  período invertida, uma desinversão RÁPIDA (bull steepening — a ponta curta
+  cede mais que a longa porque o mercado antecipa cortes) historicamente
+  antecede recessão e risk-off, com defasagem de semanas. Não é o gatilho do
+  timing, é o aviso: a economia está virando e os ativos de risco tendem a
+  sofrer à frente, com small caps e cíclicas liderando a queda.
+
+efeitos:
+  - ativo: SPX
+    sinal: -1
+    defasagem_dias: [5, 25]
+    confianca: media
+  - ativo: US_SMALLCAP
+    sinal: -1
+    defasagem_dias: [5, 25]
+    confianca: baixa
+
+regime:
+  vale_quando: "A desinversão parte de uma curva INVERTIDA (fim de ciclo de aperto)."
+  inverte_quando: >
+    O steepening é de início de ciclo (bull market), com a curva já positiva e
+    inclinando por crescimento — aí antecede risk-ON, não risk-off. O sinal
+    depende do ponto de partida da curva.
+  proxy_de_regime: "nível da inclinação 10a−2a (partiu de território negativo?)"
+
+evidencia:
+  janela: 24m
+  metodo: "event study em desinversões >= 2 sigma condicionadas ao sinal inicial da curva"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Em 24 meses, as desinversões >= 2 sigma partindo de curva invertida não
+  precedem fraqueza do S&P na janela [5,25] — o sinal de fim de ciclo perdeu poder.
+
+relevancia_portfolio: [VWRA]

@@ -1,0 +1,45 @@
+id: juros.ouro_alta.medo_vs_juro
+version: 1
+familia: juros
+titulo: "Ouro dispara sem o juro real ceder → medo, não taxa"
+
+choque:
+  driver: GOLD
+  metrica: retorno_5d
+  direcao: alta
+  limiar_sigma: 2.0
+
+canal: >
+  A regra normal (ver juros.yield_real_alta.ouro_sofre) é o ouro se mover contra
+  o juro real: sobe quando o custo de oportunidade cai. Esta regra verifica isso
+  pelo avesso. Quando o ouro dispara e o juro real dos EUA NÃO cede junto, o
+  movimento não é uma jogada de taxa — é demanda por proteção (geopolítica,
+  estresse de crédito, medo). O produto é a DIVERGÊNCIA: ouro forte sem o juro
+  real explicar carrega a informação de que o mercado está buscando abrigo.
+
+efeitos:
+  - ativo: US10Y_REAL
+    sinal: -1
+    defasagem_dias: [0, 2]
+    confianca: media
+
+regime:
+  vale_quando: "Inflação/juros são o driver dominante do ouro (mercado sem estresse agudo)."
+  inverte_quando: >
+    Já há um estresse de risco declarado (VIX alto, spread de high yield aberto):
+    nesse regime a NÃO-queda do juro real é o esperado, e a regra deixa de medir
+    surpresa para confirmar o modo-medo.
+  proxy_de_regime: "nível do VIX e do spread de high yield (HY_SPREAD)"
+
+evidencia:
+  janela: 24m
+  metodo: "correlação rolante GOLD × US10Y_REAL + event study em altas >= 2 sigma do ouro"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Em 24 meses, as altas >= 2 sigma do ouro vêm majoritariamente ACOMPANHADAS de
+  queda do juro real (a relação de taxa domina), sem episódios de descolamento
+  ligados a estresse — a divergência não carrega informação de medo.
+
+relevancia_portfolio: [VWRA, SHV]

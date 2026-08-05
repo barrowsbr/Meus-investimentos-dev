@@ -1,0 +1,49 @@
+id: brasil.spx_queda.descolamento
+version: 1
+familia: brasil
+titulo: "S&P cai forte mas Ibov e real seguram → Brasil descolado"
+
+choque:
+  driver: SPX
+  metrica: retorno_2d
+  direcao: queda
+  limiar_sigma: 2.0
+
+canal: >
+  O Brasil costuma negociar como ativo de beta alto ao risco global: quando o
+  S&P cai forte, o Ibovespa cai junto e o real enfraquece no risk-off. Esta
+  regra verifica esse beta. Quando o S&P despenca mas o Ibov e o real SEGURAM, o
+  Brasil está descolando — há um vento doméstico (fluxo, âncora fiscal, juro
+  alto atraindo carry) independente do humor global. A divergência é a
+  informação: força idiossincrática, o oposto positivo do choque de risco
+  doméstico.
+
+efeitos:
+  - ativo: IBOV
+    sinal: -1
+    defasagem_dias: [0, 2]
+    confianca: alta
+  - ativo: USDBRL
+    sinal: 1
+    defasagem_dias: [0, 2]
+    confianca: media
+
+regime:
+  vale_quando: "O risco global é o driver dominante (sem tema doméstico brasileiro forte no comando)."
+  inverte_quando: >
+    Há um driver doméstico claramente ativo (eleição, choque fiscal): aí o
+    descolamento pode ser esperado e a regra perde o poder de surpresa.
+  proxy_de_regime: "beta rolante 60d do Ibovespa sobre o S&P 500"
+
+evidencia:
+  janela: 24m
+  metodo: "beta rolante IBOV × SPX + event study em quedas >= 2 sigma do S&P"
+  taxa_acerto: null
+  n_eventos: null
+
+falsificacao: >
+  Em 24 meses, as quedas >= 2 sigma do S&P deixam de arrastar Ibov e real na
+  maioria dos episódios — o beta emergente do Brasil deixou de valer e a regra
+  não separa mais descolamento de co-movimento.
+
+relevancia_portfolio: [VWRA, PATRIMONIO_BRL]

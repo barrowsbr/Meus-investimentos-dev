@@ -71,6 +71,14 @@ drivers:
     persistido: false
     prontidao: backfill
     nota: "Parte da curva já buscada pela rota morta de yields. Inclinação 10y-2y computável."
+  - simbolo: US_CURVE
+    nome: "Inclinação da curva EUA (10a − 2a)"
+    classe: rate
+    fonte: fred
+    simbolo_fonte: "T10Y2Y"
+    persistido: false
+    prontidao: integrado
+    nota: "INTEGRADO via FRED T10Y2Y (spread 10a−2a em pontos percentuais, livre, sem key). Positivo = curva normal; negativo = invertida. Série pronta evita subtrair ^TNX e 2YY=F, que vêm em escalas diferentes no Yahoo."
   - simbolo: US10Y_REAL
     nome: "Yield real do Treasury 10 anos (TIPS)"
     classe: rate
