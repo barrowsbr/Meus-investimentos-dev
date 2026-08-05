@@ -1,12 +1,16 @@
 "use client";
 
-// Vista compartilhada do detector de divergência — usada pela página /macro-map
-// E pelo painel do Radar (components/radar/TransmissaoPanel). Só apresentação:
-// recebe o relatório pronto (o fetch mora em useDivergence). Usa as CSS vars de
-// tema (--panel/--line/--text…), então o painel do Radar pode forçá-las escuras
-// no seu escopo sem este componente saber de nada.
+// Vista compartilhada do detector de divergência (usada pelo painel do Radar,
+// components/radar/TransmissaoPanel). Só apresentação: recebe o relatório pronto
+// (o fetch mora em useDivergence). Usa as CSS vars de tema — o painel do Radar
+// força-as escuras no seu escopo.
+//
+// Design (pedido do dono): o CARD fala em português — badge + título + UMA frase
+// do que aconteceu + rodapé curto. O jargão (choque, z-scores, tabela de efeitos,
+// mecanismo, falsificação) mora no POPUP que abre ao tocar no card.
 
-import { ArrowUp, ArrowDown, Check, X, AlertTriangle, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowUp, ArrowDown, Check, X, AlertTriangle, Loader2, ChevronRight } from "lucide-react";
 import type { DivergenceReport, RuleEvaluation, Estado, EffectOutcome } from "@/lib/macro-map/types";
 
 export const STATE: Record<Estado, { label: string; cor: string; alerta: boolean }> = {
@@ -22,7 +26,46 @@ const FAMILIA_LABEL: Record<string, string> = {
   energia: "Energia", juros: "Juros / Fed", fx: "Dólar / Câmbio", credito: "Crédito / Risco", brasil: "Brasil",
 };
 
+// Nomes em português dos símbolos — para as frases não falarem "BR_RISK_PREMIUM".
+const SYMBOL_LABEL: Record<string, string> = {
+  BRENT: "o petróleo Brent", GOLD: "o ouro", DXY: "o dólar (DXY)", USDBRL: "o dólar/real",
+  US10Y: "o juro de 10 anos dos EUA", US02Y: "o juro de 2 anos dos EUA", US10Y_REAL: "o juro real de 10 anos dos EUA",
+  SPX: "o S&P 500", IBOV: "o Ibovespa", US_SMALLCAP: "as small caps dos EUA", VIX: "o VIX",
+  HY_SPREAD: "o spread de high yield", SELIC_EXP: "a expectativa de Selic", BR_10Y: "o juro longo do Brasil",
+  BR_RISK_PREMIUM: "o prêmio de risco do Brasil",
+};
+const nome = (sym: string) => SYMBOL_LABEL[sym] ?? sym;
+// versão para começo de frase (maiúscula) sem o artigo duplicado
+const Nome = (sym: string) => {
+  const s = nome(sym);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
 const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}%`;
+
+// ── frase em português do que está acontecendo hoje ──────────────────────────
+function resumo(a: RuleEvaluation): string {
+  const dir = a.choque.direcao === "alta" ? "subiu forte" : "caiu forte";
+  if (a.estado === "sem_dados")
+    return `Ainda sem fonte de dados para ${a.driversFaltando.map(nome).join(", ")} — a regra fica à espera.`;
+  if (a.estado === "quiescente") {
+    if (a.ultimoChoqueGeral) {
+      const r = a.ultimoChoqueGeral.primarioConfirmado;
+      const q = r == null ? "e a janela ainda não fechou" : r ? "e o efeito veio como esperado" : "e o efeito NÃO veio";
+      return `Sem movimento relevante hoje. O último foi em ${a.ultimoChoqueGeral.date}, ${q}.`;
+    }
+    return `Sem movimento relevante — nada a sinalizar hoje.`;
+  }
+  if (a.estado === "observando")
+    return `${Nome(a.choque.driver)} ${dir} hoje; aguardando a janela para ver a reação.`;
+  const naoVeio = a.efeitos.filter((e) => !e.confirmado);
+  const veio = a.efeitos.filter((e) => e.confirmado);
+  if (a.estado === "confirmado")
+    return `${Nome(a.choque.driver)} ${dir} e ${(veio.length ? veio : a.efeitos).map((e) => nome(e.ativo)).join(" e ")} reagiu como o mapa previa.`;
+  // anomalo / regime_rompido
+  const alvo = (naoVeio.length ? naoVeio : a.efeitos).map((e) => nome(e.ativo)).join(" e ");
+  return `${Nome(a.choque.driver)} ${dir}, mas ${alvo} não reagiu como esperado — é a divergência.`;
+}
 
 function Badge({ estado }: { estado: Estado }) {
   const s = STATE[estado];
@@ -41,97 +84,156 @@ function Badge({ estado }: { estado: Estado }) {
   );
 }
 
+// ── CARD (repouso): só o essencial em português ──────────────────────────────
+function RuleCard({ a, onOpen }: { a: RuleEvaluation; onOpen: (a: RuleEvaluation) => void }) {
+  const s = STATE[a.estado];
+  return (
+    <button
+      onClick={() => onOpen(a)}
+      className="w-full text-left transition-colors"
+      style={{ background: "var(--panel)", border: "1px solid var(--line)", borderLeft: `3px solid ${s.alerta ? s.cor : "var(--line)"}` }}
+    >
+      <div className="flex items-start gap-3" style={{ padding: "12px 14px 10px" }}>
+        <div className="min-w-0 flex-1">
+          <span className="font-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--muted)" }}>
+            {FAMILIA_LABEL[a.familia] ?? a.familia}
+          </span>
+          <p className="font-semibold leading-snug mt-1" style={{ fontSize: 14, color: "var(--text)" }}>{a.titulo}</p>
+        </div>
+        <Badge estado={a.estado} />
+      </div>
+      <div style={{ padding: "0 14px 12px" }}>
+        {/* a FRASE — o que está acontecendo, em português */}
+        <p style={{ fontSize: 12.5, lineHeight: 1.5, color: a.estado === "anomalo" || a.estado === "regime_rompido" ? "var(--text)" : "var(--text-2)" }}>
+          {resumo(a)}
+        </p>
+        {/* rodapé curto: histórico + toque para detalhes */}
+        <div className="flex items-center justify-between gap-2 mt-2.5" style={{ fontSize: 11 }}>
+          <span style={{ color: "var(--faint)" }}>
+            {a.estado === "sem_dados"
+              ? "aguardando fonte"
+              : a.taxaAcertoLive == null
+                ? "sem histórico ainda"
+                : `funcionou ${Math.round(a.taxaAcertoLive * 100)}% das vezes (${a.nEventos} ${a.nEventos === 1 ? "caso" : "casos"})`}
+          </span>
+          <span className="inline-flex items-center gap-0.5 shrink-0" style={{ color: "var(--muted)" }}>
+            detalhes <ChevronRight size={13} />
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ── linha de efeito (no popup) ───────────────────────────────────────────────
 function EfeitoRow({ e }: { e: EffectOutcome }) {
   const seta = e.esperado > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
   const okCor = e.confirmado ? "#3FB950" : "#E8A33D";
   return (
-    <div className="flex items-center gap-2 py-1" style={{ fontSize: 12 }}>
-      <span className="font-mono font-bold" style={{ minWidth: 92, color: "var(--text)" }}>{e.ativo}</span>
-      <span className="inline-flex items-center gap-0.5 font-mono" style={{ minWidth: 58, color: "var(--muted)" }}>
-        espera {seta}
-      </span>
-      <span className="font-mono" style={{ minWidth: 74, color: e.retorno >= 0 ? "#3FB950" : "#F0504A" }}>{pct(e.retorno)}</span>
-      <span className="inline-flex items-center gap-1 font-mono" style={{ color: okCor }}>
+    <div className="flex items-center gap-2 py-1.5" style={{ fontSize: 12 }}>
+      <span className="min-w-0 flex-1" style={{ color: "var(--text)" }}>{Nome(e.ativo)}</span>
+      <span className="inline-flex items-center gap-0.5 font-mono shrink-0" style={{ minWidth: 44, color: "var(--muted)" }}>{seta}</span>
+      <span className="font-mono shrink-0" style={{ minWidth: 70, textAlign: "right", color: e.retorno >= 0 ? "#3FB950" : "#F0504A" }}>{pct(e.retorno)}</span>
+      <span className="inline-flex items-center gap-1 font-mono shrink-0" style={{ minWidth: 76, color: okCor }}>
         {e.confirmado ? <Check size={13} /> : <X size={13} />}
         {e.confirmado ? "veio" : "não veio"}
       </span>
-      <span className="font-mono ml-auto" style={{ fontSize: 10, color: "var(--faint)", textTransform: "uppercase" }}>{e.confianca}</span>
     </div>
   );
 }
 
-function RuleCard({ a }: { a: RuleEvaluation }) {
+function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="font-mono mb-1.5" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--muted)" }}>{titulo}</p>
+      {children}
+    </div>
+  );
+}
+
+// ── POPUP de detalhes ────────────────────────────────────────────────────────
+function DetailModal({ a, onClose }: { a: RuleEvaluation; onClose: () => void }) {
   const s = STATE[a.estado];
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderLeft: `3px solid ${s.alerta ? s.cor : "var(--line)"}` }}>
-      <div className="flex items-start gap-3" style={{ padding: "12px 14px" }}>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center"
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:max-w-lg max-h-[88vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl"
+        style={{ background: "var(--panel)", border: "1px solid var(--line)", paddingBottom: "env(safe-area-inset-bottom)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* cabeçalho */}
+        <div className="sticky top-0 flex items-start gap-3 px-4 py-3" style={{ background: "var(--panel)", borderBottom: "1px solid var(--line)" }}>
+          <div className="min-w-0 flex-1">
             <span className="font-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--muted)" }}>
               {FAMILIA_LABEL[a.familia] ?? a.familia}
             </span>
+            <p className="font-semibold leading-snug mt-1" style={{ fontSize: 15, color: "var(--text)" }}>{a.titulo}</p>
           </div>
-          <p className="font-semibold leading-tight" style={{ fontSize: 14, color: "var(--text)" }}>{a.titulo}</p>
-        </div>
-        <Badge estado={a.estado} />
-      </div>
-
-      <div style={{ padding: "0 14px 12px" }}>
-        <div className="font-mono flex flex-wrap items-center gap-x-2 gap-y-1" style={{ fontSize: 11, color: "var(--text-2)" }}>
-          <span style={{ color: "var(--muted)" }}>choque:</span>
-          <span style={{ fontWeight: 700, color: "var(--text)" }}>{a.choque.driver}</span>
-          <span>· {a.choque.metrica}</span>
-          <span>· {a.choque.direcao} {a.choque.direcao === "alta" ? "↑" : "↓"}</span>
-          <span>· ≥ {a.choque.limiar_sigma}σ</span>
-          {a.ultimoChoque && (
-            <span style={{ color: s.cor }}>· disparou {a.ultimoChoque.date} (z60 {a.ultimoChoque.z60}, z250 {a.ultimoChoque.z250})</span>
-          )}
+          <Badge estado={a.estado} />
+          <button onClick={onClose} className="shrink-0 -mr-1 -mt-1 p-1" style={{ color: "var(--muted)" }} aria-label="Fechar"><X size={18} /></button>
         </div>
 
-        {a.estado === "quiescente" && a.ultimoChoqueGeral && (
-          <div className="font-mono mt-1.5" style={{ fontSize: 10.5, color: "var(--faint)" }}>
-            último disparo {a.ultimoChoqueGeral.date}{" "}
-            {a.ultimoChoqueGeral.primarioConfirmado == null
-              ? "· aguardando janela"
-              : a.ultimoChoqueGeral.primarioConfirmado
-                ? "· efeito veio ✓"
-                : "· efeito não veio ✕"}
-          </div>
-        )}
+        <div className="px-4 py-4 space-y-4">
+          {/* o que aconteceu */}
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--text)" }}>{resumo(a)}</p>
 
-        {a.estado === "sem_dados" ? (
-          <div className="flex items-center gap-2 mt-2" style={{ fontSize: 11, color: "var(--faint)" }}>
-            <AlertTriangle size={13} />
-            <span>Fonte ainda não integrada — falta {a.driversFaltando.join(", ")}. Regra escrita e válida; fica inerte até a fonte existir.</span>
-          </div>
-        ) : (
-          <>
-            {a.efeitos.length > 0 && (
-              <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--line)" }}>
+          {/* mecanismo — o PORQUÊ */}
+          <Secao titulo="Por que essa relação existe">
+            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--text-2)" }}>{a.canal}</p>
+          </Secao>
+
+          {/* o gatilho */}
+          <Secao titulo="O gatilho">
+            <p className="font-mono" style={{ fontSize: 12, lineHeight: 1.6, color: "var(--text-2)" }}>
+              {Nome(a.choque.driver)} · {a.choque.metrica} · {a.choque.direcao} {a.choque.direcao === "alta" ? "↑" : "↓"} · ≥ {a.choque.limiar_sigma}σ
+              {a.ultimoChoque && <span style={{ color: s.cor }}> · disparou {a.ultimoChoque.date} (z60 {a.ultimoChoque.z60}, z250 {a.ultimoChoque.z250})</span>}
+            </p>
+          </Secao>
+
+          {/* efeitos esperados vs. observados */}
+          {a.estado !== "sem_dados" && a.efeitos.length > 0 && (
+            <Secao titulo="Esperado × observado">
+              <div style={{ borderTop: "1px solid var(--line)" }}>
                 {a.efeitos.map((e) => <EfeitoRow key={e.ativo} e={e} />)}
               </div>
-            )}
-            {a.efeitosNaoMedidos.length > 0 && (
-              <div className="font-mono mt-1" style={{ fontSize: 10, color: "var(--faint)" }}>
-                não medido (sem fonte): {a.efeitosNaoMedidos.join(", ")}
-              </div>
-            )}
-            <div className="flex items-center justify-between gap-3 mt-2 pt-2" style={{ borderTop: "1px solid var(--line)", fontSize: 11 }}>
-              <span className="font-mono" style={{ color: "var(--muted)" }}>
-                concordância de sinal (ao vivo):{" "}
-                <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {a.taxaAcertoLive == null ? "—" : `${Math.round(a.taxaAcertoLive * 100)}%`}
-                </span>{" "}
-                <span style={{ color: "var(--faint)" }}>· n={a.nEventos}</span>
-              </span>
-              <span className="flex gap-1 shrink-0">
+            </Secao>
+          )}
+          {a.efeitosNaoMedidos.length > 0 && (
+            <p className="flex items-start gap-2" style={{ fontSize: 11.5, color: "var(--faint)" }}>
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+              <span>Sem fonte para medir {a.efeitosNaoMedidos.map(nome).join(", ")} — não entra na conta.</span>
+            </p>
+          )}
+
+          {/* histórico */}
+          <Secao titulo="Histórico (últimos 5 anos)">
+            <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--text-2)" }}>
+              {a.taxaAcertoLive == null
+                ? "Ainda sem episódios suficientes para medir."
+                : `Quando esse gatilho disparou, o efeito principal veio no sentido esperado em ${Math.round(a.taxaAcertoLive * 100)}% dos ${a.nEventos} ${a.nEventos === 1 ? "caso" : "casos"}.`}
+            </p>
+          </Secao>
+
+          {/* falsificação */}
+          <Secao titulo="O que derrubaria essa regra">
+            <p style={{ fontSize: 12, lineHeight: 1.55, color: "var(--text-2)" }}>{a.falsificacao}</p>
+          </Secao>
+
+          {/* relevância */}
+          {a.relevancia_portfolio.length > 0 && (
+            <Secao titulo="Afeta na carteira">
+              <div className="flex flex-wrap gap-1.5">
                 {a.relevancia_portfolio.map((t) => (
-                  <span key={t} className="font-mono" style={{ fontSize: 9, color: "var(--muted)", border: "1px solid var(--line)", padding: "1px 5px", borderRadius: 8 }}>{t}</span>
+                  <span key={t} className="font-mono" style={{ fontSize: 10, color: "var(--muted)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 8 }}>{t}</span>
                 ))}
-              </span>
-            </div>
-          </>
-        )}
+              </div>
+            </Secao>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -145,6 +247,8 @@ export function DivergenceView({
   erro: string | null;
   footnote?: boolean;
 }) {
+  const [aberta, setAberta] = useState<RuleEvaluation | null>(null);
+
   if (erro) return <p style={{ fontSize: 13, color: "#F0504A" }}>Falha ao carregar: {erro}</p>;
   if (!report && loading) {
     return (
@@ -178,17 +282,17 @@ export function DivergenceView({
       </div>
 
       <div className="grid gap-2.5">
-        {report.avaliacoes.map((a) => <RuleCard key={a.id} a={a} />)}
+        {report.avaliacoes.map((a) => <RuleCard key={a.id} a={a} onOpen={setAberta} />)}
       </div>
 
       {footnote && (
         <p style={{ fontSize: 11, color: "var(--faint)", lineHeight: 1.5 }}>
-          z-score rolante 60/250d (disparo exige concordância das duas janelas); a concordância de sinal é medida ao vivo
-          em 5 anos. Fontes: Yahoo (preços), FRED (yield real, spread de high yield), BCB Focus (expectativa de Selic) e
-          proxy S&amp;P/EWZ (prêmio de risco BR). Falta só o juro longo BR (NTN-B/DI, sem fonte livre) — aparece como
-          &ldquo;não medido&rdquo;. Detecção automática de &ldquo;regime rompido&rdquo; vem na próxima etapa.
+          Toque num card para ver o mecanismo e os números. O detector compara o que <em>deveria</em> acontecer
+          quando um driver dá um choque grande com o que <em>de fato</em> aconteceu — o alerta é a divergência.
         </p>
       )}
+
+      {aberta && <DetailModal a={aberta} onClose={() => setAberta(null)} />}
     </div>
   );
 }
