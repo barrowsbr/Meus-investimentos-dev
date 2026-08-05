@@ -38,6 +38,24 @@ function signedUSD(v: number): string {
   return `${sign}US$ ${s}`;
 }
 
+// Símbolo da moeda nativa de cada ativo (visão "na moeda do ativo").
+const CCY_SYM: Record<string, string> = { USD: "US$", EUR: "€", GBP: "£", CAD: "C$", BRL: "R$" };
+function signedNative(v: number, moeda: string): string {
+  const sym = CCY_SYM[(moeda || "").toUpperCase()] ?? `${(moeda || "").toUpperCase()} `;
+  const sign = v >= 0 ? "+" : "−";
+  const abs = Math.abs(v);
+  const s = abs >= 1000 ? `${(abs / 1000).toFixed(1).replace(".", ",")}k` : abs.toFixed(abs < 10 ? 2 : 0).replace(".", ",");
+  return `${sign}${sym} ${s}`;
+}
+function usdFromBRL(brl: number, usdbrl?: number): number {
+  return usdbrl && usdbrl > 0 ? brl / usdbrl : 0;
+}
+function compactUSD(v: number): string {
+  const abs = Math.abs(v);
+  const s = abs >= 1000 ? `${(abs / 1000).toFixed(1).replace(".", ",")}k` : abs.toFixed(0);
+  return `US$ ${s}`;
+}
+
 function pctSigned(p: number, decimals = 2): string {
   const sign = p >= 0 ? "+" : "−";
   return `${sign}${Math.abs(p).toFixed(decimals).replace(".", ",")}%`;
@@ -151,53 +169,95 @@ function LedgerRow({
 // ── Card de grupo (Internacional / Brasil / Cripto) ───────────────────────────
 
 function GroupCard({
-  icon, title, movers, chip, nativeCcy,
-}: { icon: React.ReactNode; title: string; movers: Mover[]; chip: { text: string; color: string }; nativeCcy?: "USD" }) {
+  icon, title, movers, chip, nativeCcy, usdbrl,
+}: { icon: React.ReactNode; title: string; movers: Mover[]; chip: { text: string; color: string }; nativeCcy?: "USD"; usdbrl?: number }) {
+  const [emDolar, setEmDolar] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  const podeDolar = nativeCcy === "USD";
+  const dolar = podeDolar && emDolar;
+
   const priceSum = movers.reduce((s, m) => s + m.priceBRL, 0);
   const valueSum = movers.reduce((s, m) => s + m.valorAtualBRL, 0);
-  const nativeSum = movers.reduce((s, m) => s + m.nativeChange, 0);
   const pct = valueSum > 0 ? (priceSum / valueSum) * 100 : 0;
   const ranked = [...movers].sort((a, b) => Math.abs(b.priceBRL) - Math.abs(a.priceBRL));
   const shown = ranked.slice(0, 4).filter(m => Math.abs(m.priceBRL) >= 0.5);
-  const rest = ranked.slice(4);
+  const rest = ranked.slice(shown.length);
   const restSum = rest.reduce((s, m) => s + m.priceBRL, 0);
   const maxAbs = Math.max(...ranked.map(m => Math.abs(m.priceBRL)), 1);
+  const priceSumUSD = usdFromBRL(priceSum, usdbrl);
+
+  // Linha de ativo: em R$ mostra o efeito-preço em real; em US$ mostra a variação
+  // na MOEDA NATIVA do ativo (US$, €, £, C$). A barra usa sempre o R$ (magnitude
+  // consistente entre moedas).
+  const renderRow = (m: Mover) => (
+    <LedgerRow
+      key={m.ticker}
+      label={m.ticker}
+      value={m.priceBRL}
+      valueText={dolar ? signedNative(m.nativeChange, m.moeda) : undefined}
+      maxAbs={maxAbs}
+      sub={pctSigned(m.pctMove, 1) + " no dia"}
+    />
+  );
 
   return (
     <section className="glass-card p-4">
       <div className="flex items-center justify-between gap-2 mb-1">
         <h2 className="section-title">{icon} {title}</h2>
-        <Chip {...chip} />
+        <div className="flex items-center gap-2">
+          {podeDolar && (
+            <div className="inline-flex" style={{ border: "1px solid var(--line-strong)" }}>
+              {([["BRL", "R$"], ["USD", "US$"]] as const).map(([c, lbl]) => {
+                const on = (c === "USD") === dolar;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setEmDolar(c === "USD")}
+                    className="font-mono"
+                    style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", cursor: "pointer", color: on ? "var(--bg)" : "var(--muted)", background: on ? "var(--text)" : "transparent" }}
+                  >
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <Chip {...chip} />
+        </div>
       </div>
       <div className="flex items-baseline gap-3 mt-2 mb-3 flex-wrap">
         <span className="font-mono tnum" style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: colorOf(priceSum) }}>
-          {signedBRL(priceSum)}
+          {dolar ? signedUSD(priceSumUSD) : signedBRL(priceSum)}
         </span>
         <span className="font-mono tnum" style={{ fontSize: 12, fontWeight: 600, color: colorOf(priceSum) }}>
           {pctSigned(pct)}
         </span>
-        {nativeCcy === "USD" && Math.abs(nativeSum) >= 1 && (
+        {podeDolar && (
           <span className="font-mono tnum" style={{ fontSize: 11, color: "var(--muted)" }}>
-            {signedUSD(nativeSum)} em dólar
+            {dolar ? `${signedBRL(priceSum)} em real` : `${signedUSD(priceSumUSD)} em dólar`}
           </span>
         )}
         <span className="font-mono" style={{ fontSize: 10, color: "var(--faint)", marginLeft: "auto" }}>
-          {movers.length} ativo{movers.length === 1 ? "" : "s"} · {compactBRL(valueSum)}
+          {movers.length} ativo{movers.length === 1 ? "" : "s"} · {dolar ? compactUSD(usdFromBRL(valueSum, usdbrl)) : compactBRL(valueSum)}
         </span>
       </div>
       {shown.length > 0 ? (
         <div>
-          {shown.map(m => (
-            <LedgerRow
-              key={m.ticker}
-              label={m.ticker}
-              value={m.priceBRL}
-              maxAbs={maxAbs}
-              sub={pctSigned(m.pctMove, 1) + " no dia"}
-            />
-          ))}
-          {rest.length > 0 && Math.abs(restSum) >= 0.5 && (
-            <LedgerRow label={`+${rest.length} outros`} value={restSum} maxAbs={maxAbs} />
+          {shown.map(renderRow)}
+          {!aberto && rest.length > 0 && Math.abs(restSum) >= 0.5 && (
+            <button onClick={() => setAberto(true)} className="w-full text-left" style={{ cursor: "pointer" }} aria-label="Ver todos os ativos">
+              <LedgerRow label={`+${rest.length} outros`} value={restSum} maxAbs={maxAbs} sub="toque para ver todos" />
+            </button>
+          )}
+          {aberto && rest.map(renderRow)}
+          {aberto && rest.length > 0 && (
+            <button
+              onClick={() => setAberto(false)}
+              className="w-full font-mono"
+              style={{ fontSize: 10, letterSpacing: ".1em", color: "var(--muted)", padding: "7px 0 1px", textAlign: "center", cursor: "pointer" }}
+            >
+              ver menos ▲
+            </button>
           )}
         </div>
       ) : (
@@ -524,13 +584,14 @@ export default function HojeContent() {
           movers={grupos.intl}
           chip={grupos.chipIntl}
           nativeCcy="USD"
+          usdbrl={data?.usdbrl}
         />
 
         {/* ── 2. Brasil ── */}
         <GroupCard icon="🇧🇷" title="Brasil · B3" movers={grupos.brasil} chip={grupos.chipBr} />
 
         {/* ── 3. Cripto ── */}
-        <GroupCard icon="₿" title="Criptoativos" movers={grupos.cripto} chip={grupos.chipCr} />
+        <GroupCard icon="₿" title="Criptoativos" movers={grupos.cripto} chip={grupos.chipCr} nativeCcy="USD" usdbrl={data?.usdbrl} />
 
         {/* ── 4. Câmbio do dia ── */}
         <section className="glass-card p-4">
