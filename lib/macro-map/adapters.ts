@@ -38,18 +38,28 @@ async function fetchRatio(numer: string, denom: string): Promise<{ date: string;
   return out;
 }
 
+// Proxy de YIELD a partir do PREÇO de um ETF de renda fixa (Yahoo). Preço de bond
+// sobe quando o yield cai → invertemos (1000/preço) para a série se mover JUNTO
+// com o juro. Usado no juro longo BR via IMA-B (cesta de NTN-B). Escala 1000 só
+// para números legíveis; retornos são invariantes à escala.
+async function fetchInverseYahoo(sym: string): Promise<{ date: string; close: number }[]> {
+  const rows = await fetchHistory(sym, "5y", "1d");
+  return rows.filter((r) => r.close > 0).map((r) => ({ date: r.date, close: 1000 / r.close }));
+}
+
 async function fetchSeries(sym: string): Promise<Series | undefined> {
   const d = driverBySym.get(sym);
   if (!d) return undefined;
   try {
     let rows: { date: string; close: number }[];
     if (sym === "BR_RISK_PREMIUM") rows = await fetchRatio("^GSPC", "EWZ"); // proxy S&P/EWZ
+    else if (sym === "BR_10Y") rows = await fetchInverseYahoo("IMAB11.SA"); // proxy: inverso do ETF IMA-B (NTN-B)
     // 5 anos: choques >= 2σ são raros; janela curta demais deixa a taxa de
     // concordância com n minúsculo. O z-score segue em 60/250d.
     else if (d.fonte === "yahoo") rows = await fetchHistory(d.simbolo_fonte, "5y", "1d");
     else if (d.fonte === "fred") rows = await fetchFred(d.simbolo_fonte);
     else if (d.fonte === "bcb") rows = await fetchFocusSelic();
-    else return undefined; // fonte ainda não integrada (ex.: BR_10Y — sem fonte livre)
+    else return undefined; // fonte ainda não integrada
     if (!rows.length) return undefined;
     const s = toSeries(rows);
     return s.dates.length ? s : undefined;

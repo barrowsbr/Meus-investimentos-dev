@@ -136,11 +136,11 @@ drivers:
   - simbolo: BR_10Y
     nome: "Juro longo Brasil (NTN-B / DI longo)"
     classe: br_rate
-    fonte: fonte_nova
-    simbolo_fonte: "—"
+    fonte: proxy
+    simbolo_fonte: "1000 / IMAB11.SA (IMA-B)"
     persistido: false
-    prontidao: fonte_nova
-    nota: "Não existe no app (sem curva DI, sem NTN-B). Candidatos: ANBIMA (NTN-B), B3 DI futuro. Sem fonte livre trivial — maior gap da perna Brasil."
+    prontidao: integrado
+    nota: "INTEGRADO via proxy: inverso do preço do ETF IMA-B (IMAB11.SA, cesta de NTN-B, Yahoo). Preço de bond sobe quando o juro cai, então o inverso se move JUNTO com o juro longo. Yield 10a puro (ANBIMA/DI futuro) não tem fonte livre; o ETF é o proxy de mercado da direção do juro longo."
   - simbolo: BR_RISK_PREMIUM
     nome: "Prêmio de risco Brasil (proxy)"
     classe: risk
