@@ -304,24 +304,29 @@ body {
   border-radius: 50% 50% 0 0 / 300px 300px 0 0;
   pointer-events: none;
 }
-/* CAMADA 1 — véu: bem TRANSLÚCIDO com blur leve. É por aqui que o conteúdo do
-   app aparece ESMAECIDO e borrado através do "ombro" do arco (a capa/os cards
-   vazam atenuados, como o jogo no app do PS5). */
+/* CAMADA 1 — véu: reforça a CRISTA e some descendo. O véu escuro fica só no topo
+   do arco (onde ficam os ícones) e desaparece na descida, liberando a base. */
 .bottom-nav.ps .ps-veil {
   top: -2px;
-  background: rgba(10, 10, 13, 0.40);
+  background: linear-gradient(180deg,
+    rgba(10, 10, 13, 0.50) 0%,
+    rgba(10, 10, 13, 0.18) 16%,
+    rgba(10, 10, 13, 0) 34%);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
 }
-/* CAMADA 2 — superfície: degradê de OPACIDADE (translúcida no topo → quase
-   opaca na base) sobre um blur mais forte. A diferença de transparência entre
-   esta camada e o véu é o que DEFINE as camadas (o degrau visível do PS5). */
+/* CAMADA 2 — superfície: degradê de OPACIDADE na direção CERTA (igual ao PS5) —
+   crista SÓLIDA no topo (ancora os ícones) → abre para TRANSPARENTE na base, e é
+   por baixo que o conteúdo do app vaza esmaecido. Como só ~1/4 do topo da elipse
+   (520px) é visível dentro da barra, o degradê chega ao transparente já em ~30%. */
 .bottom-nav.ps .ps-surface {
   top: 22px;
   background: linear-gradient(180deg,
-    rgba(24, 24, 28, 0.52) 0%,
-    rgba(18, 18, 22, 0.80) 34%,
-    rgba(13, 13, 17, 0.93) 100%);
+    rgba(12, 12, 16, 0.95) 0%,
+    rgba(15, 15, 20, 0.72) 10%,
+    rgba(20, 20, 26, 0.34) 20%,
+    rgba(24, 24, 30, 0.14) 30%,
+    rgba(24, 24, 30, 0.06) 100%);
   backdrop-filter: blur(16px) saturate(1.05);
   -webkit-backdrop-filter: blur(16px) saturate(1.05);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
