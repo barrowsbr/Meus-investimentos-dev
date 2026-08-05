@@ -288,7 +288,7 @@ body {
    inferior por trás do ícone ativo. Sem pill, sem varredura de luz. */
 .bottom-nav.ps {
   left: 0; right: 0; bottom: 0;
-  height: calc(118px + env(safe-area-inset-bottom, 0px));
+  height: calc(88px + env(safe-area-inset-bottom, 0px));
   border: none; border-radius: 0;
   background: none; box-shadow: none;
   backdrop-filter: none; -webkit-backdrop-filter: none;
@@ -301,29 +301,29 @@ body {
    vazava borrado no topo). Agora a crista é SÓLIDA e limpa. */
 .bottom-nav.ps .ps-surface {
   position: absolute; left: 50%; transform: translateX(-50%);
-  width: 320vw; height: 520px;
-  border-radius: 50% 50% 0 0 / 300px 300px 0 0;
+  width: 320vw; height: 300px;
+  border-radius: 50% 50% 0 0 / 190px 190px 0 0;
   pointer-events: none;
-  /* começa no topo da barra (top:-2) → crista sólida encosta no conteúdo, sem
+  /* começa no topo da barra (top:-1) → crista sólida encosta no conteúdo, sem
      faixa translúcida acima. Degradê de OPACIDADE na direção do PS5: crista
-     SÓLIDA no topo (ancora os ícones) → abre para TRANSPARENTE na base, e é por
-     baixo que o conteúdo vaza. Só ~1/4 do topo da elipse (520px) é visível, então
-     o degradê chega ao transparente já em ~30-40%. */
-  top: -2px;
+     SÓLIDA no topo (ancora os ícones) → abre para TRANSPARENTE no ARCO INFERIOR,
+     e é por baixo que o conteúdo vaza. Barra menor (88px) + elipse mais baixa
+     (300px) fazem o transparente cair DENTRO da barra (~24-34%), como a referência. */
+  top: -1px;
   background: linear-gradient(180deg,
-    rgba(12, 12, 16, 0.96) 0%,
-    rgba(14, 14, 18, 0.90) 12%,
-    rgba(18, 18, 24, 0.50) 26%,
-    rgba(22, 22, 28, 0.18) 40%,
-    rgba(24, 24, 30, 0.06) 100%);
-  backdrop-filter: blur(16px) saturate(1.05);
-  -webkit-backdrop-filter: blur(16px) saturate(1.05);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    rgba(13, 13, 17, 0.94) 0%,
+    rgba(15, 15, 20, 0.88) 16%,
+    rgba(19, 19, 25, 0.42) 27%,
+    rgba(22, 22, 28, 0.12) 37%,
+    rgba(24, 24, 30, 0.03) 100%);
+  backdrop-filter: blur(14px) saturate(1.04);
+  -webkit-backdrop-filter: blur(14px) saturate(1.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 .bottom-nav.ps .ps-row {
-  position: absolute; left: 0; right: 0; top: 36px;
+  position: absolute; left: 0; right: 0; top: 22px;
   display: flex; align-items: center; justify-content: space-around;
-  height: 50px;
+  height: 42px;
 }
 .bottom-nav.ps .ps-item {
   position: relative;
@@ -335,15 +335,15 @@ body {
 }
 /* luz BAIXA e suave que nasce da borda inferior, subindo por trás do ativo */
 .bottom-nav.ps .ps-bloom {
-  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
-  width: 210px; height: 104px;
+  position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+  width: 150px; height: 74px;
   background: radial-gradient(
     50% 78% at 50% 100%,
     color-mix(in srgb, var(--accent) 52%, transparent) 0%,
     color-mix(in srgb, var(--accent) 20%, transparent) 44%,
     transparent 74%
   );
-  filter: blur(9px);
+  filter: blur(7px);
   pointer-events: none;
   animation: psBloomIn 0.45s ease-out;
 }
@@ -351,7 +351,7 @@ body {
 /* fio de reflexo tênue na base sob o ativo (onde a luz toca a borda) */
 .bottom-nav.ps .ps-refl {
   position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
-  width: 54px; height: 2px; border-radius: 2px;
+  width: 44px; height: 2px; border-radius: 2px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 60%, #fff 12%), transparent);
   filter: blur(0.4px);
   pointer-events: none;
@@ -359,10 +359,11 @@ body {
 /* rótulo do ATIVO, centralizado embaixo (o "Jogar" do console) */
 .bottom-nav.ps .ps-label {
   position: absolute; left: 0; right: 0;
-  bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 10px));
+  bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 7px));
   text-align: center;
-  font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em;
   color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55); /* legível sobre a base transparente */
 }
 @media (prefers-reduced-motion: reduce) {
   .bottom-nav.ps .ps-bloom { animation: none; }
