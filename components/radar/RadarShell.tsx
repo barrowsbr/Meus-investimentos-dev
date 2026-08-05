@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Coins } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Coins, Network } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
@@ -30,7 +30,9 @@ import CountryDossier from "./CountryDossier";
 import SymbolDetail from "./SymbolDetail";
 import CommandPalette from "./CommandPalette";
 import CommoditiesPanel from "./CommoditiesPanel";
+import TransmissaoPanel from "./TransmissaoPanel";
 import DigestPanel from "./DigestPanel";
+import { useDivergence } from "@/components/macro-map/useDivergence";
 
 export default function RadarShell() {
   const searchParams = useSearchParams();
@@ -42,6 +44,12 @@ export default function RadarShell() {
   const [selected, setSelected] = useState<SelectedCountry | null>(null);
   const [detailTarget, setDetailTarget] = useState<SymbolTarget | null>(null);
   const [showCommodities, setShowCommodities] = useState(false);
+  const [showTransmissao, setShowTransmissao] = useState(false);
+  const divergencia = useDivergence();
+
+  // Só um painel sobre o mapa por vez.
+  const openCommodities = () => { setShowTransmissao(false); setShowCommodities((v) => !v); };
+  const openTransmissao = () => { setShowCommodities(false); setShowTransmissao((v) => !v); };
 
   // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
   useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
@@ -161,7 +169,7 @@ export default function RadarShell() {
           );
         })}
         <button
-          onClick={() => setShowCommodities(true)}
+          onClick={openCommodities}
           className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
           style={{
             background: showCommodities ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.08)",
@@ -170,6 +178,22 @@ export default function RadarShell() {
           }}
         >
           <Coins size={13} /> Commodities
+        </button>
+        <button
+          onClick={openTransmissao}
+          className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
+          style={{
+            background: showTransmissao ? "rgba(232,163,61,0.2)" : "rgba(255,255,255,0.08)",
+            border: `1px solid ${showTransmissao ? "rgba(232,163,61,0.5)" : "rgba(255,255,255,0.15)"}`,
+            color: showTransmissao ? "#fff" : "#d4d4d8",
+          }}
+        >
+          <Network size={13} /> Transmissão
+          {(divergencia.report?.resumo.anomalo ?? 0) > 0 && (
+            <span className="rounded-full px-1 font-mono text-[10px] font-bold" style={{ background: "rgba(232,163,61,0.3)", color: "#E8A33D" }}>
+              {divergencia.report!.resumo.anomalo}
+            </span>
+          )}
         </button>
         <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
         {regions.map((r) => {
@@ -199,7 +223,10 @@ export default function RadarShell() {
             setRegionFilter={setRegionFilter}
             markets={markets}
             commoditiesOpen={showCommodities}
-            onToggleCommodities={() => setShowCommodities(v => !v)}
+            onToggleCommodities={openCommodities}
+            transmissaoOpen={showTransmissao}
+            onToggleTransmissao={openTransmissao}
+            anomalias={divergencia.report?.resumo.anomalo ?? 0}
           />
           <div className="mt-3">
             <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />
@@ -220,6 +247,16 @@ export default function RadarShell() {
             <CommoditiesPanel
               onOpenSymbol={setDetailTarget}
               onClose={() => setShowCommodities(false)}
+              dossierOpen={!!selected}
+            />
+          )}
+          {showTransmissao && (
+            <TransmissaoPanel
+              report={divergencia.report}
+              loading={divergencia.loading}
+              erro={divergencia.erro}
+              onReload={divergencia.reload}
+              onClose={() => setShowTransmissao(false)}
               dossierOpen={!!selected}
             />
           )}
