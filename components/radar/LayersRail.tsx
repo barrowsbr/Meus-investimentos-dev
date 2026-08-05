@@ -6,7 +6,7 @@
 // Sem abas concorrentes: tudo repinta a mesma superfície.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { BarChart3, ArrowLeftRight, Shield, TrendingUp, TrendingDown, Coins } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, TrendingUp, TrendingDown, Coins, Network } from "lucide-react";
 import { REGION_COLORS } from "@/lib/world-map";
 import type { RadarLayer, BolsasResponse } from "@/lib/radar/types";
 
@@ -25,9 +25,12 @@ interface Props {
   markets: BolsasResponse | null;
   commoditiesOpen: boolean;
   onToggleCommodities: () => void;
+  transmissaoOpen: boolean;
+  onToggleTransmissao: () => void;
+  anomalias: number;
 }
 
-export default function LayersRail({ layer, setLayer, regions, regionFilter, setRegionFilter, markets, commoditiesOpen, onToggleCommodities }: Props) {
+export default function LayersRail({ layer, setLayer, regions, regionFilter, setRegionFilter, markets, commoditiesOpen, onToggleCommodities, transmissaoOpen, onToggleTransmissao, anomalias }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* Camadas */}
@@ -68,6 +71,26 @@ export default function LayersRail({ layer, setLayer, regions, regionFilter, set
               <p className={`text-xs font-semibold ${commoditiesOpen ? "text-zinc-100" : "text-zinc-300"}`}>Commodities</p>
               <p className="truncate text-[10px] text-zinc-500">Petróleo, ouro, grãos…</p>
             </div>
+          </button>
+          {/* Transmissão Macro: detector de divergência (painel sobre o mapa). */}
+          <button
+            onClick={onToggleTransmissao}
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all"
+            style={{
+              background: transmissaoOpen ? "rgba(232,163,61,0.12)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${transmissaoOpen ? "rgba(232,163,61,0.4)" : "rgba(255,255,255,0.06)"}`,
+            }}
+          >
+            <Network size={16} className={transmissaoOpen || anomalias > 0 ? "text-amber-400" : "text-zinc-500"} />
+            <div className="min-w-0 flex-1">
+              <p className={`text-xs font-semibold ${transmissaoOpen ? "text-zinc-100" : "text-zinc-300"}`}>Transmissão macro</p>
+              <p className="truncate text-[10px] text-zinc-500">Detector de divergência</p>
+            </div>
+            {anomalias > 0 && (
+              <span className="shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ background: "rgba(232,163,61,0.18)", color: "#E8A33D", border: "1px solid rgba(232,163,61,0.45)" }}>
+                {anomalias}
+              </span>
+            )}
           </button>
         </div>
       </section>
