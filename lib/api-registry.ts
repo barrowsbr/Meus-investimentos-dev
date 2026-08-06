@@ -173,8 +173,15 @@ export const API_REGISTRY: ApiDef[] = [
     purpose: "Curva de juros do Brasil — taxas dos títulos públicos (Prefixado/IPCA+) do painel Juros Futuros no Radar",
     envVars: [],
     probe: async () => {
-      const r = await httpGet("https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json");
-      if (!r.ok) return { ok: false, detail: `HTTP ${r.status}` };
+      // cabeçalhos de navegador: o host fica atrás de Akamai e barra datacenter "cru"
+      const r = await httpGet("https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json", {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+          "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+          Referer: "https://www.tesourodireto.com.br/titulos/precos-e-taxas.htm",
+        },
+      });
+      if (!r.ok) return { ok: false, detail: `HTTP ${r.status} (WAF da B3 costuma barrar datacenter)` };
       const j = await r.json().catch(() => null);
       const n = j?.response?.TrsrBdTradgList?.length ?? 0;
       return n > 0 ? { ok: true, detail: `${n} títulos` } : { ok: false, detail: "lista vazia" };
