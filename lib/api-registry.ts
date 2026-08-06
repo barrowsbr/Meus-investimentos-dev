@@ -168,6 +168,31 @@ export const API_REGISTRY: ApiDef[] = [
     },
   },
   {
+    key: "tesouro_direto", name: "Tesouro Direto (B3)", category: "Câmbio & Juros",
+    host: "www.tesourodireto.com.br",
+    purpose: "Curva de juros do Brasil — taxas dos títulos públicos (Prefixado/IPCA+) do painel Juros Futuros no Radar",
+    envVars: [],
+    probe: async () => {
+      const r = await httpGet("https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json");
+      if (!r.ok) return { ok: false, detail: `HTTP ${r.status}` };
+      const j = await r.json().catch(() => null);
+      const n = j?.response?.TrsrBdTradgList?.length ?? 0;
+      return n > 0 ? { ok: true, detail: `${n} títulos` } : { ok: false, detail: "lista vazia" };
+    },
+  },
+  {
+    key: "bcb_focus", name: "BCB Focus (Expectativas)", category: "Câmbio & Juros",
+    host: "olinda.bcb.gov.br",
+    purpose: "Expectativa de Selic (trajetória por reunião do Copom) — painel Juros Futuros e Mapa de Transmissão Macro",
+    envVars: [],
+    probe: async () => {
+      const url = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoSelic?$top=1&$format=json&$orderby=Data%20desc";
+      const { status, json } = await getJson(url);
+      const v = json?.value?.[0];
+      return v ? { ok: true, detail: `${v.Reuniao ?? "—"}: ${v.Mediana ?? "?"}%` } : { ok: false, detail: `HTTP ${status}` };
+    },
+  },
+  {
     key: "fred", name: "FRED (St. Louis Fed)", category: "Câmbio & Juros",
     host: "fred.stlouisfed.org", purpose: "Séries macro EUA — yield real 10a (DFII10) e spread de high yield (OAS) do Mapa de Transmissão Macro",
     envVars: [],

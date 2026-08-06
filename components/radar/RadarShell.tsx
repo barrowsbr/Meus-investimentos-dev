@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Coins, Network } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Coins, Network, LineChart } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
@@ -31,6 +31,7 @@ import SymbolDetail from "./SymbolDetail";
 import CommandPalette from "./CommandPalette";
 import CommoditiesPanel from "./CommoditiesPanel";
 import TransmissaoPanel from "./TransmissaoPanel";
+import JurosPanel from "./JurosPanel";
 import DigestPanel from "./DigestPanel";
 import { useDivergence } from "@/components/macro-map/useDivergence";
 
@@ -45,11 +46,14 @@ export default function RadarShell() {
   const [detailTarget, setDetailTarget] = useState<SymbolTarget | null>(null);
   const [showCommodities, setShowCommodities] = useState(false);
   const [showTransmissao, setShowTransmissao] = useState(false);
+  const [showJuros, setShowJuros] = useState(false);
   const divergencia = useDivergence();
 
   // Só um painel sobre o mapa por vez.
-  const openCommodities = () => { setShowTransmissao(false); setShowCommodities((v) => !v); };
-  const openTransmissao = () => { setShowCommodities(false); setShowTransmissao((v) => !v); };
+  const fecharPaineis = () => { setShowCommodities(false); setShowTransmissao(false); setShowJuros(false); };
+  const openCommodities = () => { const v = !showCommodities; fecharPaineis(); setShowCommodities(v); };
+  const openTransmissao = () => { const v = !showTransmissao; fecharPaineis(); setShowTransmissao(v); };
+  const openJuros = () => { const v = !showJuros; fecharPaineis(); setShowJuros(v); };
 
   // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
   useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
@@ -195,6 +199,17 @@ export default function RadarShell() {
             </span>
           )}
         </button>
+        <button
+          onClick={openJuros}
+          className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
+          style={{
+            background: showJuros ? "rgba(56,189,248,0.2)" : "rgba(255,255,255,0.08)",
+            border: `1px solid ${showJuros ? "rgba(56,189,248,0.5)" : "rgba(255,255,255,0.15)"}`,
+            color: showJuros ? "#fff" : "#d4d4d8",
+          }}
+        >
+          <LineChart size={13} /> Juros
+        </button>
         <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
         {regions.map((r) => {
           const c = REGION_COLORS[r] ?? "#888";
@@ -227,6 +242,8 @@ export default function RadarShell() {
             transmissaoOpen={showTransmissao}
             onToggleTransmissao={openTransmissao}
             anomalias={divergencia.report?.resumo.anomalo ?? 0}
+            jurosOpen={showJuros}
+            onToggleJuros={openJuros}
           />
           <div className="mt-3">
             <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />
@@ -249,6 +266,9 @@ export default function RadarShell() {
               onClose={() => setShowCommodities(false)}
               dossierOpen={!!selected}
             />
+          )}
+          {showJuros && (
+            <JurosPanel onClose={() => setShowJuros(false)} dossierOpen={!!selected} />
           )}
           {showTransmissao && (
             <TransmissaoPanel
