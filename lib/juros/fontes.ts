@@ -17,6 +17,19 @@ import { anosAte } from "./analise";
 const TIMEOUT = 15000;
 const UA = "Mozilla/5.0 (compatible; MeusInvestimentos/1.0)";
 
+// O host do Tesouro (B3) fica atrás de Akamai, que BLOQUEIA requisição de
+// datacenter sem cara de navegador. Estes cabeçalhos imitam um Chrome real.
+const HEADERS_NAVEGADOR: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+  Referer: "https://www.tesourodireto.com.br/titulos/precos-e-taxas.htm",
+  Origin: "https://www.tesourodireto.com.br",
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
+};
+
 async function getJson<T = unknown>(url: string): Promise<T | null> {
   try {
     const r = await fetch(url, {
@@ -29,6 +42,37 @@ async function getJson<T = unknown>(url: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * GET que REPORTA o motivo da falha (status HTTP / exceção) em vez de engolir.
+ * Sem isso, um 403 do Akamai vira só "indisponível" e não dá para diagnosticar.
+ * Tenta com cabeçalhos de navegador e, se falhar, uma vez sem eles (há WAF que
+ * rejeita justamente o conjunto completo).
+ */
+async function getJsonDiag<T = unknown>(url: string): Promise<{ data: T | null; erro: string | null }> {
+  const tentativas: Array<Record<string, string>> = [
+    HEADERS_NAVEGADOR,
+    { "User-Agent": UA, Accept: "application/json,text/plain,*/*" },
+  ];
+  let ultimo = "sem resposta";
+  for (const headers of tentativas) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT), cache: "no-store", headers });
+      if (r.ok) {
+        try {
+          return { data: (await r.json()) as T, erro: null };
+        } catch {
+          ultimo = "resposta não é JSON válido";
+          continue;
+        }
+      }
+      ultimo = `HTTP ${r.status}`;
+    } catch (e) {
+      ultimo = e instanceof Error ? (e.name === "TimeoutError" ? "tempo esgotado" : e.message) : String(e);
+    }
+  }
+  return { data: null, erro: ultimo };
 }
 
 // ── helpers de leitura tolerante ─────────────────────────────────────────────
@@ -100,6 +144,7 @@ export interface TesouroResultado {
   vertices: Vertice[];
   fechamento: string | null;
   ok: boolean;
+  erro?: string | null;
 }
 
 /**
@@ -158,10 +203,27 @@ export function parseTesouro(raw: unknown, hojeISO: string): TesouroResultado {
   return { vertices, fechamento, ok: vertices.length > 0 };
 }
 
+// Espelhos conhecidos do mesmo JSON — se o principal for barrado pelo WAF,
+// tentamos o outro antes de desistir.
+const TD_URLS = [
+  TD_URL,
+  "https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json?",
+  "https://apitesourodireto.b3.com.br/treasury/api/v1/treasurybonds",
+];
+
 export async function fetchTesouro(hojeISO: string): Promise<TesouroResultado> {
-  const raw = await getJson(TD_URL);
-  if (!raw) return { vertices: [], fechamento: null, ok: false };
-  return parseTesouro(raw, hojeISO);
+  const motivos: string[] = [];
+  for (const url of TD_URLS) {
+    const { data, erro } = await getJsonDiag(url);
+    if (data) {
+      const r = parseTesouro(data, hojeISO);
+      if (r.ok) return r;
+      motivos.push(`${new URL(url).hostname}: resposta sem títulos reconhecidos`);
+    } else if (erro) {
+      motivos.push(`${new URL(url).hostname}: ${erro}`);
+    }
+  }
+  return { vertices: [], fechamento: null, ok: false, erro: motivos.join(" · ") || "sem resposta" };
 }
 
 // ── Focus: trajetória da Selic por reunião do Copom ──────────────────────────

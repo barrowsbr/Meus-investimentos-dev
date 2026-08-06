@@ -232,7 +232,12 @@ export default function JurosPanel({ onClose, dossierOpen = false }: { onClose: 
     setLoading(true); setErro(null);
     fetch("/api/radar/juros")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setData)
+      .then((d: JurosResponse) => {
+        setData(d);
+        // Se a curva não veio mas a trajetória sim, abre já no que TEM dado —
+        // melhor que mostrar um gráfico vazio.
+        if (!d.prefixados?.length && !d.reais?.length && d.trajetoriaSelic?.length) setAba("selic");
+      })
       .catch((e) => setErro(String(e?.message ?? e)))
       .finally(() => setLoading(false));
   };

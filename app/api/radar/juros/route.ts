@@ -21,7 +21,9 @@ export async function GET() {
   ]);
 
   const avisos: string[] = [];
-  if (!tesouro.ok) avisos.push("Curva do Tesouro Direto indisponível agora.");
+  // Reporta o MOTIVO (403 do WAF, timeout…) — "indisponível" sozinho não permite
+  // diagnosticar nem decidir se vale trocar de fonte.
+  if (!tesouro.ok) avisos.push(`Curva do Tesouro Direto indisponível — ${tesouro.erro ?? "motivo desconhecido"}.`);
   if (!trajetoria.length) avisos.push("Trajetória da Selic (Focus/BCB) indisponível agora.");
   if (selic == null) avisos.push("Selic meta (BCB SGS) indisponível agora.");
 
