@@ -539,7 +539,11 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   CoinGecko (livre) · mempool.space (livre) · Financial Modeling Prep (`FMP_API_KEY` opc.) ·
   Alpha Vantage (`ALPHAVANTAGE_API_KEY` opc.)
 - **Câmbio & Juros**: BCB PTAX/Olinda (livre) · BCB SGS (livre) · AwesomeAPI (livre) ·
-  Open Exchange Rates (livre) · NY Fed Markets (livre) · ECB Data/BCE (livre)
+  Open Exchange Rates (livre) · NY Fed Markets (livre) · ECB Data/BCE (livre) ·
+  **Tesouro Direto** (livre — curva de juros BR: taxas dos títulos Prefixado/IPCA+;
+  o DI Futuro da B3 NÃO tem API pública, só market data pago/scraping frágil) ·
+  **BCB Focus/Expectativas** (livre — trajetória da Selic por reunião do Copom) ·
+  **FRED** (livre, sem key — yield real 10a DFII10, spread HY BAMLH0A0HYM2, curva T10Y2Y)
 - **Corretora**: IBKR Flex (`IBKR_FLEX_TOKEN` + `IBKR_FLEX_QUERY_ID` OBRIG.)
 - **Dados & Planilha**: Google Sheets leitura (`GOOGLE_API_KEY` + `SPREADSHEET_ID` OBRIG.) ·
   Google Sheets escrita (`GOOGLE_SERVICE_ACCOUNT_JSON` OBRIG. p/ escrita)
