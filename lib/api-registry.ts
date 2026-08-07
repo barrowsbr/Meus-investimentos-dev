@@ -284,21 +284,6 @@ export const API_REGISTRY: ApiDef[] = [
     },
   },
   {
-    key: "drive_gameboy", name: "Google Drive (catálogo Game Boy)", category: "Dados & Planilha",
-    host: "www.googleapis.com", purpose: "Lê a pasta de ROMs do dono (por console) para o fliperama da página Game Boy — via service account",
-    envVars: [{ name: "GOOGLE_SERVICE_ACCOUNT_JSON", required: false }, { name: "GAMEBOY_DRIVE_FOLDER", required: false }],
-    probe: async () => {
-      try {
-        const { lerCatalogoDrive } = await import("./gameboy-catalog");
-        const consoles = await lerCatalogoDrive(true);
-        const n = consoles.reduce((s, c) => s + c.jogos.length, 0);
-        return { ok: n > 0, detail: n > 0 ? `${consoles.length} consoles, ${n} jogos` : "pasta acessível, sem ROMs" };
-      } catch (e) {
-        return { ok: false, detail: e instanceof Error ? e.message : "falha ao ler o Drive" };
-      }
-    },
-  },
-  {
     key: "gsheets_write", name: "Google Sheets (escrita)", category: "Dados & Planilha",
     host: "service account", purpose: "Escrita/backup na planilha (sync, cron, notas) via service account",
     envVars: [{ name: "GOOGLE_SERVICE_ACCOUNT_JSON", required: true }],

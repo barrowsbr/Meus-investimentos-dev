@@ -21,42 +21,6 @@ app/                    Páginas (App Router) e API routes
   (Gestão)              impostos, alavancagem, financas, fluxos
   (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
                         etf-cem (100 maiores via VOO — P/L e distância do ATH),
-                        gameboy (2 emuladores: console clássico WasmBoy + EmulatorJS
-                        self-hosted em public/emulatorjs/data — bundle + cores
-                        gambatte/mgba/genesis_plus_gx/snes9x baixados pela workflow
-                        emulatorjs-data, trigger por push de scripts/.emulatorjs-run;
-                        jogos abrem no "modo jogo" public/emulatorjs/player.html —
-                        página crua, senão o Safari iOS estoura memória (canvas
-                        TRAVADO em devicePixelRatio 1 por padrão + image-rendering
-                        pixelated — a tela Retina 3x multiplicava por 9 a memória
-                        de vídeo e quebrava até jogos leves; ?retina=1 restaura no
-                        desktop; core WASM SIMD single-thread, threads OFF; Screen
-                        Wake Lock mantém a tela acesa; Gamepad API dirige o mesmo
-                        core dos botões da tela — controle Bluetooth pareado no
-                        iPhone, ícone 🎮 discreto; metas apple-mobile-web-app p/
-                        rodar em modo app standalone com mais memória, dica de
-                        "Adicionar à Tela de Início" no catálogo); controles
-                        PRÓPRIOS grandes no player (D-pad analógico + faces + Start/
-                        Select + L/R por core via gameManager.simulateInput; gamepad
-                        embutido do EJS escondido; layouts translúcidos distintos
-                        retrato/paisagem tunados p/ iPhone Pro Max); a tela do
-                        fliperama é uma GRADE de consoles (retratos vetoriais
-                        grandes com brilho néon — components/gameboy/ConsoleArt.tsx;
-                        efeito float+glow+shine); tocar num console abre um POPUP
-                        (bottom-sheet) com os jogos, tocar no jogo segue igual
-                        (navega pro player); tile "Do aparelho" abre ROM local;
-                        watchdog de auto-reset recarrega UMA vez (sessionStorage)
-                        se o 1º load não engatar em ~7s; CATÁLOGO
-                        lido AO VIVO da pasta do Drive do dono por console
-                        (lib/gameboy-catalog.ts + /api/gameboy/catalogo — auth via
-                        SERVICE ACCOUNT, token Bearer escopo drive.readonly, pois a
-                        GOOGLE_API_KEY costuma vir restrita e o Drive dá 403; ROM
-                        baixa pelo proxy /api/gameboy/rom; subpasta = console, novos
-                        jogos aparecem sozinhos; env GAMEBOY_DRIVE_FOLDER; precisa
-                        Drive API habilitada no projeto);
-                        ROM do Pokémon NÃO versionada: picker → IndexedDB do
-                        aparelho, compartilhada entre os 2 modos, ou
-                        public/roms/pokegold-spaceworld-en.gb se o dono adicionar),
                         configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/
