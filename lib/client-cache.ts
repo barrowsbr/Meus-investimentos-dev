@@ -14,6 +14,48 @@ interface Entry { t: number; data: unknown }
 const memoria = new Map<string, Entry>();
 const SS_PREFIX = "fjc:";
 
+// ── Recarregar a página = pedido explícito de dado FRESCO ────────────────────
+// No mobile, "puxar para baixo" dispara um RELOAD — e o sessionStorage SOBREVIVE
+// ao reload. Sem tratar isso, o app recarregava e servia exatamente o mesmo dado
+// velho: o gesto parecia não fazer nada. Ao detectar reload, limpamos o cache do
+// cliente E furamos o CDN (que guarda a resposta por até 15 min), senão o "novo"
+// fetch voltaria com uma resposta de quinze minutos atrás.
+
+/** PURA (testável): a navegação atual é um recarregamento? */
+export function ehNavegacaoDeReload(tipo: string | number | undefined | null): boolean {
+  return tipo === "reload" || tipo === 1; // 1 = TYPE_RELOAD da API legada (iOS antigo)
+}
+
+/** PURA (testável): anexa o parâmetro anti-cache preservando query existente. */
+export function comCacheBuster(url: string, bust: string | null): string {
+  if (!bust) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}_r=${bust}`;
+}
+
+function reloadAgora(): boolean {
+  if (typeof performance === "undefined") return false;
+  try {
+    const nav = performance.getEntriesByType?.("navigation")?.[0] as { type?: string } | undefined;
+    if (nav?.type) return ehNavegacaoDeReload(nav.type);
+    // API legada (Safari iOS antigo): performance.navigation.type
+    const legado = (performance as unknown as { navigation?: { type?: number } }).navigation;
+    return ehNavegacaoDeReload(legado?.type);
+  } catch { return false; }
+}
+
+let _reloadTratado = false;
+let _bust: string | null = null; // vale para ESTE carregamento da página
+
+/** Uma vez por carregamento: se foi reload, zera o cache e liga o anti-CDN. */
+function tratarPedidoDeAtualizacao(): void {
+  if (_reloadTratado) return;
+  _reloadTratado = true;
+  if (typeof window === "undefined") return;
+  if (!reloadAgora()) return;
+  invalidateFetchCache();
+  _bust = String(Date.now());
+}
+
 function lerSession(key: string): Entry | null {
   try {
     const raw = sessionStorage.getItem(SS_PREFIX + key);
@@ -45,6 +87,7 @@ async function baixar(fetchUrl: string, cacheKey: string): Promise<unknown> {
  * Retorna o body (que pode conter `.error`, como nos fetchers atuais).
  */
 export async function fetchJsonCached<T = unknown>(url: string, ttlMs = 5 * 60_000): Promise<T> {
+  tratarPedidoDeAtualizacao(); // reload (ex.: puxar para baixo) ⇒ cache zerado
   const now = Date.now();
   const hit = memoria.get(url);
   if (hit && now - hit.t < ttlMs) return hit.data as T;
@@ -53,7 +96,9 @@ export async function fetchJsonCached<T = unknown>(url: string, ttlMs = 5 * 60_0
     memoria.set(url, ss);
     return ss.data as T;
   }
-  return baixar(url, url) as Promise<T>;
+  // Após um reload, busca com anti-cache (fura o CDN) mas guarda sob a URL base —
+  // assim as outras telas do mesmo carregamento reaproveitam sem ir à rede.
+  return baixar(comCacheBuster(url, _bust), url) as Promise<T>;
 }
 
 /**
