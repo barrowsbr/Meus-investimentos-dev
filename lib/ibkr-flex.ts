@@ -107,11 +107,43 @@ export function parseFlexMeta(xml: string): FlexMeta {
 // Cache em memória do XML — a geração do extrato leva ~10s; evita refetch a cada
 // abertura de página. TTL padrão 30 min (o extrato muda no máximo 1×/dia).
 let _flexCache: { at: number; xml: string } | null = null;
-export async function getFlexXmlCached(token: string, queryId: string, ttlMs = 1_800_000): Promise<string> {
+// Uma requisição em voo por vez: /api/cotacoes pede margem E caixa no mesmo
+// request; sem isso, o cache frio dispara DOIS extratos Flex em paralelo.
+let _flexInFlight: Promise<string> | null = null;
+
+/** Teto rígido: promessa que rejeita se estourar o orçamento de tempo. */
+function comPrazo<T>(p: Promise<T>, ms: number, oQue: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${oQue}: prazo de ${ms}ms esgotado`)), ms)),
+  ]);
+}
+
+/**
+ * XML do Flex com cache. TETO DE TEMPO obrigatório: o IBKR é um enriquecimento
+ * (margem/caixa), não pode derrubar a rota principal — /api/cotacoes tem 30s de
+ * orçamento e o Flex chegava a esperar 38s, estourando a função inteira (504).
+ * Se a atualização falhar mas houver XML antigo em memória, devolve o ANTIGO:
+ * dado levemente defasado é muito melhor que a página não carregar.
+ */
+export async function getFlexXmlCached(
+  token: string,
+  queryId: string,
+  ttlMs = 1_800_000,
+  budgetMs = 14_000,
+): Promise<string> {
   if (_flexCache && Date.now() - _flexCache.at < ttlMs) return _flexCache.xml;
-  const xml = await fetchFlexStatement(token, queryId);
-  _flexCache = { at: Date.now(), xml };
-  return xml;
+  if (!_flexInFlight) {
+    _flexInFlight = fetchFlexStatement(token, queryId)
+      .then((xml) => { _flexCache = { at: Date.now(), xml }; return xml; })
+      .finally(() => { _flexInFlight = null; });
+  }
+  try {
+    return await comPrazo(_flexInFlight, budgetMs, "IBKR Flex");
+  } catch (e) {
+    if (_flexCache) return _flexCache.xml; // stale-while-error
+    throw e;
+  }
 }
 
 // ── Fetch (SendRequest → poll GetStatement) ────────────────────────────────────
@@ -120,6 +152,9 @@ async function flexGet(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: { "User-Agent": "meus-investimentos/1.0 (flex-sync)" },
     cache: "no-store",
+    // sem isso, um socket pendurado do IBKR bloqueia a função até o limite da
+    // Vercel e derruba a rota inteira com 504
+    signal: AbortSignal.timeout(9000),
   });
   if (!res.ok) throw new Error(`IBKR Flex HTTP ${res.status}`);
   return res.text();
@@ -130,8 +165,10 @@ export async function fetchFlexStatement(
   queryId: string,
   opts: { maxWaitMs?: number; pollIntervalMs?: number } = {}
 ): Promise<string> {
-  const maxWaitMs = opts.maxWaitMs ?? 38000;
-  const pollIntervalMs = opts.pollIntervalMs ?? 4000;
+  // 38s era MAIS que o orçamento da rota (/api/cotacoes: maxDuration 30) — a
+  // função morria antes de o próprio Flex desistir. Tem que caber com folga.
+  const maxWaitMs = opts.maxWaitMs ?? 12000;
+  const pollIntervalMs = opts.pollIntervalMs ?? 3000;
   const t = encodeURIComponent(token);
 
   // 1. SendRequest → ReferenceCode
