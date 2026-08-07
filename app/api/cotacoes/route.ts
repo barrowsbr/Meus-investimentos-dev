@@ -44,7 +44,22 @@ export async function GET() {
       corretora: info.corretora,
     }));
 
-    const cotacoes = await fetchCotacoes(tickers);
+    // Cotações da carteira e variação cambial do dia são INDEPENDENTES — buscar
+    // em paralelo tira uma ida-e-volta inteira do caminho crítico da Home.
+    const fxTickerByCcy: Record<string, string> = {
+      USD: "BRL=X", EUR: "EURBRL=X", CAD: "CADBRL=X", GBP: "GBPBRL=X",
+    };
+    const [cotacoes, fxQuoteResult] = await Promise.all([
+      fetchCotacoes(tickers),
+      (async () => {
+        try {
+          const { fetchQuotes } = await import("@/lib/cotacoes");
+          return await fetchQuotes(Object.values(fxTickerByCcy));
+        } catch {
+          return { quotes: {} as Record<string, { change: number; changePercent: number }>, source: "erro" };
+        }
+      })(),
+    ]);
     const fxAtual = cotacoes.fx;
 
     const cambio = calcularCambioMetrics(cambioRows, fxAtual);
@@ -57,18 +72,9 @@ export async function GET() {
     // Variação cambial do dia, por moeda — alimenta a reavaliação do principal
     // estrangeiro no resultado do dia (dayChangeBRL canônico = preço + câmbio).
     const fxDayChange: Record<string, { change: number; changePct: number }> = {};
-    try {
-      const { fetchQuotes } = await import("@/lib/cotacoes");
-      const fxTickerByCcy: Record<string, string> = {
-        USD: "BRL=X", EUR: "EURBRL=X", CAD: "CADBRL=X", GBP: "GBPBRL=X",
-      };
-      const fxQuoteResult = await fetchQuotes(Object.values(fxTickerByCcy));
-      for (const [ccy, tk] of Object.entries(fxTickerByCcy)) {
-        const q = fxQuoteResult.quotes[tk];
-        if (q) fxDayChange[ccy] = { change: q.change, changePct: q.changePercent };
-      }
-    } catch {
-      // non-critical
+    for (const [ccy, tk] of Object.entries(fxTickerByCcy)) {
+      const q = fxQuoteResult.quotes[tk];
+      if (q) fxDayChange[ccy] = { change: q.change, changePct: q.changePercent };
     }
 
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate, fxDayChange);
