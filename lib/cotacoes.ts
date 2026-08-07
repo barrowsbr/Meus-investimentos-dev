@@ -9,6 +9,9 @@ export { yahooTicker };
 // AwesomeAPI, Yahoo…) bloqueia a função até o limite da Vercel e a rota morre
 // com 504 — foi exatamente o que derrubou /api/cotacoes (que alimenta a Home).
 const HTTP_TIMEOUT_MS = 8000;
+// brapi tem teto MENOR: o Yahoo cobre .SA como fallback, então não vale a pena
+// gastar o orçamento inteiro esperando por ele.
+const BRAPI_TIMEOUT_MS = 5000;
 // Teto GLOBAL da cascata de cotações: brapi → yahoo-finance2 → yahoo v8 →
 // AlphaVantage rodam em sequência; somados podiam estourar o orçamento da rota.
 // Ao expirar, devolvemos o que já foi coletado (parcial é melhor que 504).
@@ -286,7 +289,7 @@ async function fetchQuotesBrapi(yahooTickers: string[]): Promise<Record<string, 
           Accept: "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+        signal: AbortSignal.timeout(BRAPI_TIMEOUT_MS),
       });
       if (!res.ok) continue;
       const data = await res.json();
@@ -344,25 +347,33 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
   const inicio = Date.now();
   const temTempo = () => Date.now() - inicio < QUOTES_BUDGET_MS;
 
-  // ── 1) brapi PRIMEIRO para B3 (.SA) — fonte independente do Yahoo ──
-  // Sem token: só os 4 tickers grátis (evita 401 no lote inteiro); com token:
-  // todas as .SA. ITUB4/VALE3 passam a vir ao vivo sem depender do Yahoo.
+  // ── 1) brapi (.SA) e Yahoo (resto) EM PARALELO ──
+  // São conjuntos DISJUNTOS: o brapi só atende B3 e o Yahoo cobre todo o resto.
+  // Em série, os ~25 tickers de fora da B3 ficavam esperando o brapi terminar
+  // (até o timeout) sem nenhum motivo — era a maior fonte de lentidão da rota.
+  // Sem token o brapi só libera 4 ações grátis (evita 401 no lote inteiro).
   const hasToken = !!process.env.BRAPI_TOKEN;
   const b3 = yahooTickers.filter((t) => t.endsWith(".SA"));
+  const naoB3 = yahooTickers.filter((t) => !t.endsWith(".SA"));
   const brapiTargets = hasToken
     ? b3
     : b3.filter((t) => BRAPI_FREE_NO_TOKEN.has(t.slice(0, -3).toUpperCase()));
-  let usedBrapi = false;
-  if (brapiTargets.length > 0 && temTempo()) {
-    try {
-      const br = await fetchQuotesBrapi(brapiTargets);
-      if (Object.keys(br).length > 0) { quotes = { ...br }; usedBrapi = true; }
-    } catch { /* segue para o Yahoo */ }
-  }
 
-  // ── 2) Yahoo yahoo-finance2 (quote) para o que faltou (não-B3 + B3 sem brapi) ──
-  const missing1 = yahooTickers.filter((t) => !quotes[t]);
+  let usedBrapi = false;
   let usedYF2 = false;
+  const [brRes, yfRes] = await Promise.all([
+    brapiTargets.length > 0 && temTempo()
+      ? fetchQuotesBrapi(brapiTargets).catch(() => ({} as Record<string, Quote>))
+      : Promise.resolve({} as Record<string, Quote>),
+    naoB3.length > 0 && temTempo()
+      ? fetchQuotesYF2(naoB3).catch(() => ({} as Record<string, Quote>))
+      : Promise.resolve({} as Record<string, Quote>),
+  ]);
+  if (Object.keys(brRes).length > 0) { quotes = { ...quotes, ...brRes }; usedBrapi = true; }
+  if (Object.keys(yfRes).length > 0) { quotes = { ...quotes, ...yfRes }; usedYF2 = true; }
+
+  // ── 2) Yahoo yahoo-finance2 para o que o brapi perdeu (.SA sem cotação) ──
+  const missing1 = yahooTickers.filter((t) => !quotes[t]);
   if (missing1.length > 0 && temTempo()) {
     try {
       const yf2 = await fetchQuotesYF2(missing1);
