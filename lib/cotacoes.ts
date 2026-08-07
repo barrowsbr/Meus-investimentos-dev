@@ -5,6 +5,15 @@ import { identificarSetor, getMoedaEfetiva } from "./sectors";
 // client-safe). Mantém a FONTE ÚNICA e os imports existentes `from "@/lib/cotacoes"`.
 export { yahooTicker };
 
+// Teto por requisição HTTP a fonte externa. SEM isso, um host pendurado (brapi,
+// AwesomeAPI, Yahoo…) bloqueia a função até o limite da Vercel e a rota morre
+// com 504 — foi exatamente o que derrubou /api/cotacoes (que alimenta a Home).
+const HTTP_TIMEOUT_MS = 8000;
+// Teto GLOBAL da cascata de cotações: brapi → yahoo-finance2 → yahoo v8 →
+// AlphaVantage rodam em sequência; somados podiam estourar o orçamento da rota.
+// Ao expirar, devolvemos o que já foi coletado (parcial é melhor que 504).
+const QUOTES_BUDGET_MS = 18000;
+
 export type MarketSession = "REGULAR" | "PRE" | "PREPRE" | "POST" | "POSTPOST" | "CLOSED";
 
 export interface Quote {
@@ -86,7 +95,9 @@ async function fetchFxYahoo(): Promise<FxRates> {
 }
 
 async function fetchFxAwesome(): Promise<FxRates> {
-  const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL");
+  const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL", {
+    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`AwesomeAPI HTTP ${res.status}`);
   const data = await res.json();
   const fx: FxRates = {
@@ -100,7 +111,9 @@ async function fetchFxAwesome(): Promise<FxRates> {
 }
 
 async function fetchFxOpenExchangeRate(): Promise<FxRates> {
-  const res = await fetch("https://open.er-api.com/v6/latest/BRL");
+  const res = await fetch("https://open.er-api.com/v6/latest/BRL", {
+    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`ExchangeRate-API HTTP ${res.status}`);
   const data = await res.json();
   const r = data.rates;
@@ -208,6 +221,7 @@ async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quo
         const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
         const res = await fetch(url, {
           headers: { "User-Agent": UA, Accept: "application/json, */*", "Accept-Language": "en-US,en;q=0.9" },
+          signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
         });
         if (!res.ok) continue;
         const data = await res.json();
@@ -272,6 +286,7 @@ async function fetchQuotesBrapi(yahooTickers: string[]): Promise<Record<string, 
           Accept: "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
       });
       if (!res.ok) continue;
       const data = await res.json();
@@ -324,6 +339,10 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
   if (yahooTickers.length === 0) return { quotes: {}, source: "empty" };
 
   let quotes: Record<string, Quote> = {};
+  // Orçamento da cascata: cada etapa só roda se ainda houver tempo. Sem isso as
+  // 4 fontes em sequência podiam somar mais que o limite da função (504).
+  const inicio = Date.now();
+  const temTempo = () => Date.now() - inicio < QUOTES_BUDGET_MS;
 
   // ── 1) brapi PRIMEIRO para B3 (.SA) — fonte independente do Yahoo ──
   // Sem token: só os 4 tickers grátis (evita 401 no lote inteiro); com token:
@@ -334,7 +353,7 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
     ? b3
     : b3.filter((t) => BRAPI_FREE_NO_TOKEN.has(t.slice(0, -3).toUpperCase()));
   let usedBrapi = false;
-  if (brapiTargets.length > 0) {
+  if (brapiTargets.length > 0 && temTempo()) {
     try {
       const br = await fetchQuotesBrapi(brapiTargets);
       if (Object.keys(br).length > 0) { quotes = { ...br }; usedBrapi = true; }
@@ -344,7 +363,7 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
   // ── 2) Yahoo yahoo-finance2 (quote) para o que faltou (não-B3 + B3 sem brapi) ──
   const missing1 = yahooTickers.filter((t) => !quotes[t]);
   let usedYF2 = false;
-  if (missing1.length > 0) {
+  if (missing1.length > 0 && temTempo()) {
     try {
       const yf2 = await fetchQuotesYF2(missing1);
       if (Object.keys(yf2).length > 0) { quotes = { ...quotes, ...yf2 }; usedYF2 = true; }
@@ -354,7 +373,7 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
   // ── 3) Yahoo v8 (chart) para o que AINDA faltou — não depende do "crumb" ──
   const missing2 = yahooTickers.filter((t) => !quotes[t]);
   let usedV8 = false;
-  if (missing2.length > 0) {
+  if (missing2.length > 0 && temTempo()) {
     try {
       const v8 = await fetchQuotesV8(missing2);
       if (Object.keys(v8).length > 0) { quotes = { ...quotes, ...v8 }; usedV8 = true; }
@@ -366,7 +385,7 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
   // (free tier = 25 req/dia — jamais primário). Ver lib/alphavantage-quote.ts.
   const missing3 = yahooTickers.filter((t) => !quotes[t]);
   let usedAV = false;
-  if (missing3.length > 0) {
+  if (missing3.length > 0 && temTempo()) {
     try {
       const { fetchQuotesAlphaVantage } = await import("./alphavantage-quote");
       const av = await fetchQuotesAlphaVantage(missing3);
