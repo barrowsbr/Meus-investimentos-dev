@@ -4,13 +4,60 @@
 // (tudo que roda sozinho, com liga/desliga individual).
 
 import { useState, useEffect } from "react";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 
 // ── Automações (Vercel Cron · GitHub Actions · rotinas do app) ───────────────
 
 interface AutomacaoItem {
   chave: string; nome: string; descricao: string; agenda: string;
   tipo: "vercel" | "github" | "app"; link?: string; ativo: boolean;
+}
+
+// Resultado REAL da última execução (GitHub Actions). O interruptor só diz
+// "deveria rodar"; isto diz se rodou — o histórico e o backup ficaram quebrados
+// quase um mês em silêncio porque ninguém via a diferença.
+interface SaudeItem {
+  conclusao: string | null; status: string | null; em: string | null;
+  url: string | null; falhasSeguidas: number; indisponivel?: boolean;
+}
+
+function haQuanto(iso: string | null): string {
+  if (!iso) return "";
+  const ms = Date.now() - Date.parse(iso);
+  if (!isFinite(ms) || ms < 0) return "";
+  const h = ms / 3_600_000;
+  if (h < 1) return `há ${Math.max(1, Math.round(ms / 60_000))}min`;
+  if (h < 24) return `há ${Math.round(h)}h`;
+  return `há ${Math.round(h / 24)}d`;
+}
+
+function SaudeBadge({ s }: { s: SaudeItem }) {
+  if (s.indisponivel) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500" title="Não foi possível consultar o GitHub agora">
+        <AlertTriangle size={10} /> sem leitura
+      </span>
+    );
+  }
+  if (!s.conclusao && s.status && s.status !== "completed") {
+    return <span className="inline-flex items-center gap-1 text-[10px] font-mono text-sky-400"><Loader2 size={10} className="animate-spin" /> rodando</span>;
+  }
+  if (!s.conclusao) {
+    return <span className="text-[10px] font-mono text-zinc-500">nunca executou</span>;
+  }
+  const ok = s.conclusao === "success";
+  const cor = ok ? "text-emerald-400" : "text-red-400";
+  const texto = ok
+    ? `última OK ${haQuanto(s.em)}`
+    : s.falhasSeguidas > 1
+      ? `${s.falhasSeguidas} falhas seguidas`
+      : `falhou ${haQuanto(s.em)}`;
+  const conteudo = (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-mono ${cor}`}>
+      {ok ? <CheckCircle2 size={10} /> : <XCircle size={10} />} {texto}
+    </span>
+  );
+  return s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="hover:underline" title="Abrir a execução no GitHub">{conteudo}</a> : conteudo;
 }
 
 const TIPO_LABEL: Record<AutomacaoItem["tipo"], string> = {
@@ -21,6 +68,7 @@ const TIPO_LABEL: Record<AutomacaoItem["tipo"], string> = {
 
 export default function AutomacoesSection() {
   const [items, setItems] = useState<AutomacaoItem[] | null>(null);
+  const [saude, setSaude] = useState<Record<string, SaudeItem>>({});
   const [salvando, setSalvando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -32,6 +80,16 @@ export default function AutomacoesSection() {
         else setItems(d.automacoes ?? []);
       })
       .catch(() => setErro("Falha ao carregar as automações"));
+  }, []);
+
+  // Saúde real das Actions em chamada SEPARADA: o card já apareceu com os
+  // interruptores; as badges preenchem depois. Best-effort — se o GitHub não
+  // responder, o card continua funcionando sem elas.
+  useEffect(() => {
+    fetch("/api/config/automacoes/saude")
+      .then((r) => r.json())
+      .then((d) => { if (d?.saude) setSaude(d.saude); })
+      .catch(() => { /* sem badges */ });
   }, []);
 
   const toggle = async (item: AutomacaoItem) => {
@@ -60,7 +118,8 @@ export default function AutomacoesSection() {
       <p className="text-xs text-zinc-500 leading-relaxed">
         Tudo que roda sozinho no projeto, num lugar só. Desligar aqui <span className="text-zinc-400">não remove o agendamento</span> —
         o cron/Action continua disparando, mas a execução é pulada até você religar. Alertas, resumo e histórico compartilham o
-        interruptor com os cards deles (mudar aqui muda lá).
+        interruptor com os cards deles (mudar aqui muda lá). Nas Actions, a etiqueta ao lado do nome mostra o resultado
+        <span className="text-zinc-400"> real da última execução</span> — o interruptor só diz que deveria rodar.
       </p>
 
       {grupos.map((tipo) => {
@@ -80,6 +139,7 @@ export default function AutomacoesSection() {
                         workflow <ExternalLink size={9} />
                       </a>
                     )}
+                    {saude[item.chave] && <SaudeBadge s={saude[item.chave]} />}
                   </div>
                   <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{item.descricao}</p>
                 </div>
