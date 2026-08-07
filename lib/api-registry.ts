@@ -312,6 +312,23 @@ export const API_REGISTRY: ApiDef[] = [
       } catch { return { ok: false, detail: "JSON inválido" }; }
     },
   },
+  {
+    key: "github_actions", name: "GitHub Actions (saúde)", category: "Dados & Planilha",
+    host: "api.github.com", purpose: "Resultado da última execução dos workflows (histórico, backup, resumo) no card Automações",
+    envVars: [{ name: "GITHUB_TOKEN", required: false }],
+    docs: "https://docs.github.com/rest/actions/workflow-runs",
+    probe: async () => {
+      const tok = env("GITHUB_TOKEN");
+      const { status, json } = await getJson(
+        "https://api.github.com/repos/barrowsbr/Meus-investimentos-dev/actions/workflows",
+        { headers: { Accept: "application/vnd.github+json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) } },
+      );
+      const n = json?.total_count;
+      if (typeof n === "number") return { ok: true, detail: `${n} workflows${tok ? " (autenticado)" : " (anônimo, 60 req/h)"}` };
+      if (status === 403) return { ok: false, detail: "limite de 60 req/h por IP estourado — defina GITHUB_TOKEN" };
+      return { ok: false, detail: `HTTP ${status}` };
+    },
+  },
 
   // ── IA & LLM ───────────────────────────────────────────────────────────────
   {

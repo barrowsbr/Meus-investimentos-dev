@@ -546,7 +546,10 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   **FRED** (livre, sem key — yield real 10a DFII10, spread HY BAMLH0A0HYM2, curva T10Y2Y)
 - **Corretora**: IBKR Flex (`IBKR_FLEX_TOKEN` + `IBKR_FLEX_QUERY_ID` OBRIG.)
 - **Dados & Planilha**: Google Sheets leitura (`GOOGLE_API_KEY` + `SPREADSHEET_ID` OBRIG.) ·
-  Google Sheets escrita (`GOOGLE_SERVICE_ACCOUNT_JSON` OBRIG. p/ escrita)
+  Google Sheets escrita (`GOOGLE_SERVICE_ACCOUNT_JSON` OBRIG. p/ escrita) ·
+  **GitHub Actions** (`GITHUB_TOKEN` opc. — repo é público, então anônimo funciona com
+  60 req/h **por IP**; o token só eleva o limite. Alimenta as etiquetas de saúde do card
+  Automações via `lib/github-actions-health.ts` → `/api/config/automacoes/saude`)
 - **IA & LLM** (cascata em `lib/llm.ts`): Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`) ·
   OpenAI (`OPENAI_API_KEY` opc.) · DeepSeek (`DEEPSEEK_API_KEY` opc.) · Groq (`GROQ_API_KEY` opc.) ·
   xAI/Grok (`XAI_API_KEY`/`GROK_API_KEY` opc.)
