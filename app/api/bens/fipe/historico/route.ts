@@ -10,7 +10,9 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const BASE_V2 = "https://parallelum.com.br/fipe/api/v2";
-const MESES = 6;
+// Até 13 pontos (12 variações mensais) — o card usa 12; o popup fatia 6/12.
+const MESES_DEFAULT = 12;
+const MESES_MAX = 13;
 
 async function j<T>(url: string): Promise<T | null> {
   try {
@@ -30,6 +32,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const codigo = sp.get("codigo") ?? "";
   const ano = Number(sp.get("ano")) || 0;
+  const meses = Math.min(MESES_MAX, Math.max(2, Number(sp.get("meses")) || MESES_DEFAULT));
   if (!/^\d{6}-\d$/.test(codigo) || !ano) {
     return NextResponse.json({ error: "codigo/ano inválidos" }, { status: 400 });
   }
@@ -43,7 +46,7 @@ export async function GET(req: NextRequest) {
   // reusa nos demais (economiza chamadas).
   let sufixo: string | null = null;
   const pontos: Array<{ mes: string; valor: string; valorNum: number }> = [];
-  for (const ref of refs.slice(0, MESES)) {
+  for (const ref of refs.slice(0, meses)) {
     const sufixos: string[] = sufixo ? [sufixo] : ["1", "3"];
     for (const suf of sufixos) {
       const val = await j<{ price?: string; referenceMonth?: string }>(
