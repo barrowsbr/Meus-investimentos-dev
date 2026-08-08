@@ -27,6 +27,32 @@ const fmtBRL = (v: number) =>
 // sem ela, cai no proxy do Wikimedia.
 const fotoSrc = (id: string) => bemPorId(id)?.fotoLocal ?? `/api/bens/foto?id=${id}`;
 
+// ── Mini-sparkline do CARD (grade) — 12 meses da tabela, discreta ────────────
+function MiniSpark({ pontos }: { pontos: PontoHist[] }) {
+  if (pontos.length < 2) return null;
+  const W = 96, H = 26, PAD = 2;
+  const vals = pontos.map((p) => p.valorNum);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1;
+  const x = (i: number) => PAD + (i / (pontos.length - 1)) * (W - PAD * 2);
+  const y = (v: number) => H - PAD - ((v - min) / span) * (H - PAD * 2);
+  const pts = pontos.map((p, i) => `${x(i)},${y(p.valorNum)}`).join(" ");
+  const varPct = ((vals[vals.length - 1] - vals[0]) / vals[0]) * 100;
+  const up = varPct >= 0;
+  const cor = up ? "#7fd6a8" : "#f0a3a3";
+  return (
+    <div className="bns-mini" title={`Tabela FIPE nos últimos ${pontos.length} meses`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="bns-mini-svg" preserveAspectRatio="none" aria-hidden>
+        <polyline points={pts} fill="none" stroke={cor} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
+        <circle cx={x(pontos.length - 1)} cy={y(vals[vals.length - 1])} r="2.2" fill={cor} />
+      </svg>
+      <span className="bns-mini-var" style={{ color: cor }}>
+        {up ? "▲" : "▼"} {Math.abs(varPct).toFixed(1)}% <i>{pontos.length}m</i>
+      </span>
+    </div>
+  );
+}
+
 // ── Sparkline do histórico FIPE ──────────────────────────────────────────────
 function Sparkline({ pontos }: { pontos: PontoHist[] }) {
   if (pontos.length < 2) return null;
@@ -103,12 +129,17 @@ function AjusteInline({ v, onAjuste }: { v: VeiculoFipe; onAjuste: (id: string, 
 }
 
 // ── Popup de detalhes ────────────────────────────────────────────────────────
-function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () => void; onAjuste: (id: string, pct: number) => Promise<string | null> }) {
+function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; histPronto?: PontoHist[] | null; onClose: () => void; onAjuste: (id: string, pct: number) => Promise<string | null> }) {
   const bem = bemPorId(v.id);
-  const [hist, setHist] = useState<PontoHist[] | null>(null);
+  const [hist, setHist] = useState<PontoHist[] | null>(histPronto ?? null);
   const [histLoading, setHistLoading] = useState(false);
+  // Janela do gráfico/tabela: 6 ou 12 meses (fatia client-side, sem refetch).
+  const [janela, setJanela] = useState<6 | 12>(12);
 
   useEffect(() => {
+    // A grade já buscou o histórico (compartilhado via prop) — só busca aqui
+    // se o card ainda não tinha (ex.: rede falhou na carga da página).
+    if (histPronto && histPronto.length >= 2) { setHist(histPronto); return; }
     const codigo = v.codigoFipe;
     if (!codigo || !bem) return;
     let vivo = true;
@@ -119,7 +150,9 @@ function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () =>
       .catch(() => { if (vivo) setHist([]); })
       .finally(() => { if (vivo) setHistLoading(false); });
     return () => { vivo = false; };
-  }, [v.codigoFipe, v.id, bem]);
+  }, [v.codigoFipe, v.id, bem, histPronto]);
+
+  const histJanela = hist && hist.length >= 2 ? hist.slice(-janela) : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -158,7 +191,42 @@ function DetalheModal({ v, onClose, onAjuste }: { v: VeiculoFipe; onClose: () =>
           <AjusteInline v={v} onAjuste={onAjuste} />
 
           {histLoading && <p className="bns-md-hint">carregando histórico…</p>}
-          {hist && hist.length >= 2 && <Sparkline pontos={hist} />}
+          {histJanela && (
+            <>
+              <div className="bns-hist-toggle" role="tablist" aria-label="Janela do histórico">
+                {([6, 12] as const).map((m) => (
+                  <button key={m} role="tab" aria-selected={janela === m}
+                    className={`bns-hist-tg${janela === m ? " on" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); setJanela(m); }}>
+                    {m} meses
+                  </button>
+                ))}
+              </div>
+              <Sparkline pontos={histJanela} />
+              {/* Tabela mês a mês (como a consulta FIPE do Webmotors): preço e
+                  variação sobre o mês anterior. */}
+              <table className="bns-hist-tab">
+                <thead>
+                  <tr><th>Mês</th><th>Preço FIPE</th><th>Δ mês</th></tr>
+                </thead>
+                <tbody>
+                  {[...histJanela].reverse().map((p, i, arr) => {
+                    const ant = arr[i + 1]; // reverso: o seguinte é o mês anterior
+                    const dpct = ant ? ((p.valorNum - ant.valorNum) / ant.valorNum) * 100 : null;
+                    return (
+                      <tr key={p.mes}>
+                        <td>{p.mes.trim()}</td>
+                        <td>{fmtBRL(p.valorNum)}</td>
+                        <td style={{ color: dpct == null ? undefined : dpct >= 0 ? "#7fd6a8" : "#f0a3a3" }}>
+                          {dpct == null ? "—" : `${dpct >= 0 ? "+" : ""}${dpct.toFixed(2)}%`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
 
           {bem && (
             <>
@@ -182,7 +250,29 @@ export default function BensPage() {
   const [dados, setDados] = useState<FipeResp | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [detalhe, setDetalhe] = useState<VeiculoFipe | null>(null);
+  // Histórico FIPE por carro (12 meses) — buscado UMA vez para a grade e
+  // reaproveitado pelo popup (best-effort: sem rede, o card fica sem spark).
+  const [histMap, setHistMap] = useState<Record<string, PontoHist[]>>({});
   const fechar = useCallback(() => setDetalhe(null), []);
+
+  useEffect(() => {
+    const carros = dados?.veiculos ?? [];
+    let vivo = true;
+    for (const v of carros) {
+      const bem = bemPorId(v.id);
+      if (!v.codigoFipe || !bem || histMap[v.id]) continue;
+      fetch(`/api/bens/fipe/historico?codigo=${encodeURIComponent(v.codigoFipe)}&ano=${bem.anoModelo}`)
+        .then((r) => r.json())
+        .then((d: { pontos?: PontoHist[] }) => {
+          if (vivo && d.pontos && d.pontos.length >= 2) {
+            setHistMap((m) => ({ ...m, [v.id]: d.pontos! }));
+          }
+        })
+        .catch(() => { /* sem spark no card */ });
+    }
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dados]);
 
   useEffect(() => {
     let vivo = true;
@@ -249,6 +339,7 @@ export default function BensPage() {
                 <span className="bns-detalhe">{v.detalhe}</span>
                 <h3 className="bns-nome">{v.nome}</h3>
                 <div className="bns-rule" />
+                {histMap[v.id] && <MiniSpark pontos={histMap[v.id]} />}
                 <div className="bns-foot">
                   <div className="bns-valor-blk">
                     <span className="bns-valor">{carregando ? "…" : v.ok ? fmtBRL(v.valorFinalNum ?? v.valorNum ?? 0) : "—"}</span>
@@ -286,7 +377,7 @@ export default function BensPage() {
         </div>
       </section>
 
-      {detalhe && <DetalheModal v={detalhe} onClose={fechar} onAjuste={salvarAjuste} />}
+      {detalhe && <DetalheModal v={detalhe} histPronto={histMap[detalhe.id] ?? null} onClose={fechar} onAjuste={salvarAjuste} />}
 
       <style>{CSS}</style>
     </>
@@ -395,4 +486,22 @@ const CSS = `
 .bns-hist-var{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
 .bns-hist-svg{width:100%;height:64px;display:block;}
 .bns-hist-eixo{display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:rgba(255,255,255,0.32);}
+/* Mini-sparkline do CARD (grade): linha discreta + variação do período */
+.bns-mini{display:flex;align-items:center;gap:10px;margin:2px 0 6px;}
+.bns-mini-svg{width:96px;height:26px;flex-shrink:0;}
+.bns-mini-var{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.bns-mini-var i{font-style:normal;font-weight:600;font-size:9.5px;color:rgba(255,255,255,0.35);margin-left:2px;}
+/* Toggle 6/12 meses do popup */
+.bns-hist-toggle{display:flex;gap:6px;margin-top:10px;}
+.bns-hist-tg{font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:999px;color:var(--muted,#8b969b);
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);cursor:pointer;transition:all .15s;}
+.bns-hist-tg.on{color:#0d1214;background:#8fb8c9;border-color:#8fb8c9;}
+/* Tabela mês a mês (estilo consulta FIPE) */
+.bns-hist-tab{width:100%;margin-top:8px;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;}
+.bns-hist-tab th{font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--muted,#8b969b);
+  text-align:left;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,0.1);}
+.bns-hist-tab td{padding:3.5px 6px;border-bottom:1px solid rgba(255,255,255,0.05);color:rgba(255,255,255,0.78);}
+.bns-hist-tab th:last-child,.bns-hist-tab td:last-child{text-align:right;}
+.bns-hist-tab th:nth-child(2),.bns-hist-tab td:nth-child(2){text-align:right;}
+.bns-hist-tab tr:last-child td{border-bottom:none;}
 `;
