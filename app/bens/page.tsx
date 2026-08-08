@@ -266,18 +266,23 @@ export default function BensPage() {
   useEffect(() => {
     const carros = dados?.veiculos ?? [];
     let vivo = true;
-    for (const v of carros) {
-      const bem = bemPorId(v.id);
-      if (!v.codigoFipe || !bem || histMap[v.id]) continue;
-      fetch(`/api/bens/fipe/historico?codigo=${encodeURIComponent(v.codigoFipe)}&ano=${bem.anoModelo}`)
-        .then((r) => r.json())
-        .then((d: { pontos?: PontoHist[] }) => {
+    // SEQUENCIAL de propósito: cada histórico completo já dispara dezenas de
+    // consultas na API gratuita da FIPE — dois carros em paralelo dobravam a
+    // rajada e batiam no rate limit (o gráfico "não carregava").
+    (async () => {
+      for (const v of carros) {
+        if (!vivo) return;
+        const bem = bemPorId(v.id);
+        if (!v.codigoFipe || !bem || histMap[v.id]) continue;
+        try {
+          const r = await fetch(`/api/bens/fipe/historico?codigo=${encodeURIComponent(v.codigoFipe)}&ano=${bem.anoModelo}`);
+          const d = (await r.json()) as { pontos?: PontoHist[] };
           if (vivo && d.pontos && d.pontos.length >= 2) {
             setHistMap((m) => ({ ...m, [v.id]: d.pontos! }));
           }
-        })
-        .catch(() => { /* sem spark no card */ });
-    }
+        } catch { /* sem spark no card */ }
+      }
+    })();
     return () => { vivo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dados]);
