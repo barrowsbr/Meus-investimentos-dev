@@ -27,7 +27,11 @@ const fmtBRL = (v: number) =>
 // sem ela, cai no proxy do Wikimedia.
 const fotoSrc = (id: string) => bemPorId(id)?.fotoLocal ?? `/api/bens/foto?id=${id}`;
 
-// ── Mini-sparkline do CARD (grade) — 12 meses da tabela, discreta ────────────
+// Janela em meses → rótulo curto ("8m", "2a", "6a").
+const fmtJanelaCurta = (n: number) => (n < 24 ? `${n}m` : `${Math.round(n / 12)}a`);
+const fmtJanelaLonga = (n: number) => (n < 24 ? `${n} meses` : `${Math.round(n / 12)} anos`);
+
+// ── Mini-sparkline do CARD (grade) — série completa da FIPE, discreta ────────
 function MiniSpark({ pontos }: { pontos: PontoHist[] }) {
   if (pontos.length < 2) return null;
   const W = 96, H = 26, PAD = 2;
@@ -41,13 +45,13 @@ function MiniSpark({ pontos }: { pontos: PontoHist[] }) {
   const up = varPct >= 0;
   const cor = up ? "#7fd6a8" : "#f0a3a3";
   return (
-    <div className="bns-mini" title={`Tabela FIPE nos últimos ${pontos.length} meses`}>
+    <div className="bns-mini" title={`Tabela FIPE — histórico completo (${fmtJanelaLonga(pontos.length)})`}>
       <svg viewBox={`0 0 ${W} ${H}`} className="bns-mini-svg" preserveAspectRatio="none" aria-hidden>
         <polyline points={pts} fill="none" stroke={cor} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
         <circle cx={x(pontos.length - 1)} cy={y(vals[vals.length - 1])} r="2.2" fill={cor} />
       </svg>
       <span className="bns-mini-var" style={{ color: cor }}>
-        {up ? "▲" : "▼"} {Math.abs(varPct).toFixed(1)}% <i>{pontos.length}m</i>
+        {up ? "▲" : "▼"} {Math.abs(varPct).toFixed(1)}% <i>{fmtJanelaCurta(pontos.length)}</i>
       </span>
     </div>
   );
@@ -69,7 +73,7 @@ function Sparkline({ pontos }: { pontos: PontoHist[] }) {
   return (
     <div className="bns-hist">
       <div className="bns-hist-head">
-        <span className="bns-hist-lbl">Histórico FIPE · {pontos.length} meses</span>
+        <span className="bns-hist-lbl">Histórico FIPE · {fmtJanelaLonga(pontos.length)}</span>
         <span className="bns-hist-var" style={{ color: cor }}>{up ? "▲" : "▼"} {Math.abs(varPct).toFixed(1)}%</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="bns-hist-svg" preserveAspectRatio="none">
@@ -133,8 +137,9 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
   const bem = bemPorId(v.id);
   const [hist, setHist] = useState<PontoHist[] | null>(histPronto ?? null);
   const [histLoading, setHistLoading] = useState(false);
-  // Janela do gráfico/tabela: 6 ou 12 meses (fatia client-side, sem refetch).
-  const [janela, setJanela] = useState<6 | 12>(12);
+  // Janela do gráfico/tabela: 6/12 meses ou 0 = TUDO (até o limite dos dados
+  // da FIPE — desde que o ano-modelo entrou na tabela). Fatia client-side.
+  const [janela, setJanela] = useState<6 | 12 | 0>(0);
 
   useEffect(() => {
     // A grade já buscou o histórico (compartilhado via prop) — só busca aqui
@@ -152,7 +157,7 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
     return () => { vivo = false; };
   }, [v.codigoFipe, v.id, bem, histPronto]);
 
-  const histJanela = hist && hist.length >= 2 ? hist.slice(-janela) : null;
+  const histJanela = hist && hist.length >= 2 ? (janela === 0 ? hist : hist.slice(-janela)) : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -194,17 +199,19 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
           {histJanela && (
             <>
               <div className="bns-hist-toggle" role="tablist" aria-label="Janela do histórico">
-                {([6, 12] as const).map((m) => (
+                {([6, 12, 0] as const).map((m) => (
                   <button key={m} role="tab" aria-selected={janela === m}
                     className={`bns-hist-tg${janela === m ? " on" : ""}`}
                     onClick={(e) => { e.stopPropagation(); setJanela(m); }}>
-                    {m} meses
+                    {m === 0 ? `Tudo${hist ? ` (${fmtJanelaCurta(hist.length)})` : ""}` : `${m} meses`}
                   </button>
                 ))}
               </div>
               <Sparkline pontos={histJanela} />
               {/* Tabela mês a mês (como a consulta FIPE do Webmotors): preço e
-                  variação sobre o mês anterior. */}
+                  variação sobre o mês anterior. Em "Tudo" pode passar de 70
+                  linhas — o contêiner rola. */}
+              <div className="bns-hist-scroll">
               <table className="bns-hist-tab">
                 <thead>
                   <tr><th>Mês</th><th>Preço FIPE</th><th>Δ mês</th></tr>
@@ -225,6 +232,7 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
                   })}
                 </tbody>
               </table>
+              </div>
             </>
           )}
 
@@ -496,8 +504,12 @@ const CSS = `
 .bns-hist-tg{font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:999px;color:var(--muted,#8b969b);
   background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);cursor:pointer;transition:all .15s;}
 .bns-hist-tg.on{color:#0d1214;background:#8fb8c9;border-color:#8fb8c9;}
-/* Tabela mês a mês (estilo consulta FIPE) */
-.bns-hist-tab{width:100%;margin-top:8px;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;}
+/* Tabela mês a mês (estilo consulta FIPE) — rola quando "Tudo" tem 70+ linhas */
+.bns-hist-scroll{max-height:238px;overflow-y:auto;margin-top:8px;border-radius:8px;}
+.bns-hist-scroll::-webkit-scrollbar{width:6px;}
+.bns-hist-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.14);border-radius:3px;}
+.bns-hist-tab{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;}
+.bns-hist-tab thead th{position:sticky;top:0;background:#101418;z-index:1;}
 .bns-hist-tab th{font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--muted,#8b969b);
   text-align:left;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,0.1);}
 .bns-hist-tab td{padding:3.5px 6px;border-bottom:1px solid rgba(255,255,255,0.05);color:rgba(255,255,255,0.78);}
