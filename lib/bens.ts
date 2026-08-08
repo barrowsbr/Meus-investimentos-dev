@@ -70,7 +70,9 @@ export const VEICULOS: BemVeiculo[] = [
       ["Motor", "1.0 8V SPE/4 flex"],
       ["Potência", "80 cv (etanol)"],
       ["Torque", "9,8 kgfm"],
-      ["Câmbio", "Manual de 5 marchas"],
+      // 6 marchas confirmado pelo dono (o Onix 1.0 ganhou o câmbio de 6
+      // velocidades no facelift 2017; o Joy é a continuação desse carro).
+      ["Câmbio", "Manual de 6 marchas"],
       ["Tração", "Dianteira"],
       ["Porta-malas", "280 L"],
       ["Tanque", "54 L"],
