@@ -1,7 +1,7 @@
-# Diagnóstico TEMPORÁRIO do histórico FIPE (página Bens) — roda no runner do
-# GitHub porque a rede do ambiente de dev bloqueia tanto a produção quanto a
-# parallelum. Testa: (1) a API da FIPE direto, com e sem ?reference=; (2) o
-# endpoint de produção. Apagar quando o problema estiver resolvido.
+# Diagnóstico TEMPORÁRIO do histórico FIPE (página Bens) — rodada 2.
+# Descobertas da rodada 1: (a) 004473-3/2020-1 dá 404 na v2 até sem reference;
+# (b) referência antiga dá 402 "histórico estendido é pago". Agora: qual o
+# código de ano certo do Onix na v2, e até onde vai a janela grátis.
 name: diag-fipe
 
 on:
@@ -16,34 +16,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: parallelum direto
+      - name: anos disponiveis na v2
         run: |
-          echo "=== v2/references (5 primeiras) ==="
-          curl -sS -m 15 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://parallelum.com.br/fipe/api/v2/references" | head -c 400
-          echo
-          REF=$(curl -sS -m 15 "https://parallelum.com.br/fipe/api/v2/references" | python3 -c "import json,sys; print(json.load(sys.stdin)[1]['code'])" || echo "")
-          echo "ref anterior = $REF"
-          echo "=== valor SEM reference (Onix Joy 004473-3, 2020-1) ==="
-          curl -sS -m 15 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://parallelum.com.br/fipe/api/v2/cars/004473-3/years/2020-1"
-          echo "=== valor COM reference=$REF ==="
-          curl -sS -m 15 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://parallelum.com.br/fipe/api/v2/cars/004473-3/years/2020-1?reference=$REF"
-          echo "=== referência ANTIGA (código 200, ~2016) — deve ser 404/erro p/ ano-modelo 2020 ==="
-          curl -sS -m 15 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://parallelum.com.br/fipe/api/v2/cars/004473-3/years/2020-1?reference=200"
+          echo "=== v2/cars/004473-3/years (Onix Joy) ==="
+          curl -sS -m 15 -w "\nHTTP %{http_code}\n" "https://parallelum.com.br/fipe/api/v2/cars/004473-3/years"
+          echo "=== v2/cars/005508-5/years (T-Cross) ==="
+          curl -sS -m 15 -w "\nHTTP %{http_code}\n" "https://parallelum.com.br/fipe/api/v2/cars/005508-5/years"
+          echo "=== v1 Chevrolet: achar o Onix Joy e listar anos (comparação) ==="
+          MARCA=$(curl -sS -m 15 "https://parallelum.com.br/fipe/api/v1/carros/marcas" | python3 -c "import json,sys; ms=json.load(sys.stdin); print([m['codigo'] for m in ms if 'chevrolet' in m['nome'].lower()][0])")
+          echo "marca=$MARCA"
+          MODELO=$(curl -sS -m 15 "https://parallelum.com.br/fipe/api/v1/carros/marcas/$MARCA/modelos" | python3 -c "
+          import json,sys
+          ms=json.load(sys.stdin)['modelos']
+          js=[m for m in ms if 'joy' in m['nome'].lower() and 'onix' in m['nome'].lower()]
+          print(js[0]['codigo'] if js else '')
+          [print('CAND:', m['codigo'], m['nome'], file=sys.stderr) for m in js]
+          ")
+          echo "modelo=$MODELO"
+          curl -sS -m 15 -w "\nHTTP %{http_code}\n" "https://parallelum.com.br/fipe/api/v1/carros/marcas/$MARCA/modelos/$MODELO/anos"
 
-      - name: producao /api/bens/fipe/historico
+      - name: fronteira da janela gratis (T-Cross 005508-5, que funciona na v2)
         run: |
-          echo "=== historico Onix (12 meses só, mais rápido) ==="
-          curl -sS -m 120 -D /tmp/h1 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://meus-investimentos-dev.vercel.app/api/bens/fipe/historico?codigo=004473-3&ano=2020&meses=12" | head -c 800
-          echo; grep -i -E "x-vercel|cache-control|age" /tmp/h1 || true
-          echo "=== historico Onix COMPLETO ==="
-          curl -sS -m 120 -D /tmp/h2 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://meus-investimentos-dev.vercel.app/api/bens/fipe/historico?codigo=004473-3&ano=2020" | head -c 800
-          echo; grep -i -E "x-vercel|cache-control|age" /tmp/h2 || true
-          echo "=== fipe principal (sanidade) ==="
-          curl -sS -m 60 -w "\nHTTP %{http_code} em %{time_total}s\n" \
-            "https://meus-investimentos-dev.vercel.app/api/bens/fipe" | head -c 400
+          for REF in 336 335 334 333 332 331 330 329 328 327 326 325 324 323; do
+            OUT=$(curl -sS -m 15 -o /tmp/b -w "%{http_code}" "https://parallelum.com.br/fipe/api/v2/cars/005508-5/years/2025-1?reference=$REF")
+            echo "ref=$REF -> HTTP $OUT $(head -c 120 /tmp/b)"
+            sleep 0.4
+          done
