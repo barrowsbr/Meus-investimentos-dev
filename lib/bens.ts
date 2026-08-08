@@ -59,6 +59,9 @@ export const VEICULOS: BemVeiculo[] = [
     nome: "Chevrolet Onix Joy 1.0",
     detalhe: "2020 · Branco",
     cor: "branco",
+    // Confirmado no diagnóstico ago/2026: v1 modelo 7691 "ONIX HATCH Joy 1.0
+    // 8V Flex 5p Mec.", código FIPE 004473-3, anos 2017-5..2020-5 (Flex).
+    codigoFipe: "004473-3",
     marcaBusca: "chevrolet",
     modeloBusca: ["onix", "hatch", "joy"],
     anoModelo: 2020,
