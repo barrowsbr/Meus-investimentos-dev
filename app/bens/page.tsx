@@ -233,6 +233,10 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
                 </tbody>
               </table>
               </div>
+              <p className="bns-md-hint">
+                A consulta gratuita da FIPE abre só os últimos ~3 meses — o app registra a tabela
+                todo mês na planilha e o histórico cresce sozinho daqui pra frente.
+              </p>
             </>
           )}
 

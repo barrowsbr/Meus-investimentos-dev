@@ -68,10 +68,12 @@ export async function computeBensFipe(): Promise<BensFipe> {
 
   for (const v of VEICULOS) {
     // Caminho 1 — código FIPE pinado (v2, consulta direta; imune a grafia de
-    // nome). Tenta os sufixos de combustível mais comuns (1=gasolina/flex, 3=diesel).
+    // nome). Sufixos de combustível: 5=Flex (diagnóstico ago/2026 provou que os
+    // dois carros usam "-5"; só "1"/"3" deixava este caminho morto), 1=gasolina,
+    // 3=diesel.
     if (v.codigoFipe) {
       let achou = false;
-      for (const suf of ["1", "3"]) {
+      for (const suf of ["5", "1", "3"]) {
         const val = await j<{ price?: string; model?: string; codeFipe?: string; referenceMonth?: string }>(
           `${BASE_V2}/cars/${encodeURIComponent(v.codigoFipe)}/years/${v.anoModelo}-${suf}`,
         );
