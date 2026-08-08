@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
 import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchHistoricalData } from "@/lib/market-history";
-import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
+import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, mergeTotalReturnHybrid, buildIpcaBenchmark, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 import { calcularSnapshot, calcularRendaFixaBRL, tickerBase } from "@/lib/portfolio";
 import { MARGIN_TAB, computeMarginResumo, aplicarAlavancagem, loadMarginEntriesCanonicas } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 import { readLockedMonthly, lockNewMonths, mergeWithLocked } from "@/lib/twr-monthly-lock";
-import { fetchCdiDiario } from "@/lib/bcb";
+import { fetchCdiDiario, fetchIpcaMensal } from "@/lib/bcb";
 
 function tickerOf(row: Record<string, unknown>): string {
   return String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
@@ -438,7 +438,10 @@ export async function GET(request: Request) {
 
     // CDI real do BCB (SGS série 12) — benchmark CDI e acrual de RF manual.
     // Em falha da API, ambos caem na tabela SELIC embutida (e o aviso aparece).
-    const cdiDiario = await fetchCdiDiario(dates[0], dates[dates.length - 1]);
+    const [cdiDiario, ipcaMensal] = await Promise.all([
+      fetchCdiDiario(dates[0], dates[dates.length - 1]),
+      fetchIpcaMensal(dates[0], dates[dates.length - 1]),
+    ]);
     if (Object.keys(cdiDiario).length === 0) {
       extraErrors.push("API do BCB indisponível — CDI usando tabela SELIC embutida (pode estar defasada)");
     }
@@ -474,6 +477,14 @@ export async function GET(request: Request) {
       const idx = dateIdxMap.get(d);
       return idx != null ? hist.sp500tr[idx] : null;
     });
+    // Benchmarks extras (Nasdaq TR/preço, ouro, ACWI, BTC) — mesmo alinhamento.
+    const alignedBench = (yt: string): (number | null)[] => {
+      const arr = hist.bench?.[yt] ?? [];
+      return dates.map(d => {
+        const idx = dateIdxMap.get(d);
+        return idx != null ? arr[idx] ?? null : null;
+      });
+    };
 
     // Compute PM FX rates from cambio data (investor's average remittance cost)
     const lastFx = (() => {
@@ -608,30 +619,19 @@ export async function GET(request: Request) {
     // o IBOV já é total return, mas o ^GSPC é índice de PREÇO — compará-lo
     // favorecia a carteira em ~1,3–2% a.a. Série híbrida: retornos do ^SP500TR
     // onde a série cobre; datas sem TR encadeiam retornos do ^GSPC (fallback).
-    const sp500MergedPrices: (number | null)[] = (() => {
-      const out: (number | null)[] = new Array(dates.length).fill(null);
-      let level: number | null = null;
-      for (let i = 0; i < dates.length; i++) {
-        const tr = alignedSP500TR[i];
-        const pr = alignedSP500[i];
-        if (level == null) {
-          if (tr != null || pr != null) { level = 100; out[i] = level; }
-          continue;
-        }
-        const trPrev = alignedSP500TR[i - 1];
-        const prPrev = alignedSP500[i - 1];
-        let ret = 0;
-        if (tr != null && trPrev != null && trPrev > 0) ret = tr / trPrev - 1;
-        else if (pr != null && prPrev != null && prPrev > 0) ret = pr / prPrev - 1;
-        level *= 1 + ret;
-        out[i] = level;
-      }
-      return out;
-    })();
+    const sp500MergedPrices = mergeTotalReturnHybrid(alignedSP500TR, alignedSP500);
     if (alignedSP500TR.every(v => v == null)) {
       extraErrors.push("^SP500TR sem dados — benchmark S&P 500 usando índice de preço (^GSPC), que subestima o retorno do índice");
     }
     const sp500UsdPoints = buildPriceBenchmark("SP500", dates, sp500MergedPrices);
+
+    // Nasdaq 100: mesma técnica híbrida (^XNDX total return → ^NDX preço).
+    const ndxMergedPrices = mergeTotalReturnHybrid(alignedBench("^XNDX"), alignedBench("^NDX"));
+    // Séries USD-nativas simples (preço): ouro (GC=F), mundo (ACWI, ETF preço —
+    // dividendos ~2% a.a. fora, caveat exposto na UI) e Bitcoin.
+    const ouroPrices = alignedBench("GC=F");
+    const acwiPrices = alignedBench("ACWI");
+    const btcPrices = alignedBench("BTC-USD");
 
     // S&P 500 in BRL: multiply USD level by USDBRL at each date
     const sp500BrlPrices = sp500MergedPrices.map((p, i) => {
@@ -652,6 +652,26 @@ export async function GET(request: Request) {
     const ibovNorm = normalizeBenchmark(ibovPoints, benchStart);
     const sp500BrlNorm = normalizeBenchmark(sp500BrlPoints, benchStart);
     const sp500UsdNorm = normalizeBenchmark(sp500UsdPoints, benchStart);
+
+    // ── Benchmarks extras, SEMPRE na moeda da visão (nunca o índice cru) ─────
+    // BRL: séries USD-nativas × USDBRL do dia (mesma regra do S&P em BRL).
+    // USD: série nativa direto; os BRL-nativos (CDI/IBOV/IPCA) convertem via
+    // convertBenchToUsd no builder da usdView.
+    const paraBRL = (arr: (number | null)[]): (number | null)[] =>
+      arr.map((p, i) => (p == null ? null : p * fxUsdSeries[i]));
+    const ndxBrlNorm = normalizeBenchmark(buildPriceBenchmark("NDX_BRL", dates, paraBRL(ndxMergedPrices)), benchStart);
+    const ndxUsdNorm = normalizeBenchmark(buildPriceBenchmark("NDX_USD", dates, ndxMergedPrices), benchStart);
+    const ouroBrlNorm = normalizeBenchmark(buildPriceBenchmark("OURO_BRL", dates, paraBRL(ouroPrices)), benchStart);
+    const ouroUsdNorm = normalizeBenchmark(buildPriceBenchmark("OURO_USD", dates, ouroPrices), benchStart);
+    const acwiBrlNorm = normalizeBenchmark(buildPriceBenchmark("ACWI_BRL", dates, paraBRL(acwiPrices)), benchStart);
+    const acwiUsdNorm = normalizeBenchmark(buildPriceBenchmark("ACWI_USD", dates, acwiPrices), benchStart);
+    const btcBrlNorm = normalizeBenchmark(buildPriceBenchmark("BTC_BRL", dates, paraBRL(btcPrices)), benchStart);
+    const btcUsdNorm = normalizeBenchmark(buildPriceBenchmark("BTC_USD", dates, btcPrices), benchStart);
+    // Dólar (USDBRL spot): "e se eu só tivesse segurado dólar?" — só faz
+    // sentido na visão BRL (em USD é identicamente zero).
+    const dolarNorm = normalizeBenchmark(buildPriceBenchmark("USDBRL", dates, fxUsdSeries), benchStart);
+    // IPCA: inflação acumulada (mensal → diária pro-rata). BRL-nativo.
+    const ipcaNorm = normalizeBenchmark(buildIpcaBenchmark(dates, ipcaMensal), benchStart);
 
     const cdiTotal = cdiNorm.length > 0 ? cdiNorm[cdiNorm.length - 1].twr : 0;
     const ibovTotal = ibovNorm.length > 0 ? ibovNorm[ibovNorm.length - 1].twr : 0;
@@ -911,6 +931,7 @@ export async function GET(request: Request) {
 
       const cdiUsd = convertBenchToUsd(cdiNorm);
       const ibovUsd = convertBenchToUsd(ibovNorm);
+      const ipcaUsd = convertBenchToUsd(ipcaNorm);
 
       const sp500Total = sp500UsdNorm.length > 0 ? sp500UsdNorm[sp500UsdNorm.length - 1].twr : 0;
       const cdiUsdTotal = cdiUsd.length > 0 ? cdiUsd[cdiUsd.length - 1].twr : 0;
@@ -920,6 +941,11 @@ export async function GET(request: Request) {
       const sp500Map = new Map(sp500UsdNorm.map(p => [p.date, p.twr]));
       const cdiUsdMap = new Map(cdiUsd.map(p => [p.date, p.twr]));
       const ibovUsdMap = new Map(ibovUsd.map(p => [p.date, p.twr]));
+      const ndxUsdMap = new Map(ndxUsdNorm.map(p => [p.date, p.twr]));
+      const acwiUsdMap = new Map(acwiUsdNorm.map(p => [p.date, p.twr]));
+      const ouroUsdMap = new Map(ouroUsdNorm.map(p => [p.date, p.twr]));
+      const btcUsdMap = new Map(btcUsdNorm.map(p => [p.date, p.twr]));
+      const ipcaUsdMap = new Map(ipcaUsd.map(p => [p.date, p.twr]));
 
       const mwrDiarioUsd = calcularMWRDiario(pts);
 
@@ -963,6 +989,13 @@ export async function GET(request: Request) {
           sp500_twr: sp500Map.get(p.date) ?? null,
           cdi_twr: cdiUsdMap.get(p.date) ?? null,
           ibov_twr: ibovUsdMap.get(p.date) ?? null,
+          ndx_twr: ndxUsdMap.get(p.date) ?? null,
+          acwi_twr: acwiUsdMap.get(p.date) ?? null,
+          ouro_twr: ouroUsdMap.get(p.date) ?? null,
+          btc_twr: btcUsdMap.get(p.date) ?? null,
+          // Dólar vs. dólar é identicamente zero — sem linha na visão USD.
+          dolar_twr: null,
+          ipca_twr: ipcaUsdMap.get(p.date) ?? null,
           fx_twr,
           ativo_twr,
           ativo_mwr,
@@ -1173,6 +1206,12 @@ export async function GET(request: Request) {
         const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
+        const ndxMap = new Map(ndxBrlNorm.map(p => [p.date, p.twr]));
+        const acwiMap = new Map(acwiBrlNorm.map(p => [p.date, p.twr]));
+        const ouroMap = new Map(ouroBrlNorm.map(p => [p.date, p.twr]));
+        const btcMap = new Map(btcBrlNorm.map(p => [p.date, p.twr]));
+        const dolarMap = new Map(dolarNorm.map(p => [p.date, p.twr]));
+        const ipcaMap = new Map(ipcaNorm.map(p => [p.date, p.twr]));
         const mwrDiario = calcularMWRDiario(meaningfulPoints);
 
         const merged = meaningfulPoints.map(p => {
@@ -1197,6 +1236,12 @@ export async function GET(request: Request) {
             cdi_twr: cdiMap.get(p.date) ?? null,
             ibov_twr: ibovMap.get(p.date) ?? null,
             sp500_twr: sp500Map.get(p.date) ?? null,
+            ndx_twr: ndxMap.get(p.date) ?? null,
+            acwi_twr: acwiMap.get(p.date) ?? null,
+            ouro_twr: ouroMap.get(p.date) ?? null,
+            btc_twr: btcMap.get(p.date) ?? null,
+            dolar_twr: dolarMap.get(p.date) ?? null,
+            ipca_twr: ipcaMap.get(p.date) ?? null,
             fx_twr,
             ativo_twr,
             ativo_mwr,

@@ -1,30 +1,35 @@
 // Banco Central do Brasil — API de séries temporais SGS.
 // CDI diário = série 12 (% ao dia, somente dias úteis).
+// IPCA mensal = série 433 (% ao mês) — benchmark de inflação da Performance.
 // Usado pelo benchmark CDI e pelo acrual de renda fixa manual — substitui a
 // tabela SELIC hardcoded, que precisava de manutenção manual a cada COPOM.
 
 const SGS_CDI = 12;
+const SGS_IPCA = 433;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
-let _cache: { key: string; data: Record<string, number>; at: number } | null = null;
+const _cache = new Map<string, { data: Record<string, number>; at: number }>();
 
 function toBrDate(ymd: string): string {
   const [y, m, d] = ymd.split("-");
   return `${d}/${m}/${y}`;
 }
 
-// Retorna { "yyyy-mm-dd": taxa_decimal_ao_dia }. Em falha de rede/API retorna
-// {} — o consumidor usa o fallback (tabela SELIC embutida) e reporta o aviso.
-export async function fetchCdiDiario(
+// Busca uma série SGS no intervalo, fatiada em janelas de ~10 anos (limite da
+// API para séries diárias). Retorna { "yyyy-mm-dd": valor_decimal } (valor da
+// API é %, dividido por 100). Em falha — inclusive parcial — retorna {}: uma
+// série com buraco acruaria 0% nesses dias, pior que o fallback completo.
+async function fetchSgsSerie(
+  serie: number,
   startDate: string,
   endDate: string,
 ): Promise<Record<string, number>> {
-  const key = `${startDate}:${endDate}`;
-  if (_cache && _cache.key === key && Date.now() - _cache.at < TTL_MS) return _cache.data;
+  const key = `${serie}:${startDate}:${endDate}`;
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
 
   const out: Record<string, number> = {};
   try {
-    // Séries diárias do SGS aceitam no máximo 10 anos por requisição — fatiar.
     let chunkStart = new Date(startDate + "T12:00:00Z");
     const end = new Date(endDate + "T12:00:00Z");
     while (chunkStart <= end) {
@@ -32,7 +37,7 @@ export async function fetchCdiDiario(
       chunkEnd.setUTCFullYear(chunkEnd.getUTCFullYear() + 9);
       const effEnd = chunkEnd < end ? chunkEnd : end;
       const url =
-        `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${SGS_CDI}/dados?formato=json` +
+        `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${serie}/dados?formato=json` +
         `&dataInicial=${toBrDate(chunkStart.toISOString().slice(0, 10))}` +
         `&dataFinal=${toBrDate(effEnd.toISOString().slice(0, 10))}`;
 
@@ -54,11 +59,30 @@ export async function fetchCdiDiario(
       chunkStart.setUTCDate(chunkStart.getUTCDate() + 1);
     }
   } catch {
-    // Falha parcial invalida tudo: CDI faltando em parte do período acruaria
-    // 0% nesses dias — pior que o fallback completo pela tabela SELIC.
     return {};
   }
 
-  if (Object.keys(out).length > 0) _cache = { key, data: out, at: Date.now() };
+  if (Object.keys(out).length > 0) _cache.set(key, { data: out, at: Date.now() });
+  return out;
+}
+
+// Retorna { "yyyy-mm-dd": taxa_decimal_ao_dia }. Em falha de rede/API retorna
+// {} — o consumidor usa o fallback (tabela SELIC embutida) e reporta o aviso.
+export async function fetchCdiDiario(
+  startDate: string,
+  endDate: string,
+): Promise<Record<string, number>> {
+  return fetchSgsSerie(SGS_CDI, startDate, endDate);
+}
+
+// IPCA mensal → { "yyyy-mm": taxa_decimal_do_mês }. A série vem datada no dia
+// 1º de cada mês; a chave é o mês. Em falha retorna {} (benchmark fica vazio).
+export async function fetchIpcaMensal(
+  startDate: string,
+  endDate: string,
+): Promise<Record<string, number>> {
+  const porDia = await fetchSgsSerie(SGS_IPCA, startDate, endDate);
+  const out: Record<string, number> = {};
+  for (const [date, taxa] of Object.entries(porDia)) out[date.slice(0, 7)] = taxa;
   return out;
 }

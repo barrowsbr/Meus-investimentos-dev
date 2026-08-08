@@ -48,7 +48,7 @@ export interface Summary {
   troughTwr?: number;
 }
 
-export interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
+export interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; ndx_twr?: number | null; acwi_twr?: number | null; ouro_twr?: number | null; btc_twr?: number | null; dolar_twr?: number | null; ipca_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
 export interface DrawdownPoint { date: string; drawdown: number; nav: number }
 export interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 export interface MonthlyReturn { month: string; return_pct: number }
@@ -115,7 +115,34 @@ export interface RiscoRetornoItem { ticker: string; setor: string; macro: string
 // ── Tipos derivados na página (compartilhados com os componentes) ────────────
 
 // Linha do gráfico principal (chartData — chart mapeado em % na página)
-export interface ChartRow { date: string; fullDate: string; portfolio: number; mwr: number | null; cdi: number | null; ibov: number | null; sp500: number | null; nav: number; ret: number | null; fx: number | null; ativo: number | null; ativoMwr: number | null }
+export interface ChartRow { date: string; fullDate: string; portfolio: number; mwr: number | null; cdi: number | null; ibov: number | null; sp500: number | null; ndx: number | null; acwi: number | null; ouro: number | null; btc: number | null; dolar: number | null; ipca: number | null; nav: number; ret: number | null; fx: number | null; ativo: number | null; ativoMwr: number | null }
+
+// ── Catálogo de benchmarks do gráfico (fonte única da legenda/picker) ────────
+// Todos exibidos SEMPRE na moeda da visão (BRL: índices USD × câmbio do dia;
+// USD: série nativa, e CDI/IBOV/IPCA convertidos dia a dia) — nunca o índice
+// cru. `brlOnly` some na visão USD (dólar vs dólar é zero por definição).
+export type BenchKey = "cdi" | "ibov" | "dolar" | "ipca" | "sp500" | "ndx" | "acwi" | "ouro" | "btc";
+export interface BenchMeta {
+  key: BenchKey;
+  label: string;
+  grupo: "Brasil" | "Mundo";
+  dark: string;   // cor da linha nos temas escuros
+  light: string;  // cor no tema creme
+  nota: string;   // explicação curta (tooltip/linha do picker)
+  brlOnly?: boolean;
+}
+export const BENCHES: BenchMeta[] = [
+  { key: "cdi",   label: "CDI",        grupo: "Brasil", dark: "#6366f1", light: "#1E40AF", nota: "Taxa livre de risco acumulada (bruta de IR, como o TWR)" },
+  { key: "ibov",  label: "IBOV",       grupo: "Brasil", dark: "#f59e0b", light: "#9A3412", nota: "Ibovespa (retorno total, dividendos inclusos)" },
+  { key: "dolar", label: "Dólar",      grupo: "Brasil", dark: "#84cc16", light: "#3F6212", nota: "USD/BRL spot — e se você só tivesse segurado dólar?", brlOnly: true },
+  { key: "ipca",  label: "IPCA",       grupo: "Brasil", dark: "#ef4444", light: "#B91C1C", nota: "Inflação oficial (IBGE/BCB) — a régua mínima do ganho real" },
+  { key: "sp500", label: "S&P 500",    grupo: "Mundo",  dark: "#ec4899", light: "#9D174D", nota: "500 maiores dos EUA (retorno total com dividendos)" },
+  { key: "ndx",   label: "Nasdaq 100", grupo: "Mundo",  dark: "#22d3ee", light: "#0E7490", nota: "100 maiores da Nasdaq — tech pesada (retorno total)" },
+  { key: "acwi",  label: "Mundo",      grupo: "Mundo",  dark: "#e879f9", light: "#86198F", nota: "MSCI ACWI (ETF, ~47 países) — só preço, dividendos ~2% a.a. fora" },
+  { key: "ouro",  label: "Ouro",       grupo: "Mundo",  dark: "#fde047", light: "#854D0E", nota: "Ouro (COMEX) — o porto-seguro clássico" },
+  { key: "btc",   label: "Bitcoin",    grupo: "Mundo",  dark: "#14b8a6", light: "#0F766E", nota: "BTC — atenção: a escala do eixo muda com ele ligado" },
+];
+export const benchColor = (b: BenchMeta, isLight: boolean): string => (isLight ? b.light : b.dark);
 
 // Paleta canônica das linhas do gráfico — hex sólido (necessário p/ os
 // swatches da legenda-filtro, que concatenam alpha). Uma cor por série, sem

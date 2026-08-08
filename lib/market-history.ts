@@ -16,6 +16,9 @@ export interface HistoricalData {
   // mede retorno total; comparar com índice de preço (^GSPC) favoreceria a
   // carteira em ~1,3–2% a.a. (dividendos do índice ignorados).
   sp500tr: (number | null)[];
+  // Benchmarks adicionais (Nasdaq 100 preço+TR, ouro, ACWI, BTC), indexados
+  // pelo ticker Yahoo, alinhados a `dates` como ibov/sp500.
+  bench: Record<string, (number | null)[]>;
   errors: string[];
 }
 
@@ -23,6 +26,14 @@ const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"] as const;
 const IBOV_TICKER = "^BVSP";
 const SP500_TICKER = "^GSPC";
 const SP500TR_TICKER = "^SP500TR";
+// Benchmarks extras do gráfico de Performance: Nasdaq 100 (^XNDX = total
+// return; ^NDX = preço, fallback histórico), ouro (COMEX), MSCI ACWI (ETF,
+// proxy de "mundo" — só preço, dividendos ~2% a.a. ficam de fora) e Bitcoin.
+export const BENCH_TICKERS = ["^NDX", "^XNDX", "GC=F", "ACWI", "BTC-USD"] as const;
+// Cripto negocia 7 dias/semana. O grid de datas do motor é de DIAS ÚTEIS —
+// deixar o BTC criar linhas de sábado/domingo mudaria o grid do TWR inteiro.
+// Tickers "passivos de grid" só anexam preço a datas que já existem.
+const GRID_PASSIVE = new Set<string>(["BTC-USD"]);
 const FX_DEFAULT: FxRates = { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
 
 // ─── Yahoo range helper ───────────────────────────────────────────────────────
@@ -174,7 +185,7 @@ export async function fetchHistoricalData(
     if (!tickerMap.has(yt)) tickerMap.set(yt, t.ticker);
   }
 
-  const allYahoo = [...tickerMap.keys(), ...FX_TICKERS, IBOV_TICKER, SP500_TICKER, SP500TR_TICKER];
+  const allYahoo = [...tickerMap.keys(), ...FX_TICKERS, IBOV_TICKER, SP500_TICKER, SP500TR_TICKER, ...BENCH_TICKERS];
 
   // ── Golden source (db_cotacoes) — primary, deterministic ──
   let golden: Awaited<ReturnType<typeof import("./db-cotacoes").readGoldenSource>> | null = null;
@@ -243,6 +254,7 @@ export async function fetchHistoricalData(
   //    beyond golden coverage (to avoid mixing sources on the same date).
   //    For dates within golden range, Yahoo tickers get added to existing dates
   //    so the date grid stays deterministic.
+  const passiveFetched: Array<{ yt: string; rows: { date: string; price: number }[] }> = [];
   for (const res of fetched) {
     if (res.status !== "fulfilled") continue;
     const { yt, rows } = res.value;
@@ -250,6 +262,7 @@ export async function fetchHistoricalData(
       errors.push(`Sem dados para ${yt}`);
       continue;
     }
+    if (GRID_PASSIVE.has(yt)) { passiveFetched.push({ yt, rows }); continue; }
     for (const { date, price } of rows) {
       if (lastGoldenDate && date <= lastGoldenDate && !goldenDateSet.has(date)) {
         continue;
@@ -259,10 +272,18 @@ export async function fetchHistoricalData(
     }
   }
 
+  // Passivos de grid (cripto, 24/7): só anexam preço a datas JÁ existentes —
+  // nunca criam linhas novas (fim de semana entraria no grid do TWR).
+  for (const { yt, rows } of passiveFetched) {
+    for (const { date, price } of rows) {
+      rawByDate.get(date)?.set(yt, price);
+    }
+  }
+
   const allDates = [...rawByDate.keys()].sort();
 
   if (allDates.length === 0) {
-    return { dates: [], prices: {}, fxHistory: {}, ibov: [], sp500: [], sp500tr: [], errors: ["Todas as fontes falharam: " + errors.join("; ")] };
+    return { dates: [], prices: {}, fxHistory: {}, ibov: [], sp500: [], sp500tr: [], bench: {}, errors: ["Todas as fontes falharam: " + errors.join("; ")] };
   }
 
   const n = allDates.length;
@@ -274,6 +295,8 @@ export async function fetchHistoricalData(
   const ibovArr: (number | null)[] = new Array(n).fill(null);
   const sp500Arr: (number | null)[] = new Array(n).fill(null);
   const sp500trArr: (number | null)[] = new Array(n).fill(null);
+  const benchArrs: Record<string, (number | null)[]> = {};
+  for (const bt of BENCH_TICKERS) benchArrs[bt] = new Array(n).fill(null);
 
   for (let i = 0; i < n; i++) {
     const date = allDates[i];
@@ -289,6 +312,7 @@ export async function fetchHistoricalData(
     ibovArr[i] = lastKnown.get(IBOV_TICKER) ?? null;
     sp500Arr[i] = lastKnown.get(SP500_TICKER) ?? null;
     sp500trArr[i] = lastKnown.get(SP500TR_TICKER) ?? null;
+    for (const bt of BENCH_TICKERS) benchArrs[bt][i] = lastKnown.get(bt) ?? null;
 
     for (const [yt, origTicker] of tickerMap) {
       prices[origTicker][i] = lastKnown.get(yt) ?? null;
@@ -319,5 +343,5 @@ export async function fetchHistoricalData(
     }
   }
 
-  return { dates: allDates, prices, fxHistory, ibov: ibovArr, sp500: sp500Arr, sp500tr: sp500trArr, errors };
+  return { dates: allDates, prices, fxHistory, ibov: ibovArr, sp500: sp500Arr, sp500tr: sp500trArr, bench: benchArrs, errors };
 }

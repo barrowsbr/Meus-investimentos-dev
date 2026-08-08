@@ -12,12 +12,13 @@ import { TrendingUp, Calendar, MousePointerClick } from "lucide-react";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import {
   TOOLTIP_STYLE, formatDate, formatDuracao,
+  BENCHES, benchColor, type BenchKey,
   type Summary, type ChartRow, type ChartPalette,
 } from "@/components/performance/shared";
 
 export function RetornoChart({
   s, isLight, chartData, C,
-  showTwr, showMwr, showCdi, showIbov, showSp500, showFxDecomp,
+  showTwr, showMwr, benchAtivos, showFxDecomp,
   carteiraMode, setCarteiraMode, carteiraDatas, setCarteiraDatas, pickCarteiraDate,
 }: {
   s: Summary;
@@ -26,9 +27,7 @@ export function RetornoChart({
   C: ChartPalette;
   showTwr: boolean;
   showMwr: boolean;
-  showCdi: boolean;
-  showIbov: boolean;
-  showSp500: boolean;
+  benchAtivos: BenchKey[];
   showFxDecomp: boolean;
   carteiraMode: boolean;
   setCarteiraMode: React.Dispatch<React.SetStateAction<boolean>>;
@@ -125,27 +124,23 @@ export function RetornoChart({
             <YAxis tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
               tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
             <Tooltip contentStyle={isLight ? { background: "#FDFAF1", border: "1px solid rgba(96,72,40,0.2)", borderRadius: 10, color: "#2B2117", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-              formatter={(v: number, name: string) => [
-                `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                name === "portfolio" ? "Carteira (TWR)" : name === "mwr" ? "Carteira (MWR)" : name === "ativo" ? "Ativo — TWR (moeda local)" : name === "ativoMwr" ? "Ativo — MWR (moeda local)" : name === "fx" ? "Efeito câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
-              ]}
+              formatter={(v: number, name: string) => {
+                const carteira: Record<string, string> = {
+                  portfolio: "Carteira (TWR)", mwr: "Carteira (MWR)",
+                  ativo: "Ativo — TWR (moeda local)", ativoMwr: "Ativo — MWR (moeda local)",
+                  fx: "Efeito câmbio",
+                };
+                const bench = BENCHES.find(b => b.key === name);
+                return [`${v > 0 ? "+" : ""}${v.toFixed(2)}%`, carteira[name] ?? bench?.label ?? name];
+              }}
               labelFormatter={label => `Data: ${label}`} />
-            {/* Benchmarks primeiro (camada de trás), carteira por cima. */}
-            {/* CDI */}
-            {showCdi && (
-              <Area type="monotone" dataKey="cdi" name="cdi" stroke={C.cdi} fill="none"
-                strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
-            )}
-            {/* IBOV */}
-            {showIbov && (
-              <Area type="monotone" dataKey="ibov" name="ibov" stroke={C.ibov} fill="none"
-                strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
-            )}
-            {/* S&P 500 */}
-            {showSp500 && (
-              <Area type="monotone" dataKey="sp500" name="sp500" stroke={C.sp500} fill="none"
-                strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
-            )}
+            {/* Benchmarks primeiro (camada de trás), carteira por cima — todos
+                do catálogo BENCHES, na moeda da visão. */}
+            {BENCHES.filter(b => benchAtivos.includes(b.key)).map(b => (
+              <Area key={b.key} type="monotone" dataKey={b.key} name={b.key}
+                stroke={benchColor(b, isLight)} fill="none"
+                strokeWidth={1.4} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
+            ))}
             {/* Decomposição câmbio: ativo (do TWR) + efeito cambial (comum) */}
             {showFxDecomp && showTwr && (
               <Area type="monotone" dataKey="ativo" name="ativo" stroke={C.ativo} fill="none"

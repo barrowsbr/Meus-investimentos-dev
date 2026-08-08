@@ -1344,6 +1344,64 @@ export function buildCDIBenchmark(dates: string[], cdiDiario?: Record<string, nu
   });
 }
 
+// ─── Total-return híbrido (TR onde existe, índice de preço no resto) ─────────
+// A carteira mede retorno total; comparar com índice de PREÇO subestima o
+// benchmark (dividendos ignorados). Onde a série TR cobre, encadeia retornos
+// dela; datas sem TR encadeiam retornos da série de preço. Usado pelo S&P 500
+// (^SP500TR → ^GSPC) e pelo Nasdaq 100 (^XNDX → ^NDX).
+export function mergeTotalReturnHybrid(
+  tr: (number | null)[],
+  price: (number | null)[],
+): (number | null)[] {
+  const n = Math.max(tr.length, price.length);
+  const out: (number | null)[] = new Array(n).fill(null);
+  let level: number | null = null;
+  for (let i = 0; i < n; i++) {
+    const t = tr[i] ?? null;
+    const p = price[i] ?? null;
+    if (level == null) {
+      if (t != null || p != null) { level = 100; out[i] = level; }
+      continue;
+    }
+    const tPrev = tr[i - 1] ?? null;
+    const pPrev = price[i - 1] ?? null;
+    let ret = 0;
+    if (t != null && tPrev != null && tPrev > 0) ret = t / tPrev - 1;
+    else if (p != null && pPrev != null && pPrev > 0) ret = p / pPrev - 1;
+    level *= 1 + ret;
+    out[i] = level;
+  }
+  return out;
+}
+
+// ─── IPCA benchmark (série mensal do BCB → curva diária) ─────────────────────
+// O IPCA é mensal; o grid do gráfico é diário. Cada mês com taxa publicada é
+// distribuído pro-rata pelos dias úteis do grid daquele mês (juros compostos:
+// (1+m)^(1/n) por dia), evitando "escada". Mês sem taxa (o corrente, ainda não
+// publicado) fica flat — honesto, sem extrapolação.
+export function buildIpcaBenchmark(
+  dates: string[],
+  mensal: Record<string, number>, // "yyyy-mm" → taxa decimal do mês (0.005 = 0,5%)
+): TwrDayPoint[] {
+  const diasPorMes = new Map<string, number>();
+  for (const d of dates) {
+    const m = d.slice(0, 7);
+    diasPorMes.set(m, (diasPorMes.get(m) ?? 0) + 1);
+  }
+  let cum = 1.0;
+  return dates.map(date => {
+    const m = date.slice(0, 7);
+    const taxa = mensal[m];
+    let ret = 0;
+    if (taxa != null && isFinite(taxa)) {
+      const n = diasPorMes.get(m) ?? 21;
+      ret = Math.pow(1 + taxa, 1 / n) - 1;
+    }
+    cum *= 1 + ret;
+    return { date, nav: cum, flow: 0, income: 0, ret, twr: cum - 1, forceZero: false };
+  });
+}
+
 // ─── IBOV benchmark builder (from raw price array) ────────────────────────────
 
 export function buildPriceBenchmark(
