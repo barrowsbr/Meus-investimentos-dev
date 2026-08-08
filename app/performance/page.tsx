@@ -8,7 +8,7 @@ import CarteiraNaDataDrawer from "@/components/performance/CarteiraNaDataDrawer"
 import PerfHero from "@/components/performance/PerfHero";
 import { RetornoChart, NavChart } from "@/components/performance/OverviewCharts";
 import { ResumoPopup, TwrMwrPopup, MoedaPopup } from "@/components/performance/PerfPopups";
-import { SeriesToggle, LegendGroupLabel } from "@/components/performance/LegendControls";
+import { SeriesToggle, LegendGroupLabel, BenchmarkPicker } from "@/components/performance/LegendControls";
 import DrawdownTab from "@/components/performance/DrawdownTab";
 import PrevisoesTab from "@/components/performance/PrevisoesTab";
 import MonthlyTab from "@/components/performance/MonthlyTab";
@@ -16,6 +16,7 @@ import RentabilidadeTab from "@/components/performance/RentabilidadeTab";
 import { PRED_API, PRED_METHODS, type PredResult } from "@/components/performance/PredicaoCharts";
 import {
   formatDate, formatDateShort, formatDuracao,
+  BENCHES, benchColor, type BenchKey,
   type PerformanceResponse, type DecomposicaoResponse,
   type RentabilidadeItem, type RiscoRetornoItem,
 } from "@/components/performance/shared";
@@ -80,10 +81,33 @@ export default function PerformancePage() {
   const [customTo, setCustomTo] = useState("");
   const [showTwr, setShowTwr] = useState(true);
   const [showMwr, setShowMwr] = useState(false);
-  const [showCdi, setShowCdi] = useState(true);
-  const [showIbov, setShowIbov] = useState(true);
-  const [showSp500, setShowSp500] = useState(false);
+  // Benchmarks ativos no gráfico — seleção persistida (localStorage). Default
+  // = comportamento histórico (CDI + IBOV ligados).
+  const [benchAtivos, setBenchAtivos] = useState<BenchKey[]>(() => {
+    if (typeof window === "undefined") return ["cdi", "ibov"];
+    try {
+      const raw = localStorage.getItem("perf_benchmarks_v1");
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          const validos = arr.filter((k): k is BenchKey => BENCHES.some(b => b.key === k));
+          if (validos.length > 0 || arr.length === 0) return validos;
+        }
+      }
+    } catch { /* localStorage indisponível */ }
+    return ["cdi", "ibov"];
+  });
+  useEffect(() => {
+    try { localStorage.setItem("perf_benchmarks_v1", JSON.stringify(benchAtivos)); } catch { /* idem */ }
+  }, [benchAtivos]);
   const [showFxDecomp, setShowFxDecomp] = useState(false);
+  const toggleBench = (key: BenchKey) => {
+    // Ligar um benchmark sai do modo decomposição (são leituras excludentes);
+    // a seleção NUNCA é apagada pelo modo câmbio — só fica oculta enquanto ele
+    // está ativo.
+    setShowFxDecomp(false);
+    setBenchAtivos(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
+  };
   // Carteira nesta data: só arma o clique quando o modo está ativo (senão
   // qualquer clique no gráfico abriria o painel).
   const [carteiraMode, setCarteiraMode] = useState(false);
@@ -240,6 +264,12 @@ export default function PerformancePage() {
       cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
       ibov: p.ibov_twr != null ? +(p.ibov_twr * 100).toFixed(2) : null,
       sp500: p.sp500_twr != null ? +(p.sp500_twr * 100).toFixed(2) : null,
+      ndx: p.ndx_twr != null ? +(p.ndx_twr * 100).toFixed(2) : null,
+      acwi: p.acwi_twr != null ? +(p.acwi_twr * 100).toFixed(2) : null,
+      ouro: p.ouro_twr != null ? +(p.ouro_twr * 100).toFixed(2) : null,
+      btc: p.btc_twr != null ? +(p.btc_twr * 100).toFixed(2) : null,
+      dolar: p.dolar_twr != null ? +(p.dolar_twr * 100).toFixed(2) : null,
+      ipca: p.ipca_twr != null ? +(p.ipca_twr * 100).toFixed(2) : null,
       nav: p.nav,
       ret: p.ret != null ? +(p.ret * 100).toFixed(2) : null,
       fx: p.fx_twr != null ? +(p.fx_twr * 100).toFixed(2) : null,
@@ -247,6 +277,19 @@ export default function PerformancePage() {
       ativoMwr: p.ativo_mwr != null ? +(p.ativo_mwr * 100).toFixed(2) : null,
     }));
   }, [activeChart]);
+
+  // Último valor não-nulo de cada benchmark (% acumulado no período) — exibido
+  // nas linhas do picker, para escolher a régua já vendo o resultado dela.
+  const totaisBench = useMemo(() => {
+    const out: Partial<Record<BenchKey, number>> = {};
+    for (const b of BENCHES) {
+      for (let i = chartData.length - 1; i >= 0; i--) {
+        const v = chartData[i][b.key];
+        if (v != null) { out[b.key] = v; break; }
+      }
+    }
+    return out;
+  }, [chartData]);
 
   const drawdownData = useMemo(() =>
     (data?.drawdownData ?? []).map(d => ({ date: formatDateShort(d.date), drawdown: d.drawdown })),
@@ -643,34 +686,28 @@ export default function PerformancePage() {
 
               <span style={{ width: 1, height: 18, background: "var(--line-strong)" }} />
 
-              {/* Comparar: benchmarks individuais — linhas tracejadas */}
+              {/* Comparar: picker de benchmarks — um botão só, popover com
+                  Brasil/Mundo, sempre na moeda da visão. Não encavala botões. */}
               <div className="flex items-center gap-1">
                 <LegendGroupLabel>Comparar</LegendGroupLabel>
-                <SeriesToggle
-                  active={showCdi} color={C.cdi} label="CDI" dashed
-                  title="Taxa livre de risco (CDI acumulado no período)."
-                  onClick={() => { setShowFxDecomp(false); setShowCdi(v => !v); }} />
-                <SeriesToggle
-                  active={showIbov} color={C.ibov} label="IBOV" dashed
-                  title="Ibovespa acumulado no período."
-                  onClick={() => { setShowFxDecomp(false); setShowIbov(v => !v); }} />
-                <SeriesToggle
-                  active={showSp500} color={C.sp500} label="S&P 500" dashed
-                  title="S&P 500 acumulado no período."
-                  onClick={() => { setShowFxDecomp(false); setShowSp500(v => !v); }} />
+                <BenchmarkPicker
+                  ativos={benchAtivos}
+                  onToggle={toggleBench}
+                  isLight={isLight}
+                  isUsd={isUsd}
+                  totais={totaisBench}
+                  dimmed={showFxDecomp}
+                />
               </div>
 
               <span style={{ width: 1, height: 18, background: "var(--line-strong)" }} />
 
-              {/* Decompor: modo câmbio (ativo vs moeda) — exclui benchmarks */}
+              {/* Decompor: modo câmbio (ativo vs moeda) — oculta benchmarks
+                  enquanto ativo (a seleção fica guardada, não é apagada) */}
               <SeriesToggle
                 active={showFxDecomp} color={C.fx} label="Câmbio" icon={DollarSign}
-                title="Decompõe o retorno em efeito do ativo (moeda local) vs efeito do câmbio. Substitui os benchmarks enquanto ativo."
-                onClick={() => setShowFxDecomp(v => {
-                  const nv = !v;
-                  if (nv) { setShowCdi(false); setShowIbov(false); setShowSp500(false); }
-                  return nv;
-                })} />
+                title="Decompõe o retorno em efeito do ativo (moeda local) vs efeito do câmbio. Oculta os benchmarks enquanto ativo."
+                onClick={() => setShowFxDecomp(v => !v)} />
             </>
           )}
           <button onClick={handleRefresh} title="Recarregar" className="text-zinc-600 hover:text-zinc-400 transition-colors">
@@ -692,9 +729,7 @@ export default function PerformancePage() {
             C={C}
             showTwr={showTwr}
             showMwr={showMwr}
-            showCdi={showCdi}
-            showIbov={showIbov}
-            showSp500={showSp500}
+            benchAtivos={showFxDecomp ? [] : benchAtivos}
             showFxDecomp={showFxDecomp}
             carteiraMode={carteiraMode}
             setCarteiraMode={setCarteiraMode}

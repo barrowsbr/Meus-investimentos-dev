@@ -7,7 +7,10 @@ import { identificarSetor, isRendaFixaManual } from "./sectors";
 const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
 // ^SP500TR = S&P 500 Total Return (com dividendos) — benchmark correto para
 // carteira que mede retorno total. ^GSPC mantido como fallback histórico.
-const INDEX_TICKERS = ["^BVSP", "^GSPC", "^SP500TR"];
+// ^XNDX/^NDX = Nasdaq 100 (TR + preço), GC=F = ouro, ACWI = MSCI ACWI (mundo),
+// BTC-USD = Bitcoin — benchmarks extras do gráfico de Performance. A guarda de
+// fim de semana abaixo mantém o BTC (24/7) no grid de dias úteis do golden.
+const INDEX_TICKERS = ["^BVSP", "^GSPC", "^SP500TR", "^NDX", "^XNDX", "GC=F", "ACWI", "BTC-USD"];
 
 // Fim de semana: bolsas fechadas. Qualquer preço de ação/ETF/FII/índice/FX num
 // sábado/domingo é lixo do Yahoo (preço embaralhado). Só cripto negocia 24/7.
