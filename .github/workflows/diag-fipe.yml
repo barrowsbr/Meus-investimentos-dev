@@ -1,0 +1,46 @@
+# Diagnóstico TEMPORÁRIO — rodada 3: a API do SITE OFICIAL da FIPE
+# (veiculos.fipe.org.br) libera referências antigas de graça? Se sim, dá para
+# fazer o backfill do histórico sem pagar. Apagar depois.
+name: diag-fipe
+
+on:
+  push:
+    paths: [".github/workflows/diag-fipe.yml"]
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: fipe oficial — referencias e valores antigos
+        run: |
+          H=(-H "Content-Type: application/json" -H "Referer: https://veiculos.fipe.org.br/" -H "User-Agent: Mozilla/5.0")
+          echo "=== tabelas de referência (3 primeiras + ~2020) ==="
+          curl -sS -m 20 "${H[@]}" -X POST "https://veiculos.fipe.org.br/api/veiculos/ConsultarTabelaDeReferencia" -d '{}' -o /tmp/refs -w "HTTP %{http_code}\n"
+          python3 -c "
+          import json
+          refs=json.load(open('/tmp/refs'))
+          print('total:',len(refs)); print(refs[:3]); print([r for r in refs if '2020' in r['Mes']][:3]); print([r for r in refs if '2024' in r['Mes']][:2])
+          "
+          consulta() { # ref, codigo, ano, comb
+            curl -sS -m 20 "${H[@]}" -X POST "https://veiculos.fipe.org.br/api/veiculos/ConsultarValorComTodosParametros" \
+              -d "{\"codigoTabelaReferencia\":$1,\"codigoTipoVeiculo\":1,\"anoModelo\":$3,\"codigoTipoCombustivel\":$4,\"tipoConsulta\":\"codigo\",\"modeloCodigoExterno\":\"$2\"}" \
+              -w "  <- ref=$1 comb=$4 HTTP %{http_code}\n"
+            sleep 1.2
+          }
+          echo "=== Onix 004473-3/2020 — ref atual (336) comb 1 ==="
+          consulta 336 "004473-3" 2020 1
+          echo "=== Onix — ref ~ago/2024 (312?) comb 1 ==="
+          REF2024=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'agosto/2024' in r['Mes']][0])")
+          echo "ref ago/2024 = $REF2024"
+          consulta "$REF2024" "004473-3" 2020 1
+          echo "=== Onix — ref ~jan/2021 comb 1 ==="
+          REF2021=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'janeiro/2021' in r['Mes']][0])")
+          echo "ref jan/2021 = $REF2021"
+          consulta "$REF2021" "004473-3" 2020 1
+          echo "=== Onix — ref jan/2019 (antes do ano-modelo 2020 existir — deve dar nadaencontrado) ==="
+          REF2019=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'janeiro/2019' in r['Mes']][0])")
+          consulta "$REF2019" "004473-3" 2020 1
+          echo "=== T-Cross 005508-5/2025 — ref ~dez/2024 comb 1 ==="
+          REFD24=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'dezembro/2024' in r['Mes']][0])")
+          consulta "$REFD24" "005508-5" 2025 1
