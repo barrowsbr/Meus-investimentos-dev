@@ -1,6 +1,6 @@
-# Diagnóstico TEMPORÁRIO — rodada 3: a API do SITE OFICIAL da FIPE
-# (veiculos.fipe.org.br) libera referências antigas de graça? Se sim, dá para
-# fazer o backfill do histórico sem pagar. Apagar depois.
+# Diagnóstico TEMPORÁRIO — rodada 4: o 403 da FIPE oficial é por falta de
+# headers de navegador ou bloqueio de IP de datacenter? E o plano C (sites que
+# republicam histórico FIPE) responde para robô? Apagar depois.
 name: diag-fipe
 
 on:
@@ -10,37 +10,27 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 4
     steps:
-      - name: fipe oficial — referencias e valores antigos
+      - name: fipe oficial com headers completos
         run: |
-          H=(-H "Content-Type: application/json" -H "Referer: https://veiculos.fipe.org.br/" -H "User-Agent: Mozilla/5.0")
-          echo "=== tabelas de referência (3 primeiras + ~2020) ==="
-          curl -sS -m 20 "${H[@]}" -X POST "https://veiculos.fipe.org.br/api/veiculos/ConsultarTabelaDeReferencia" -d '{}' -o /tmp/refs -w "HTTP %{http_code}\n"
-          python3 -c "
-          import json
-          refs=json.load(open('/tmp/refs'))
-          print('total:',len(refs)); print(refs[:3]); print([r for r in refs if '2020' in r['Mes']][:3]); print([r for r in refs if '2024' in r['Mes']][:2])
-          "
-          consulta() { # ref, codigo, ano, comb
-            curl -sS -m 20 "${H[@]}" -X POST "https://veiculos.fipe.org.br/api/veiculos/ConsultarValorComTodosParametros" \
-              -d "{\"codigoTabelaReferencia\":$1,\"codigoTipoVeiculo\":1,\"anoModelo\":$3,\"codigoTipoCombustivel\":$4,\"tipoConsulta\":\"codigo\",\"modeloCodigoExterno\":\"$2\"}" \
-              -w "  <- ref=$1 comb=$4 HTTP %{http_code}\n"
-            sleep 1.2
-          }
-          echo "=== Onix 004473-3/2020 — ref atual (336) comb 1 ==="
-          consulta 336 "004473-3" 2020 1
-          echo "=== Onix — ref ~ago/2024 (312?) comb 1 ==="
-          REF2024=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'agosto/2024' in r['Mes']][0])")
-          echo "ref ago/2024 = $REF2024"
-          consulta "$REF2024" "004473-3" 2020 1
-          echo "=== Onix — ref ~jan/2021 comb 1 ==="
-          REF2021=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'janeiro/2021' in r['Mes']][0])")
-          echo "ref jan/2021 = $REF2021"
-          consulta "$REF2021" "004473-3" 2020 1
-          echo "=== Onix — ref jan/2019 (antes do ano-modelo 2020 existir — deve dar nadaencontrado) ==="
-          REF2019=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'janeiro/2019' in r['Mes']][0])")
-          consulta "$REF2019" "004473-3" 2020 1
-          echo "=== T-Cross 005508-5/2025 — ref ~dez/2024 comb 1 ==="
-          REFD24=$(python3 -c "import json; refs=json.load(open('/tmp/refs')); print([r['Codigo'] for r in refs if 'dezembro/2024' in r['Mes']][0])")
-          consulta "$REFD24" "005508-5" 2025 1
+          set +e
+          H=(-H "Content-Type: application/json" \
+             -H "Accept: application/json, text/javascript, */*; q=0.01" \
+             -H "Accept-Language: pt-BR,pt;q=0.9" \
+             -H "Origin: https://veiculos.fipe.org.br" \
+             -H "Referer: https://veiculos.fipe.org.br/" \
+             -H "X-Requested-With: XMLHttpRequest" \
+             -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+          echo "=== home do site (GET) ==="
+          curl -sS -m 15 -o /dev/null -w "HTTP %{http_code} em %{time_total}s\n" "https://veiculos.fipe.org.br/" -H "User-Agent: Mozilla/5.0"
+          echo "=== ConsultarTabelaDeReferencia (headers completos) ==="
+          curl -sS -m 15 "${H[@]}" -X POST "https://veiculos.fipe.org.br/api/veiculos/ConsultarTabelaDeReferencia" -d '{}' -w "\nHTTP %{http_code}\n" | head -c 300
+          echo "=== plano C: tabelafipebrasil.com (página do Onix Joy) ==="
+          curl -sS -m 15 -o /tmp/tfb -w "HTTP %{http_code} em %{time_total}s\n" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" \
+            "https://www.tabelafipebrasil.com/carros/CHEVROLET/ONIX"
+          head -c 300 /tmp/tfb; echo
+          echo "=== plano C2: fipeapi alternativa deividfortuna (github pages?) ==="
+          curl -sS -m 15 -o /dev/null -w "HTTP %{http_code}\n" "https://fipe.parallelum.com.br/api/v2/references" -H "User-Agent: Mozilla/5.0"
+          true
