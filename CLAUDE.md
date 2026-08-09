@@ -20,7 +20,7 @@ app/                    Páginas (App Router) e API routes
   (Análise)             performance, setores, evolucao, cambio, simulacoes, trades
   (Gestão)              impostos, alavancagem, financas, fluxos
   (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
-                        etf-cem (100 maiores via VOO — P/L e distância do ATH),
+                        etf-cem (S&P 500 completo via VOO — P/L e distância do ATH; "Cem" é o nome, a UI mostra 100 por vez),
                         configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/

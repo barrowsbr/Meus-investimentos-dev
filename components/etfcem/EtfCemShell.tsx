@@ -1,7 +1,8 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ETF Cem — as ~100 maiores empresas do mundo (VOO/S&P 500 como proxy), com o
+// ETF Cem — o S&P 500 COMPLETO (~500 empresas, VOO como proxy; o nome "Cem"
+// ficou da versão original e a lista mostra 100 por vez), com o
 // olhar de COMPRADOR: preço, P/L, dividend yield e, principalmente, a
 // DISTÂNCIA DO TOPO HISTÓRICO (ATH). Filtros para separar o que está em
 // desconto do que está no pico; "possíveis barganhas" = longe do topo E com
@@ -63,6 +64,8 @@ export default function EtfCemShell() {
   const [peMax, setPeMax] = useState<number | null>(null);
   const [soBarganhas, setSoBarganhas] = useState(false);
   const [ordem, setOrdem] = useState<Ordem>("desconto");
+  // ~500 linhas de uma vez pesa no celular — renderiza 100 por vez.
+  const [mostrar, setMostrar] = useState(100);
 
   // Observando (watchlist) — persiste no aparelho (localStorage), para marcar
   // empresas e reencontrá-las com um toque ao voltar no app.
@@ -93,19 +96,34 @@ export default function EtfCemShell() {
       .catch((e) => setErro(e instanceof Error ? e.message : "Erro ao carregar"));
   }, []);
 
-  // ATH em chunks de 25, em paralelo (cache CDN/cliente 24h por chunk).
+  // ATH em chunks de 25, em FILA com concorrência 2 (não tudo em paralelo:
+  // ~500 símbolos = ~20 chunks e cada chunk abre até 6 charts no Yahoo — o
+  // paralelismo total viraria throttle/429 e metade dos ATHs não chegava).
+  // Símbolos ORDENADOS antes do chunking: a composição do chunk fica estável
+  // quando os pesos do índice se reordenam, então o cache CDN de 7 dias vale.
   useEffect(() => {
     if (!data) return;
-    const syms = data.empresas.map((e) => e.sym);
+    const syms = [...data.empresas.map((e) => e.sym)].sort();
     const chunks: string[][] = [];
     for (let i = 0; i < syms.length; i += 25) chunks.push(syms.slice(i, i + 25));
-    let vivos = chunks.length;
-    for (const c of chunks) {
+    if (chunks.length === 0) { setAthPend(false); return; }
+    let cancelado = false;
+    let proximo = 0;
+    let vivos = Math.min(2, chunks.length);
+    const puxar = () => {
+      if (cancelado || proximo >= chunks.length) {
+        vivos -= 1;
+        if (vivos <= 0 && !cancelado) setAthPend(false);
+        return;
+      }
+      const c = chunks[proximo++];
       fetchJsonCached<{ ath: Record<string, AthInfo> }>(`/api/etf-cem/ath?symbols=${c.join(",")}`, 24 * 60 * 60_000)
-        .then((r) => setAth((prev) => ({ ...prev, ...(r.ath ?? {}) })))
+        .then((r) => { if (!cancelado) setAth((prev) => ({ ...prev, ...(r.ath ?? {}) })); })
         .catch(() => {})
-        .finally(() => { vivos -= 1; if (vivos === 0) setAthPend(false); });
-    }
+        .finally(puxar);
+    };
+    for (let k = 0; k < vivos; k++) puxar();
+    return () => { cancelado = true; };
   }, [data]);
 
   // Linhas enriquecidas: ATH efetivo = max(ATH histórico, máx. 52s, preço).
@@ -165,7 +183,7 @@ export default function EtfCemShell() {
       <div>
         <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Crown size={18} className="text-amber-400" /> ETF Cem</h1>
         <p className="text-xs text-zinc-500">
-          As 100 maiores empresas do mundo via {data?.proxy ?? "VOO (S&P 500)"} — preço, P/L e distância do topo histórico
+          {data ? `As ${data.empresas.length} empresas do S&P 500` : "O S&P 500 completo"} via {data?.proxy ?? "VOO"} — preço, P/L e distância do topo histórico
           {athPend && <span className="ml-1 text-zinc-600">· calculando ATHs…</span>}
         </p>
       </div>
@@ -245,7 +263,7 @@ export default function EtfCemShell() {
       {/* Lista */}
       <div className="space-y-1.5">
         {filtradas.length === 0 && <p className="py-10 text-center text-xs text-zinc-600">Nenhuma empresa com esses filtros.</p>}
-        {filtradas.map((l) => {
+        {filtradas.slice(0, mostrar).map((l) => {
           const tone = descontoTone(l.distAth);
           const barganha = ehBarganha(l);
           const observada = watch.has(l.sym);
@@ -309,8 +327,18 @@ export default function EtfCemShell() {
         })}
       </div>
 
+      {filtradas.length > mostrar && (
+        <button
+          onClick={() => setMostrar((m) => m + 100)}
+          className="w-full rounded-2xl py-3 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/[0.06]"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          Mostrar mais 100 · faltam {filtradas.length - mostrar} de {filtradas.length}
+        </button>
+      )}
+
       <p className="text-[10px] text-zinc-600">
-        Proxy: {data?.proxy ?? "VOO (S&P 500)"} — as ~100 maiores posições cobrem as maiores empresas listadas do mundo.
+        Proxy: {data?.proxy ?? "VOO (S&P 500)"} — o S&P 500 completo, as maiores empresas listadas do mundo.
         Topo histórico pelo fechamento mensal (Yahoo, desde 1970); enquanto o ATH carrega, vale a máxima de 52 semanas.
         P/L trailing (projetado entre parênteses). 💎 barganha = ≥15% abaixo do topo com P/L positivo abaixo da mediana —
         é filtro quantitativo, não recomendação: preço baixo pode ter motivo.

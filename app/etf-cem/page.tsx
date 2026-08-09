@@ -4,7 +4,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 export const metadata = {
   title: "ETF Cem · Meus Investimentos",
-  description: "As 100 maiores empresas do mundo (via VOO): preço, P/L e distância do topo histórico.",
+  description: "O S&P 500 completo (via VOO): preço, P/L e distância do topo histórico.",
 };
 
 export default function EtfCemPage() {
