@@ -1,0 +1,21 @@
+# TEMPORÁRIO — diagnóstico de deploy (apagar depois).
+name: diag-deploy
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-deploy.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe produção
+        run: |
+          APP="https://meus-investimentos-dev.vercel.app"
+          echo "== /api/bens/lista (rota NOVA — 200 = deploy novo no ar) =="
+          curl -sS -o lista.json -w "HTTP %{http_code}\n" "$APP/api/bens/lista" || true
+          head -c 600 lista.json; echo ""
+          echo "== /bens (página) =="
+          curl -sS -o /dev/null -w "HTTP %{http_code}\n" "$APP/bens" || true
+          echo "== foto local nova (tamanho deve ser ~154742) =="
+          curl -sS -o foto.jpg -w "HTTP %{http_code}\n" "$APP/bens/tcross.jpg" || true
+          wc -c < foto.jpg
