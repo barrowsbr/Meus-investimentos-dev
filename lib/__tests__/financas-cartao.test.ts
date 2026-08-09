@@ -154,3 +154,65 @@ describe("detectarParcelamentos", () => {
     expect(amazon.restantes).toBe(0);
   });
 });
+
+// ── Mescla manual × detectado (reescrita da página, ago/2026) ────────────────
+import { mesclarAssinaturas, mesclarParcelamentos, nomesCasam } from "../financas/mesclar";
+import { calcParcelamento } from "../financas/tipos";
+
+describe("mesclarAssinaturas", () => {
+  it("casa manual com detectada (sem duplicar) — valor do cartão vence, metadados do manual ficam", () => {
+    const r = mesclarAssinaturas(
+      [{ nome: "YouTube Premium", valor: 41.9, dia: 29, ativa: true }],
+      [{ nome: "google youtubepremium", valorMensal: 53.9, ultimaData: "2026-07-29", ocorrencias: 1, meses: 1 }],
+    );
+    expect(r).toHaveLength(1);
+    expect(r[0].origem).toBe("ambos");
+    expect(r[0].valorMensal).toBeCloseTo(53.9);   // cobrado vence o cadastrado
+    expect(r[0].nome).toBe("YouTube Premium");     // nome do dono
+    expect(r[0].dia).toBe(29);
+    expect(r[0].manualIdx).toBe(0);
+  });
+
+  it("mantém as exclusivas de cada fonte com a origem certa", () => {
+    const r = mesclarAssinaturas(
+      [{ nome: "Netflix", valor: 44.9, dia: 5, ativa: true }],
+      [{ nome: "google one", valorMensal: 24.99, ultimaData: "2026-07-29", ocorrencias: 1, meses: 1 }],
+    );
+    expect(r.map((a) => a.origem).sort()).toEqual(["cartao", "manual"]);
+  });
+
+  it("manual pausada não some — segue listada como inativa", () => {
+    const r = mesclarAssinaturas([{ nome: "Spotify", valor: 21.9, dia: 3, ativa: false }], []);
+    expect(r[0].ativa).toBe(false);
+  });
+
+  it("nomesCasam: substring ≥4 chars, com e sem espaços; sem falso positivo curto", () => {
+    expect(nomesCasam("YouTube Premium", "google youtubepremium")).toBe(true); // casa sem espaços
+    expect(nomesCasam("claude", "anthropic claude sub")).toBe(true);
+    expect(nomesCasam("one", "google one")).toBe(false); // curto demais
+    expect(nomesCasam("Netflix", "google one")).toBe(false);
+  });
+});
+
+describe("mesclarParcelamentos", () => {
+  const hoje = new Date(2026, 7, 9); // ago/2026
+  it("casa manual com detectado por nome + nº de parcelas (cobrado vence)", () => {
+    const manual = calcParcelamento({ nome: "Pichau Informatica", valor_total: 880, parcelas: 12, data_compra: "2026-04-27" }, hoje);
+    const r = mesclarParcelamentos([manual], [{
+      nome: "pichau informatica", valorParcela: 73.53, totalParcelas: 12, parcelaAtual: 4,
+      restantes: 8, valorTotal: 882.36, valorRestante: 588.24, fimPrevisto: "2027-03", ultimaData: "2026-07-27",
+    }], hoje);
+    expect(r).toHaveLength(1);
+    expect(r[0].origem).toBe("ambos");
+    expect(r[0].valorParcela).toBeCloseTo(73.53);
+  });
+
+  it("manual sem par no cartão entra com progresso calculado da data de compra", () => {
+    const manual = calcParcelamento({ nome: "Geladeira", valor_total: 3600, parcelas: 12, data_compra: "2026-06-09" }, hoje);
+    const r = mesclarParcelamentos([manual], [], hoje);
+    expect(r[0].origem).toBe("manual");
+    expect(r[0].parcelaAtual).toBe(3);            // jun→ago = 3ª parcela
+    expect(r[0].valorParcela).toBeCloseTo(300);
+    expect(r[0].fimPrevisto).toBe("2027-05");     // ago/26 + 9 restantes
+  });
+});
