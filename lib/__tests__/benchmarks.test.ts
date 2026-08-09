@@ -55,3 +55,39 @@ describe("buildIpcaBenchmark", () => {
     expect(out[1].twr).toBeCloseTo(1.01 * 1.02 - 1, 10);
   });
 });
+
+// ── Curva do Tesouro destilada (fonte nova, ago/2026) ────────────────────────
+import { parseCurvaGerada } from "../juros/fontes";
+
+describe("parseCurvaGerada", () => {
+  const raw = {
+    dataBase: "2026-08-07",
+    titulos: [
+      { tipo: "Tesouro Prefixado", vencimento: "2029-01-01", taxaCompra: 14.1, taxaVenda: 14.22, puCompra: 731.24 },
+      { tipo: "Tesouro IPCA+ com Juros Semestrais", vencimento: "2035-05-15", taxaCompra: 8.04, taxaVenda: 8.16, puCompra: 4238.5 },
+      { tipo: "Tesouro Selic", vencimento: "2028-03-01", taxaCompra: 0.02, taxaVenda: 0.03, puCompra: 19615.41 },
+      { tipo: "Tesouro Educa+", vencimento: "2035-12-15", taxaCompra: 8.1, taxaVenda: 8.22, puCompra: 2799 },
+      { tipo: "Tesouro Renda+ Aposentadoria Extra", vencimento: "2054-12-15", taxaCompra: 7.51, taxaVenda: 7.63, puCompra: 1374.08 },
+      { tipo: "Tesouro IGPM+ com Juros Semestrais", vencimento: "2031-01-01", taxaCompra: 8.18, taxaVenda: 8.3, puCompra: 7559.54 },
+      { tipo: "Tesouro Prefixado", vencimento: "2020-01-01", taxaCompra: 10, taxaVenda: 10.1, puCompra: 900 }, // vencido
+    ],
+  };
+  const r = parseCurvaGerada(raw, "2026-08-08");
+
+  it("mantém só Prefixado e IPCA+ (Selic/Educa+/Renda+/IGPM+/vencidos fora)", () => {
+    expect(r.vertices.map((v) => v.indexador).sort()).toEqual(["IPCA", "PREFIXADO"]);
+  });
+
+  it("monta o vértice com nome, taxa de compra e cupom detectado", () => {
+    const ipca = r.vertices.find((v) => v.indexador === "IPCA")!;
+    expect(ipca.titulo).toBe("Tesouro IPCA+ com Juros Semestrais 2035");
+    expect(ipca.taxa).toBeCloseTo(8.04);
+    expect(ipca.juroSemestral).toBe(true);
+    expect(ipca.taxaResgate).toBeCloseTo(8.16);
+  });
+
+  it("usa a data-base do arquivo como fechamento", () => {
+    expect(r.fechamento).toBe("2026-08-07");
+    expect(r.ok).toBe(true);
+  });
+});

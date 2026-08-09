@@ -1,0 +1,116 @@
+# Curva de juros do Tesouro Direto — destilada DIARIAMENTE para o Radar.
+#
+# Por quê assim: o JSON do site do Tesouro foi APOSENTADO (HTTP 410, ago/2026)
+# e o site inteiro passou a bloquear IP de datacenter (403) — a Vercel não
+# alcança. A fonte oficial aberta que restou é o Tesouro Transparente (CKAN),
+# mas o CSV é o histórico COMPLETO (pesado e o servidor é instável) — inviável
+# por requisição. Este workflow baixa o CSV com paciência e retry, filtra a
+# ÚLTIMA data-base (a curva de hoje, ~KB) e comita o JSON na branch `backups`;
+# a rota /api/radar/juros lê do raw.githubusercontent (rápido e estável).
+#
+# Sem CRON_SECRET: usa o GITHUB_TOKEN do próprio workflow (contents: write).
+name: curva-juros
+
+on:
+  schedule:
+    - cron: "30 12 * * 1-5"   # 9h30 BRT, dias úteis (o CSV atualiza ~7h BRT)
+  workflow_dispatch: {}
+  push:
+    paths: [".github/workflows/curva-juros.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Baixar CSV do Tesouro Transparente (retry paciente)
+        run: |
+          URL="https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv"
+          ok=""
+          for i in 1 2 3 4 5; do
+            echo "tentativa $i..."
+            if curl -sSL -m 600 -H "User-Agent: Mozilla/5.0" -o precos.csv "$URL"; then ok=1; break; fi
+            sleep $((i * 30))
+          done
+          [ -n "$ok" ] || { echo "::error::CSV indisponível após 5 tentativas"; exit 1; }
+          ls -la precos.csv
+          head -c 300 precos.csv; echo
+
+      - name: Destilar a curva da última data-base
+        run: |
+          python3 - <<'PY'
+          import csv, json, datetime, unicodedata
+
+          def norm(s):
+              s = unicodedata.normalize("NFD", s)
+              return "".join(c for c in s if not unicodedata.combining(c)).strip().lower()
+
+          def parse_num(s):
+              s = (s or "").strip()
+              if not s: return None
+              try: return float(s.replace(".", "").replace(",", "."))
+              except ValueError: return None
+
+          def parse_data(s):  # dd/mm/yyyy → yyyy-mm-dd
+              try:
+                  d, m, y = s.strip().split("/")
+                  return f"{y}-{int(m):02d}-{int(d):02d}"
+              except Exception:
+                  return None
+
+          with open("precos.csv", encoding="latin-1", newline="") as f:
+              reader = csv.reader(f, delimiter=";")
+              headers = [norm(h) for h in next(reader)]
+              idx = {h: i for i, h in enumerate(headers)}
+              def col(row, *nomes):
+                  for n in nomes:
+                      if n in idx and idx[n] < len(row): return row[idx[n]]
+                  return ""
+              melhor = None          # última data-base vista (iso)
+              do_dia = []            # linhas dessa data
+              for row in reader:
+                  base = parse_data(col(row, "data base"))
+                  if not base: continue
+                  if melhor is None or base > melhor:
+                      melhor, do_dia = base, []
+                  if base == melhor:
+                      venc = parse_data(col(row, "data vencimento"))
+                      if not venc: continue
+                      do_dia.append({
+                          "tipo": col(row, "tipo titulo").strip(),
+                          "vencimento": venc,
+                          "taxaCompra": parse_num(col(row, "taxa compra manha")),
+                          "taxaVenda": parse_num(col(row, "taxa venda manha")),
+                          "puCompra": parse_num(col(row, "pu compra manha")),
+                      })
+
+          assert melhor and do_dia, "nenhuma linha válida no CSV"
+          out = {
+              "dataBase": melhor,
+              "geradoEm": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+              "fonte": "Tesouro Transparente (dados abertos oficiais)",
+              "titulos": sorted(do_dia, key=lambda t: (t["tipo"], t["vencimento"])),
+          }
+          with open("curva-tesouro.json", "w", encoding="utf-8") as f:
+              json.dump(out, f, ensure_ascii=False, indent=1)
+          print(f"data-base {melhor} · {len(do_dia)} títulos")
+          PY
+          head -c 600 curva-tesouro.json; echo
+
+      - name: Publicar na branch backups
+        run: |
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          mkdir repo && cd repo
+          git init -b backups -q
+          git config user.name "curva-juros-bot"
+          git config user.email "actions@github.com"
+          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || echo "branch backups ainda não existe — criando"
+          mkdir -p dados
+          cp ../curva-tesouro.json dados/curva-tesouro.json
+          git add -A
+          git diff --cached --quiet && { echo "curva igual à de ontem — sem commit"; exit 0; }
+          git commit -q -m "curva de juros $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push "$REMOTE" backups
