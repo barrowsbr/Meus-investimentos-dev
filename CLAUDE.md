@@ -237,6 +237,21 @@ preguiçosa: leitura cai para a aba legada enquanto o escopo não foi gravado na
 abas velhas podem então ser apagadas pelo dono. A aba `config` (login/senha/
 fundo) **NÃO participa** da fusão e não deve ser tocada.
 
+### 13. `cartao_transacoes` + `cartao_categorias` — Cartão de crédito (OFX Nubank)
+
+Golden source do consumo do cartão (Finanças → aba **Cartão**). O OFX exportado
+do Nubank sobe em **Configurações → Importar Dados** (o upload reconhece `.ofx`
+pelo nome/conteúdo e roteia para `POST /api/financas/cartao`); cada importação
+soma ao histórico com dedup por **fitid+valor** (⚠️ o Nubank REPETE FITID entre
+lançamentos — ex.: IOF e a compra internacional que o gerou). Colunas de
+`cartao_transacoes`: `chave, fitid, data, descricao, valor, tipo, parcela`.
+`cartao_categorias` (`estabelecimento, categoria`) guarda as recategorizações
+manuais do dono — regra por estabelecimento normalizado, append/last-wins, que
+vence a categorização automática (`lib/financas/categorias.ts`). Assinaturas
+(recorrência ou serviço conhecido) e parcelamentos ("Parcela X/Y") são
+**detectados automaticamente** dos lançamentos — parser puro em
+`lib/financas/ofx.ts`.
+
 ---
 
 ## Página Moedas (coleção numismática — dado ESTÁTICO, fora da planilha)
