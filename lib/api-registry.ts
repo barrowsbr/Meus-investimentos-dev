@@ -168,23 +168,17 @@ export const API_REGISTRY: ApiDef[] = [
     },
   },
   {
-    key: "tesouro_direto", name: "Tesouro Direto (B3)", category: "Câmbio & Juros",
-    host: "www.tesourodireto.com.br",
-    purpose: "Curva de juros do Brasil — taxas dos títulos públicos (Prefixado/IPCA+) do painel Juros Futuros no Radar",
+    key: "tesouro_direto", name: "Curva Tesouro (destilada)", category: "Câmbio & Juros",
+    host: "raw.githubusercontent.com",
+    purpose: "Curva de juros do Brasil (Prefixado/IPCA+) — JSON destilado diariamente do Tesouro Transparente pelo workflow curva-juros (o JSON da B3 foi aposentado e o site bloqueia datacenter)",
     envVars: [],
+    docs: "https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto",
     probe: async () => {
-      // cabeçalhos de navegador: o host fica atrás de Akamai e barra datacenter "cru"
-      const r = await httpGet("https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json", {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-          "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-          Referer: "https://www.tesourodireto.com.br/titulos/precos-e-taxas.htm",
-        },
-      });
-      if (!r.ok) return { ok: false, detail: `HTTP ${r.status} (WAF da B3 costuma barrar datacenter)` };
-      const j = await r.json().catch(() => null);
-      const n = j?.response?.TrsrBdTradgList?.length ?? 0;
-      return n > 0 ? { ok: true, detail: `${n} títulos` } : { ok: false, detail: "lista vazia" };
+      const { status, json } = await getJson("https://raw.githubusercontent.com/barrowsbr/Meus-investimentos-dev/backups/dados/curva-tesouro.json");
+      const n = Array.isArray(json?.titulos) ? json.titulos.length : 0;
+      if (n > 0) return { ok: true, detail: `${n} títulos · data-base ${json.dataBase ?? "?"}` };
+      if (status === 404) return { ok: false, detail: "JSON ainda não gerado — rodar o workflow curva-juros" };
+      return { ok: false, detail: `HTTP ${status}` };
     },
   },
   {

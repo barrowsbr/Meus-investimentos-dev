@@ -203,8 +203,51 @@ export function parseTesouro(raw: unknown, hojeISO: string): TesouroResultado {
   return { vertices, fechamento, ok: vertices.length > 0 };
 }
 
-// Espelhos conhecidos do mesmo JSON — se o principal for barrado pelo WAF,
-// tentamos o outro antes de desistir.
+// ── Fonte PRIMÁRIA (ago/2026): curva destilada pelo workflow curva-juros ─────
+// O JSON do site do Tesouro foi APOSENTADO (410) e o site bloqueia datacenter
+// (403) — a Vercel não alcança. O workflow .github/workflows/curva-juros.yml
+// baixa diariamente o CSV oficial do Tesouro Transparente, filtra a última
+// data-base e comita este JSON pequeno na branch `backups` do repositório.
+const CURVA_GERADA_URL =
+  "https://raw.githubusercontent.com/barrowsbr/Meus-investimentos-dev/backups/dados/curva-tesouro.json";
+
+interface CurvaGerada {
+  dataBase?: string;
+  titulos?: Array<{ tipo?: string; vencimento?: string; taxaCompra?: number | null; taxaVenda?: number | null; puCompra?: number | null }>;
+}
+
+/** Converte o JSON destilado (CSV do Tesouro Transparente) em vértices. */
+export function parseCurvaGerada(raw: CurvaGerada, hojeISO: string): TesouroResultado {
+  const vertices: Vertice[] = [];
+  for (const t of raw.titulos ?? []) {
+    const tipo = String(t.tipo ?? "").trim();
+    const venc = String(t.vencimento ?? "").trim();
+    if (!tipo || !/^\d{4}-\d{2}-\d{2}$/.test(venc)) continue;
+    if (/renda\+|educa\+/i.test(tipo)) continue;          // anuidades: fora da curva
+    const nome = `${tipo} ${venc.slice(0, 4)}`;
+    const indexador = classificar(nome, null);
+    if (!indexador || indexador === "SELIC") continue;    // LFT não tem taxa de curva
+    const taxa = typeof t.taxaCompra === "number" ? t.taxaCompra : null;
+    if (taxa == null || taxa <= 0) continue;              // não ofertado p/ compra
+    const anos = anosAte(venc, hojeISO);
+    if (anos <= 0) continue;
+    vertices.push({
+      titulo: nome,
+      indexador,
+      vencimento: venc,
+      anos,
+      taxa,
+      taxaResgate: typeof t.taxaVenda === "number" ? t.taxaVenda : null,
+      precoUnitario: typeof t.puCompra === "number" ? t.puCompra : null,
+      juroSemestral: /juros semestrais/i.test(tipo),
+    });
+  }
+  vertices.sort((a, b) => a.anos - b.anos);
+  return { vertices, fechamento: raw.dataBase ?? null, ok: vertices.length > 0 };
+}
+
+// Espelhos antigos do JSON da B3 — mortos hoje (410/DNS), mas baratos de
+// tentar como último recurso caso a B3 reviva o endpoint.
 const TD_URLS = [
   TD_URL,
   "https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json?",
@@ -213,6 +256,20 @@ const TD_URLS = [
 
 export async function fetchTesouro(hojeISO: string): Promise<TesouroResultado> {
   const motivos: string[] = [];
+
+  // 1º) JSON destilado diariamente (Tesouro Transparente via branch backups)
+  {
+    const { data, erro } = await getJsonDiag<CurvaGerada>(CURVA_GERADA_URL);
+    if (data) {
+      const r = parseCurvaGerada(data, hojeISO);
+      if (r.ok) return r;
+      motivos.push("curva destilada: JSON sem títulos válidos");
+    } else if (erro) {
+      motivos.push(`curva destilada (raw.githubusercontent): ${erro}`);
+    }
+  }
+
+  // 2º) endpoints antigos da B3 (fallback histórico)
   for (const url of TD_URLS) {
     const { data, erro } = await getJsonDiag(url);
     if (data) {
