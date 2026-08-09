@@ -68,10 +68,41 @@ export default function ImportSection() {
     if (f) { setFile(f); setResult(null); }
   }, []);
 
-  async function handleSync(forceApply = false) {
-    if (!file) return;
+  // Um arquivo .ofx é fatura de CARTÃO (Nubank) — vai para a aba Cartão de
+  // Finanças, não para o import IBKR/B3. Reconhece por extensão OU conteúdo.
+  const [ofxResult, setOfxResult] = useState<{ ok?: boolean; novos?: number; duplicados?: number; periodo?: { inicio: string; fim: string } | null; error?: string } | null>(null);
+
+  async function importarOfx(f: File) {
     setLoading(true);
     setResult(null);
+    setOfxResult(null);
+    try {
+      const texto = await f.text();
+      const res = await fetch(`${API_URL}/api/financas/cartao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ofx: texto }),
+      });
+      const data = await res.json();
+      setOfxResult(data);
+      if (res.ok && !data.error && (data.novos ?? 0) > 0) bumpDataVersion();
+    } catch (e) {
+      setOfxResult({ error: e instanceof Error ? e.message : "Erro de conexão" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSync(forceApply = false) {
+    if (!file) return;
+    // Roteia OFX para o cartão (extensão .ofx ou cabeçalho OFXHEADER/<OFX>).
+    if (/\.ofx$/i.test(file.name)) { await importarOfx(file); return; }
+    const inicio = (await file.slice(0, 2000).text()).toUpperCase();
+    if (inicio.includes("OFXHEADER") || inicio.includes("<OFX>")) { await importarOfx(file); return; }
+
+    setLoading(true);
+    setResult(null);
+    setOfxResult(null);
     const fd = new FormData();
     fd.append("file", file);
     fd.append("dry_run", String(forceApply ? false : dryRun));
@@ -105,7 +136,8 @@ export default function ImportSection() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-zinc-500 leading-relaxed">
-        Importe arquivos CSV do <strong className="text-zinc-400">IBKR</strong> ou da <strong className="text-zinc-400">B3</strong>.
+        Importe arquivos CSV do <strong className="text-zinc-400">IBKR</strong> ou da <strong className="text-zinc-400">B3</strong> —
+        ou o <strong className="text-zinc-400">OFX da fatura do Nubank</strong> (vai para Finanças → Cartão).
         O sistema detecta automaticamente a origem e compara com os dados existentes na planilha —
         incluindo <strong className="text-zinc-400">operações</strong>, <strong className="text-zinc-400">proventos</strong> e <strong className="text-zinc-400">câmbio</strong> (forex).
         A importação é <strong className="text-zinc-400">idempotente</strong> — pode rodar múltiplas vezes sem duplicar dados.
@@ -120,9 +152,9 @@ export default function ImportSection() {
         onClick={() => fileRef.current?.click()}
       >
         <input
-          ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls"
+          ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,.ofx"
           className="hidden"
-          onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
+          onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); setOfxResult(null); }}
         />
         {file ? (
           <div className="flex items-center justify-center gap-2 text-emerald-400">
@@ -134,7 +166,7 @@ export default function ImportSection() {
           <div className="text-zinc-500">
             <Upload size={24} className="mx-auto mb-2 opacity-50" />
             <p className="text-sm">Arraste o arquivo ou clique para selecionar</p>
-            <p className="text-xs mt-1 opacity-60">CSV do IBKR (PT/EN) · CSV/TXT da B3</p>
+            <p className="text-xs mt-1 opacity-60">CSV do IBKR (PT/EN) · CSV/TXT da B3 · OFX do Nubank (cartão)</p>
           </div>
         )}
       </div>
@@ -163,6 +195,29 @@ export default function ImportSection() {
       </div>
 
       {/* Error */}
+      {/* Resultado de OFX (cartão Nubank → Finanças) */}
+      {ofxResult && (
+        <div className={`p-4 rounded-xl border text-sm ${ofxResult.error ? "bg-red-500/10 border-red-500/20" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+          {ofxResult.error ? (
+            <p className="text-red-400 flex items-center gap-2"><XCircle size={15} />{ofxResult.error}</p>
+          ) : (
+            <>
+              <p className="text-emerald-400 flex items-center gap-2 font-medium">
+                <CheckCircle2 size={15} /> Fatura do cartão importada
+              </p>
+              <p className="text-xs text-zinc-400 mt-1">
+                {ofxResult.novos} lançamento{(ofxResult.novos ?? 0) === 1 ? "" : "s"} novo{(ofxResult.novos ?? 0) === 1 ? "" : "s"}
+                {(ofxResult.duplicados ?? 0) > 0 ? ` · ${ofxResult.duplicados} já existiam (ignorados)` : ""}
+                {ofxResult.periodo ? ` · período ${ofxResult.periodo.inicio} → ${ofxResult.periodo.fim}` : ""}
+              </p>
+              <a href="/financas" className="inline-block mt-2 text-xs text-cyan-400 hover:underline">
+                Ver em Finanças → Cartão →
+              </a>
+            </>
+          )}
+        </div>
+      )}
+
       {result?.error && (
         <div className="rounded-xl p-4 text-sm bg-red-500/10 border border-red-500/20">
           <p className="text-red-400 flex items-center gap-2 mb-1"><XCircle size={15} />{result.error}</p>

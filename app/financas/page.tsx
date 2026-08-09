@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import CartaoTab from "@/components/financas/CartaoTab";
 import { brl } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 
@@ -1033,7 +1034,7 @@ export default function FinancasPage() {
   const [mensalRows,    setMensalRows]    = useState<RowMensal[]>([]);
   const [assinaturas,   setAssinaturas]   = useState<Assinatura[]>([]);
   const [parcelamentos, setParcelamentos] = useState<Parcelamento[]>([]);
-  const [activeTab, setActiveTab] = useState<"mensal" | "assinaturas" | "parcelamentos">("mensal");
+  const [activeTab, setActiveTab] = useState<"mensal" | "cartao" | "assinaturas" | "parcelamentos">("mensal");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const initialLoaded = useRef(false);
@@ -1103,6 +1104,7 @@ export default function FinancasPage() {
 
   const tabs = [
     { id: "mensal",        label: "Mensal",        icon: <Wallet size={14} /> },
+    { id: "cartao",        label: "Cartão",        icon: <CreditCard size={14} /> },
     { id: "assinaturas",   label: "Assinaturas",   icon: <Repeat size={14} /> },
     { id: "parcelamentos", label: "Parcelamentos",  icon: <CalendarDays size={14} /> },
   ] as const;
@@ -1145,6 +1147,7 @@ export default function FinancasPage() {
         {activeTab === "mensal" && (
           <MensalTab rows={mensalRows} setRows={setMensalRows} />
         )}
+        {activeTab === "cartao" && <CartaoTab />}
         {activeTab === "assinaturas" && (
           <AssinaturasTab assinaturas={assinaturas} setAssinaturas={setAssinaturas} />
         )}
