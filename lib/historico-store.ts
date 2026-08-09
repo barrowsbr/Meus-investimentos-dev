@@ -9,14 +9,16 @@
 // gravação). Cálculo pela FONTE ÚNICA (`calcularSnapshot`).
 
 import { getDataStore } from "@/lib/data-store";
-import { ensureTab, appendRowsTyped } from "@/lib/gsheets";
+import { ensureTab, appendRowsTyped, syncHeaders } from "@/lib/gsheets";
 import { lerEscopo, gravarEscopo } from "@/lib/app-config";
 import { computeHomePatrimonio } from "@/lib/home-patrimonio";
 
 export const HISTORICO_TAB = "historico_patrimonio";
 
 // Ordem EXATA das colunas da aba (não reordenar — o append é posicional).
-const COLUNAS = ["timestamp", "data", "hora", "patrimonio_total", "rv", "rf", "variacao_dia_pct", "n_ativos"] as const;
+// "bens" entrou por último (ago/2026) de propósito: as linhas antigas mantêm
+// as posições; nelas o valor fica vazio (bens embutido no rv da época).
+const COLUNAS = ["timestamp", "data", "hora", "patrimonio_total", "rv", "rf", "variacao_dia_pct", "n_ativos", "bens"] as const;
 
 export interface HistoricoConfig { ativo: boolean }
 
@@ -89,16 +91,21 @@ export async function recordHistorico(opts: { force?: boolean } = {}): Promise<R
   } catch { /* aba pode não existir ainda — segue e cria via append */ }
 
   await ensureTab(HISTORICO_TAB, COLUNAS as unknown as string[]);
+  // Aba pré-existente pode ter o cabeçalho antigo (sem "bens") — sincroniza a
+  // linha 1 (idempotente; só ACRESCENTA no fim, posições antigas intactas).
+  try { await syncHeaders(HISTORICO_TAB, COLUNAS as unknown as string[]); } catch { /* best-effort */ }
 
-  // rf = renda fixa + caixa (parcela do detalhe); rv = total − rf (mantém a
-  // identidade rv + rf = total, coerente com o total IBKR-âncora).
+  // bens = carros × FIPE (minha parte); rf = renda fixa + caixa;
+  // rv = total − rf − bens (mantém a identidade rv + rf + bens = total,
+  // coerente com o total IBKR-âncora — e a página Patrimônio empilha os três).
+  const bens = round2(detalhe.partes.bens_brl ?? 0);
   const rf = round2(detalhe.partes.rf_caixa_brl);
-  const rv = round2(total - detalhe.partes.rf_caixa_brl);
+  const rv = round2(total - detalhe.partes.rf_caixa_brl - bens);
   const varPct = Number.isFinite(snapshot.dayChangeTotalPct) ? round2(snapshot.dayChangeTotalPct) : 0;
   const nAtivos = snapshot.positions.filter((p) => (p.quantidade ?? 0) > 0).length;
 
-  // Ordem: timestamp, data, hora, patrimonio_total, rv, rf, variacao_dia_pct, n_ativos
-  const linha: (string | number)[] = [serial, data, hora, round2(total), rv, rf, varPct, nAtivos];
+  // Ordem: timestamp, data, hora, patrimonio_total, rv, rf, variacao_dia_pct, n_ativos, bens
+  const linha: (string | number)[] = [serial, data, hora, round2(total), rv, rf, varPct, nAtivos, bens];
   await appendRowsTyped(HISTORICO_TAB, [linha]);
 
   return { written: true, data, hora, patrimonio_total: round2(total) };
