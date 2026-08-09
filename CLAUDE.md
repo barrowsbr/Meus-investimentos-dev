@@ -239,7 +239,9 @@ fundo) **NÃO participa** da fusão e não deve ser tocada.
 
 ### 13. `cartao_transacoes` + `cartao_categorias` — Cartão de crédito (OFX Nubank)
 
-Golden source do consumo do cartão (Finanças → aba **Cartão**). O OFX exportado
+Golden source do consumo do cartão (Finanças → aba **Gastos**, que também
+MESCLA assinaturas/parcelamentos detectados com os manuais —
+`lib/financas/mesclar.ts`; a aba **Renda** mantém o painel mensal). O OFX exportado
 do Nubank sobe em **Configurações → Importar Dados** (o upload reconhece `.ofx`
 pelo nome/conteúdo e roteia para `POST /api/financas/cartao`); cada importação
 soma ao histórico com dedup por **fitid+valor** (⚠️ o Nubank REPETE FITID entre
