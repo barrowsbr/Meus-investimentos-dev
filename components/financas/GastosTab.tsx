@@ -6,7 +6,7 @@
 // contagem dupla (origem "ambos" quando as duas fontes casam — o valor cobrado
 // no cartão vence; o cadastro manual continua editável).
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CreditCard, Repeat, CalendarDays, Upload, RefreshCw, Plus, X, BarChart3,
@@ -20,23 +20,7 @@ import { COR_CATEGORIA, type Categoria } from "@/lib/financas/categorias";
 import { calcParcelamento, type Assinatura, type Parcelamento } from "@/lib/financas/tipos";
 import { mesclarAssinaturas, mesclarParcelamentos, type Origem } from "@/lib/financas/mesclar";
 import { Section, Field, TotRow, addMonths, monthLabel } from "@/components/financas/ui";
-
-interface Trans {
-  chave: string; data: string; valor: number; descricao: string;
-  estabelecimento: string; categoria: string; parcela: { n: number; total: number } | null;
-}
-interface AssinaturaDet { nome: string; valorMensal: number; ultimaData: string; ocorrencias: number; meses: number }
-interface ParcelamentoDet {
-  nome: string; valorParcela: number; totalParcelas: number; parcelaAtual: number;
-  restantes: number; valorTotal: number; valorRestante: number; fimPrevisto: string; ultimaData: string;
-}
-interface RespCartao {
-  transacoes: Trans[]; categorias: string[];
-  assinaturas: AssinaturaDet[]; parcelamentos: ParcelamentoDet[];
-  fechamentoDia?: number | null;
-  cobertura?: { de: string; ate: string } | null;
-  error?: string;
-}
+import { useCartao, type TransCartao } from "@/components/financas/useCartao";
 
 const TOOLTIP_STYLE = { background: "#13141A", border: "1px solid #1E2028", borderRadius: 12, color: "var(--text)", fontSize: 12, padding: "8px 12px" };
 const MESES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -58,21 +42,12 @@ export default function GastosTab({
   parcelamentos: Parcelamento[];
   setParcelamentos: (fn: (prev: Parcelamento[]) => Parcelamento[]) => void;
 }) {
-  const [cartao, setCartao] = useState<RespCartao | null>(null);
-  const [erroCartao, setErroCartao] = useState<string | null>(null);
+  const { cartao, erro: erroCartao, recarregar: carregar, atualizar } = useCartao();
   const [mes, setMes] = useState<string>("");     // "" = período mais recente; "tudo"
   // "fatura" agrupa pelo ciclo real do cartão (fecha no dia aprendido do OFX) —
   // é o que BATE com o app do Nubank; mês calendário corta a fatura ao meio.
   const [agrupamento, setAgrupamento] = useState<"fatura" | "mes">("fatura");
   const [salvandoCat, setSalvandoCat] = useState<string | null>(null);
-
-  const carregar = () => {
-    fetch("/api/financas/cartao")
-      .then((r) => r.json())
-      .then((d: RespCartao) => { if (d.error) throw new Error(d.error); setCartao(d); setErroCartao(null); })
-      .catch((e) => setErroCartao(e.message));
-  };
-  useEffect(carregar, []);
 
   // ── Mesclas (manual × detectado no cartão) ─────────────────────────────────
   const assMescladas = useMemo(
@@ -105,7 +80,7 @@ export default function GastosTab({
 
   // Chave do período de uma transação: mês calendário, ou o mês de FECHAMENTO
   // da fatura a que ela pertence (dia ≥ fechamento → fecha no mês seguinte).
-  const chavePeriodo = useMemo(() => (t: Trans): string => {
+  const chavePeriodo = useMemo(() => (t: TransCartao): string => {
     const ym = t.data.slice(0, 7);
     if (!modoFatura) return ym;
     const dia = Number(t.data.slice(8, 10));
@@ -143,9 +118,9 @@ export default function GastosTab({
     };
   }, [doPeriodo]);
 
-  const recategorizar = async (t: Trans, categoria: string) => {
+  const recategorizar = async (t: TransCartao, categoria: string) => {
     setSalvandoCat(t.estabelecimento);
-    setCartao((d) => d && ({ ...d, transacoes: d.transacoes.map((x) => (x.estabelecimento === t.estabelecimento ? { ...x, categoria } : x)) }));
+    atualizar((d) => ({ ...d, transacoes: d.transacoes.map((x) => (x.estabelecimento === t.estabelecimento ? { ...x, categoria } : x)) }));
     try {
       const r = await fetch("/api/financas/cartao", {
         method: "PATCH", headers: { "Content-Type": "application/json" },

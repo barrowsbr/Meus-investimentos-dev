@@ -5,8 +5,8 @@
 //   GASTOS → o dia a dia do cartão (OFX do Nubank) com categorias e gráficos,
 //            + assinaturas e parcelamentos MESCLADOS (detectado no cartão ∪
 //            cadastro manual, sem contagem dupla) e projeção de compromissos.
-//   RENDA  → o painel mensal de sempre (entradas, contas fixas, faturas, meta
-//            de poupança) — preservado como estava.
+//   CUSTOS → o orçamento do mês: entradas, contas fixas, COMPROMISSOS
+//            automáticos (assinaturas+parcelas da aba Gastos) e meta.
 //
 // Dados manuais seguem nas MESMAS abas da planilha (financas_pessoal,
 // financas_assinaturas, financas_parcelamentos) via /api/financas, com o
@@ -18,7 +18,7 @@ import { Wallet, CreditCard, AlertCircle } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import GastosTab from "@/components/financas/GastosTab";
-import RendaTab from "@/components/financas/RendaTab";
+import CustosTab from "@/components/financas/CustosTab";
 import { SaveIndicator, type SaveStatus } from "@/components/financas/ui";
 import {
   parseMensalRows, parseAssinaturas, parseParcelamentos,
@@ -31,7 +31,7 @@ export default function FinancasPage() {
   const [parcelamentos, setParcelamentos] = useState<Parcelamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"gastos" | "renda">("gastos");
+  const [activeTab, setActiveTab] = useState<"gastos" | "custos">("gastos");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const initialLoaded = useRef(false);
@@ -93,13 +93,13 @@ export default function FinancasPage() {
 
   const tabs = [
     { id: "gastos", label: "Gastos", icon: <CreditCard size={14} /> },
-    { id: "renda",  label: "Renda",  icon: <Wallet size={14} /> },
+    { id: "custos", label: "Custos", icon: <Wallet size={14} /> },
   ] as const;
 
   return (
     <>
       <div className="flex items-start justify-between">
-        <PageHeader title="Finanças" description="Gastos do dia a dia e renda mensal" />
+        <PageHeader title="Finanças" description="Gastos do dia a dia e custos do mês" />
         <div className="mt-1"><SaveIndicator status={saveStatus} /></div>
       </div>
 
@@ -135,8 +135,13 @@ export default function FinancasPage() {
             setParcelamentos={setParcelamentos}
           />
         )}
-        {activeTab === "renda" && (
-          <RendaTab rows={mensalRows} setRows={setMensalRows} />
+        {activeTab === "custos" && (
+          <CustosTab
+            rows={mensalRows}
+            setRows={setMensalRows}
+            assinaturas={assinaturas}
+            parcelamentos={parcelamentos}
+          />
         )}
       </div>
     </>
