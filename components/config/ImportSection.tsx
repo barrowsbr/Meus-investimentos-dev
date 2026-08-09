@@ -151,8 +151,12 @@ export default function ImportSection() {
         onDragOver={e => e.preventDefault()}
         onClick={() => fileRef.current?.click()}
       >
+        {/* SEM `accept`: no iOS o seletor DESABILITA arquivos fora do filtro, e
+            o sistema não conhece a extensão .ofx — o dono não conseguia nem
+            escolher o arquivo. O tipo é detectado pelo CONTEÚDO de qualquer
+            forma (OFX → cartão; CSV/TXT → IBKR/B3), então o filtro só atrapalha. */}
         <input
-          ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,.ofx"
+          ref={fileRef} type="file"
           className="hidden"
           onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); setOfxResult(null); }}
         />
