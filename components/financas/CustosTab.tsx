@@ -1,31 +1,54 @@
 "use client";
 
-// Aba RENDA da página Finanças — o painel mensal de sempre (entradas, contas
-// fixas, faturas dos cartões e meta de poupança), preservado na reescrita de
-// ago/2026: o dono pediu "a renda conforme está agora".
+// Aba CUSTOS da página Finanças — o orçamento do mês: entradas, contas fixas,
+// COMPROMISSOS AUTOMÁTICOS (assinaturas + parcelamentos mesclados da aba
+// Gastos — os gastos obrigatórios do começo do mês) e meta de poupança.
+// A antiga seção manual de "Cartões" (digitar fatura por fatura) saiu: os
+// compromissos vêm sozinhos do cartão; o resto do consumo variável é
+// exatamente o "livre p/ gastar". As linhas `cartao` da planilha são
+// preservadas (só não são mais exibidas nem somadas).
 
-import { useState } from "react";
-import { TrendingUp, TrendingDown, CreditCard, PiggyBank, Plus, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { TrendingUp, TrendingDown, Repeat, CalendarDays, PiggyBank, Plus } from "lucide-react";
 import { brl } from "@/lib/format";
 import { Section, ItemRow, TotRow, Field } from "@/components/financas/ui";
-import type { RowMensal } from "@/lib/financas/tipos";
+import { calcParcelamento, type RowMensal, type Assinatura, type Parcelamento } from "@/lib/financas/tipos";
+import { mesclarAssinaturas, mesclarParcelamentos } from "@/lib/financas/mesclar";
+import { useCartao } from "@/components/financas/useCartao";
 
-export default function RendaTab({
-  rows, setRows,
+const MESES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const fimLabel = (ym: string) => { const [y, m] = ym.split("-").map(Number); return `${MESES_PT[m - 1]}/${String(y).slice(2)}`; };
+
+export default function CustosTab({
+  rows, setRows, assinaturas, parcelamentos,
 }: {
   rows: RowMensal[];
   setRows: (fn: (prev: RowMensal[]) => RowMensal[]) => void;
+  assinaturas: Assinatura[];
+  parcelamentos: Parcelamento[];
 }) {
+  // Compromissos automáticos — MESMA fonte e mescla da aba Gastos.
+  const { cartao } = useCartao();
+  const assMescladas = useMemo(
+    () => mesclarAssinaturas(assinaturas, cartao?.assinaturas ?? []),
+    [assinaturas, cartao],
+  );
+  const parcMesclados = useMemo(
+    () => mesclarParcelamentos(parcelamentos.map((p) => calcParcelamento(p)), cartao?.parcelamentos ?? []),
+    [parcelamentos, cartao],
+  );
+  const tAss = assMescladas.filter((a) => a.ativa).reduce((s, a) => s + a.valorMensal, 0);
+  const parcAtivos = parcMesclados.filter((p) => !p.quitado);
+  const tParc = parcAtivos.reduce((s, p) => s + p.valorParcela, 0);
+  const tComp = tAss + tParc;
   const entradas = rows.filter(r => r.categoria === "entrada");
   const saidas   = rows.filter(r => r.categoria === "saida");
-  const cartoes  = rows.filter(r => r.categoria === "cartao");
   const poupRow  = rows.find(r => r.categoria === "poupanca");
 
   const tEnt = entradas.reduce((s, r) => s + r.valor, 0);
   const tSai = saidas.reduce((s, r) => s + r.valor, 0);
-  const tCar = cartoes.reduce((s, r) => s + r.valor, 0);
   const meta = poupRow?.valor ?? 0;
-  const saldo = tEnt - tSai - tCar;
+  const saldo = tEnt - tSai - tComp;
   const livre = saldo - meta;
 
   const today = new Date();
@@ -37,14 +60,9 @@ export default function RendaTab({
   const [novoEntVal, setNovoEntVal]   = useState("");
   const [novoSaiNome, setNovoSaiNome] = useState("");
   const [novoSaiVal, setNovoSaiVal]   = useState("");
-  const [novoCarNome, setNovoCarNome] = useState("");
-  const [novoCarVal, setNovoCarVal]   = useState("");
 
   function removeRow(idx: number) {
     setRows(prev => prev.filter((_, i) => i !== idx));
-  }
-  function updateCartaoValor(nome: string, val: number) {
-    setRows(prev => prev.map(r => (r.categoria === "cartao" && r.nome === nome ? { ...r, valor: val } : r)));
   }
   function updatePoupanca(val: number) {
     setRows(prev => prev.map(r => (r.categoria === "poupanca" ? { ...r, valor: val } : r)));
@@ -59,11 +77,6 @@ export default function RendaTab({
     setRows(prev => [...prev, { categoria: "saida", nome: novoSaiNome, valor: parseFloat(novoSaiVal) || 0 }]);
     setNovoSaiNome(""); setNovoSaiVal("");
   }
-  function addCartao() {
-    if (!novoCarNome) return;
-    setRows(prev => [...prev, { categoria: "cartao", nome: novoCarNome, valor: parseFloat(novoCarVal) || 0 }]);
-    setNovoCarNome(""); setNovoCarVal("");
-  }
 
   const saldoCls = saldo >= 0 ? "text-emerald-400" : "text-red-400";
   const livreCls = livre >= 0 ? "text-cyan-400" : "text-red-400";
@@ -77,7 +90,7 @@ export default function RendaTab({
           {[
             { label: "Entradas", val: tEnt, pctVal: 100, color: "text-emerald-400" },
             { label: "Fixas", val: tSai, pctVal: tSai / tEnt * 100, color: "text-red-400" },
-            { label: "Cartão", val: tCar, pctVal: tCar / tEnt * 100, color: "text-amber-400" },
+            { label: "Compromissos", val: tComp, pctVal: tComp / tEnt * 100, color: "text-amber-400" },
             { label: "Meta Poup.", val: meta, pctVal: meta / tEnt * 100, color: "text-violet-400" },
           ].map(item => (
             <div key={item.label} className="text-center">
@@ -196,55 +209,39 @@ export default function RendaTab({
         <TotRow label="Total Fixas" value={brl(tSai)} color="text-red-400" />
       </Section>
 
-      {/* ── Cartões */}
+      {/* ── Compromissos do mês (automático — assinaturas + parcelas da aba Gastos) */}
       <Section
-        icon={<CreditCard size={15} />}
-        title="Cartões"
-        badge={<span className="text-xs font-bold text-amber-400">{brl(tCar)}</span>}
+        icon={<Repeat size={15} />}
+        title="Assinaturas & Parcelamentos"
+        badge={<span className="text-xs font-bold text-amber-400">{brl(tComp)}/mês</span>}
+        defaultOpen
       >
+        <p className="text-[10.5px] text-zinc-600 pt-2 mb-1.5">
+          Puxados automaticamente da aba <span className="text-zinc-400 font-semibold">Gastos</span> (cartão + cadastros manuais,
+          mesclados) — os gastos obrigatórios que já entram comprometidos no começo do mês.
+        </p>
         <div className="grid grid-cols-2 gap-3 mt-2">
-          {cartoes.map((r, i) => (
-            <div key={i} className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-zinc-400">{r.nome}</span>
-                <button
-                  onClick={() => removeRow(rows.indexOf(r))}
-                  className="text-zinc-700 hover:text-red-400 transition-colors"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-              <input
-                type="number"
-                min="0"
-                step="100"
-                value={r.valor}
-                onChange={e => updateCartaoValor(r.nome, parseFloat(e.target.value) || 0)}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-sm
-                           font-bold text-amber-400 focus:outline-none focus:border-accent/40 transition-colors"
-              />
-              <div className="text-[10px] text-zinc-700 mt-1 text-right">fatura</div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 pt-3 border-t border-white/[0.04]">
-          <div className="text-xs text-zinc-600 mb-2">Novo cartão</div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Field placeholder="Nome do cartão" value={novoCarNome} onChange={setNovoCarNome} />
-            </div>
-            <div className="w-36">
-              <Field placeholder="R$ 0,00" type="number" min="0" step="100" value={novoCarVal} onChange={setNovoCarVal} />
-            </div>
-            <button
-              onClick={addCartao}
-              className="px-3 py-2 bg-amber-500/15 text-amber-400 rounded-xl hover:bg-amber-500/25 transition-colors flex-shrink-0"
-            >
-              <Plus size={14} />
-            </button>
+          <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400"><Repeat size={12} /> Assinaturas</div>
+            <div className="text-lg font-bold text-violet-300 mt-1">{brl(tAss)}<span className="text-[11px] text-zinc-600">/mês</span></div>
+            <div className="text-[10.5px] text-zinc-600 mt-0.5">{assMescladas.filter(a => a.ativa).length} ativas</div>
+          </div>
+          <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400"><CalendarDays size={12} /> Parcelas</div>
+            <div className="text-lg font-bold text-amber-300 mt-1">{brl(tParc)}<span className="text-[11px] text-zinc-600">/mês</span></div>
+            <div className="text-[10.5px] text-zinc-600 mt-0.5">{parcAtivos.length} em aberto · restam {brl(parcAtivos.reduce((s, p) => s + p.valorRestante, 0))}</div>
           </div>
         </div>
-        <TotRow label="Total Cartões" value={brl(tCar)} color="text-amber-400" />
+        {assMescladas.filter(a => a.ativa).slice(0, 6).map(a => (
+          <ItemRow key={`a-${a.nome}`} name={<span className="capitalize">{a.nome}</span>} value={brl(a.valorMensal)}
+            sub={a.origem === "manual" ? "assinatura · manual" : "assinatura · cartão"} color="text-violet-300" />
+        ))}
+        {parcAtivos.slice(0, 6).map(p => (
+          <ItemRow key={`p-${p.nome}-${p.totalParcelas}`} name={<span className="capitalize">{p.nome}</span>} value={`${brl(p.valorParcela)}`}
+            sub={`parcela ${p.parcelaAtual}/${p.totalParcelas} · termina ${fimLabel(p.fimPrevisto)}`} color="text-amber-300" />
+        ))}
+        <p className="text-[10.5px] text-zinc-600 mt-2">Para editar, pausar ou cadastrar itens: aba <span className="text-zinc-400 font-semibold">Gastos</span>.</p>
+        <TotRow label="Comprometido / mês" value={brl(tComp)} color="text-amber-400" />
       </Section>
 
       {/* ── Poupança */}
