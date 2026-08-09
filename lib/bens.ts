@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Bens físicos (fora do mercado) — carros, imóveis e itens de alto valor.
-// Config ESTÁTICA (decisão do dono, como moedas-data): os veículos ficam aqui;
-// o valor vem da tabela FIPE ao dia (API parallelum, livre) e a foto de um
-// proxy server-side que busca no Wikimedia Commons (rede aberta só em prod).
+// Desde ago/2026 esta config estática é a SEMENTE: a aba `bens_lista` da
+// planilha pode sobrescrever, desativar e adicionar bens pela UI da página
+// Bens (lib/bens-store.ts — server-only). O valor vem da tabela FIPE ao dia
+// (API parallelum, livre) e a foto de: foto própria enviada pelo dono (aba
+// bens_fotos) > arquivo local (public/bens) > proxy Wikimedia Commons.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface BemVeiculo {
@@ -83,8 +85,6 @@ export const VEICULOS: BemVeiculo[] = [
     ],
   },
 ];
-
-export const bemPorId = (id: string): BemVeiculo | undefined => VEICULOS.find((v) => v.id === id);
 
 // Divisão de bens (decisão do dono, 31/07): tudo é do casal — a visão DESTE app
 // é a do dono, então a parte que entra no PATRIMÔNIO é metade do valor de tabela.

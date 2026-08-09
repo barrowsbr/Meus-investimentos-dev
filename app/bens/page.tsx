@@ -1,17 +1,23 @@
 "use client";
 
 // Bens físicos — imóveis, carros e itens de alto valor (fora do mercado).
-// Hoje o foco é CARROS: valor da tabela FIPE ao dia (API parallelum, cache
-// diário) somado no topo, foto real via /api/bens/foto. Clicar num carro abre
-// o POPUP de detalhes: foto grande, ficha técnica, valor FIPE e o histórico
-// dos últimos meses da tabela (sparkline). Imóveis e Alto valor preparados.
+// Hoje o foco é CARROS: a LISTA vem de /api/bens/lista (semente estática +
+// aba bens_lista — dá para ADICIONAR e REMOVER bens pelo botão "Gerenciar"),
+// o valor da tabela FIPE ao dia vem de /api/bens/fipe (cache diário) e a foto
+// pode ser TROCADA pelo dono (upload → aba bens_fotos; prioridade sobre a
+// local e o Wikimedia). Clicar num carro abre o POPUP de detalhes: foto
+// grande, ficha técnica, valor FIPE e o histórico da tabela (sparkline).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Home as HomeIcon, Gem, Car, X } from "lucide-react";
+import { Home as HomeIcon, Gem, Car, X, Camera, Trash2, Plus, Settings2, Undo2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import { bemPorId } from "@/lib/bens";
 
+interface BemLista {
+  id: string; nome: string; detalhe: string; cor: string; anoModelo: number;
+  codigoFipe: string | null; specs: Array<[string, string]>; custom: boolean;
+  foto: string; fotoPropria: boolean;
+}
 interface VeiculoFipe {
   id: string; nome: string; detalhe: string; ok: boolean;
   valor?: string; valorNum?: number; fipeModelo?: string; codigoFipe?: string; mesReferencia?: string; erro?: string;
@@ -23,13 +29,36 @@ interface PontoHist { mes: string; valor: string; valorNum: number }
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-// Foto do carro: a LOCAL (real, do dono, fundo padronizado) tem prioridade;
-// sem ela, cai no proxy do Wikimedia.
-const fotoSrc = (id: string) => bemPorId(id)?.fotoLocal ?? `/api/bens/foto?id=${id}`;
-
 // Janela em meses → rótulo curto ("8m", "2a", "6a").
 const fmtJanelaCurta = (n: number) => (n < 24 ? `${n}m` : `${Math.round(n / 12)}a`);
 const fmtJanelaLonga = (n: number) => (n < 24 ? `${n} meses` : `${Math.round(n / 12)} anos`);
+
+// Redimensiona a foto no CLIENTE (máx 1600px, JPEG) — o servidor guarda na
+// planilha em base64, então o tamanho importa. iPhone/Safari decodifica HEIC
+// nativamente no <img>, o canvas reexporta como JPEG.
+async function arquivoParaDataUrl(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("não consegui ler a imagem"));
+      img.src = url;
+    });
+    const MAX = 1600;
+    const esc = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * esc));
+    const h = Math.max(1, Math.round(img.naturalHeight * esc));
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const cx = cv.getContext("2d");
+    if (!cx) throw new Error("canvas indisponível");
+    cx.drawImage(img, 0, 0, w, h);
+    return cv.toDataURL("image/jpeg", 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 // ── Mini-sparkline do CARD (grade) — série completa da FIPE, discreta ────────
 function MiniSpark({ pontos }: { pontos: PontoHist[] }) {
@@ -133,10 +162,18 @@ function AjusteInline({ v, onAjuste }: { v: VeiculoFipe; onAjuste: (id: string, 
 }
 
 // ── Popup de detalhes ────────────────────────────────────────────────────────
-function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; histPronto?: PontoHist[] | null; onClose: () => void; onAjuste: (id: string, pct: number) => Promise<string | null> }) {
-  const bem = bemPorId(v.id);
+function DetalheModal({ v, bem, histPronto, onClose, onAjuste, onFoto }: {
+  v: VeiculoFipe;
+  bem: BemLista | undefined;
+  histPronto?: PontoHist[] | null;
+  onClose: () => void;
+  onAjuste: (id: string, pct: number) => Promise<string | null>;
+  onFoto: (id: string, file: File) => Promise<string | null>;
+}) {
   const [hist, setHist] = useState<PontoHist[] | null>(histPronto ?? null);
   const [histLoading, setHistLoading] = useState(false);
+  const [fotoBusy, setFotoBusy] = useState(false);
+  const [fotoErro, setFotoErro] = useState<string | null>(null);
   // Janela do gráfico/tabela: 6/12 meses ou 0 = TUDO (até o limite dos dados
   // da FIPE — desde que o ano-modelo entrou na tabela). Fatia client-side.
   const [janela, setJanela] = useState<6 | 12 | 0>(0);
@@ -145,8 +182,8 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
     // A grade já buscou o histórico (compartilhado via prop) — só busca aqui
     // se o card ainda não tinha (ex.: rede falhou na carga da página).
     if (histPronto && histPronto.length >= 2) { setHist(histPronto); return; }
-    const codigo = v.codigoFipe;
-    if (!codigo || !bem) return;
+    const codigo = v.codigoFipe ?? bem?.codigoFipe;
+    if (!codigo || !bem?.anoModelo) return;
     let vivo = true;
     setHistLoading(true);
     fetch(`/api/bens/fipe/historico?codigo=${encodeURIComponent(codigo)}&ano=${bem.anoModelo}`)
@@ -166,13 +203,31 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [onClose]);
 
+  const trocarFoto = async (file: File) => {
+    setFotoBusy(true); setFotoErro(null);
+    const erro = await onFoto(v.id, file);
+    setFotoBusy(false);
+    if (erro) { setFotoErro(erro); setTimeout(() => setFotoErro(null), 5000); }
+  };
+
   return createPortal(
     <div className="bns-md-back" onClick={onClose}>
       <div className="bns-md" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={v.nome}>
         <button className="bns-md-x" onClick={onClose} aria-label="Fechar"><X size={16} /></button>
         <div className="bns-md-foto">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fotoSrc(v.id)} alt={v.nome} />
+          {bem && <img src={bem.foto} alt={v.nome} />}
+          {/* Trocar a foto direto do popup: escolhe no aparelho, o app
+              redimensiona e grava na planilha (some daqui e da Home). */}
+          <label className={`bns-foto-btn${fotoBusy ? " busy" : ""}`} onClick={(e) => e.stopPropagation()}>
+            <Camera size={14} />
+            <span>{fotoBusy ? "enviando…" : "Trocar foto"}</span>
+            <input
+              type="file" accept="image/*" hidden disabled={fotoBusy}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void trocarFoto(f); }}
+            />
+          </label>
+          {fotoErro && <span className="bns-foto-erro">✗ {fotoErro}</span>}
         </div>
         <div className="bns-md-body">
           <span className="bns-detalhe">{v.detalhe}</span>
@@ -240,7 +295,7 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
             </>
           )}
 
-          {bem && (
+          {bem && bem.specs.length > 0 && (
             <>
               <div className="bns-md-rule" />
               <h4 className="bns-md-sec">Ficha técnica</h4>
@@ -258,48 +313,121 @@ function DetalheModal({ v, histPronto, onClose, onAjuste }: { v: VeiculoFipe; hi
   );
 }
 
+// ── Formulário de novo bem (modo Gerenciar) ──────────────────────────────────
+function NovoBemForm({ onCriar, onFechar }: {
+  onCriar: (dados: { nome: string; anoModelo: number; codigoFipe?: string; detalhe?: string; cor?: string }) => Promise<string | null>;
+  onFechar: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [ano, setAno] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [cor, setCor] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const criar = async () => {
+    const anoNum = Number(ano);
+    if (nome.trim().length < 3) { setErro("dê um nome ao bem"); return; }
+    if (!Number.isFinite(anoNum) || anoNum < 1950 || anoNum > 2100) { setErro("ano-modelo inválido"); return; }
+    setBusy(true); setErro(null);
+    const e = await onCriar({
+      nome: nome.trim(),
+      anoModelo: anoNum,
+      codigoFipe: codigo.trim() || undefined,
+      cor: cor.trim() || undefined,
+      detalhe: [ano.trim(), cor.trim()].filter(Boolean).join(" · ") || undefined,
+    });
+    setBusy(false);
+    if (e) setErro(e); else onFechar();
+  };
+
+  return (
+    <div className="bns-novo">
+      <div className="bns-novo-head">
+        <span>Novo carro</span>
+        <button onClick={onFechar} aria-label="Cancelar"><X size={14} /></button>
+      </div>
+      <input className="bns-inp" placeholder="Nome — ex.: Fiat Argo Drive 1.0" value={nome} onChange={(e) => setNome(e.target.value)} />
+      <div className="bns-novo-row">
+        <input className="bns-inp" placeholder="Ano-modelo" inputMode="numeric" value={ano} onChange={(e) => setAno(e.target.value.replace(/\D/g, "").slice(0, 4))} />
+        <input className="bns-inp" placeholder="Cor (opcional)" value={cor} onChange={(e) => setCor(e.target.value)} />
+      </div>
+      <input className="bns-inp" placeholder="Código FIPE (opcional) — ex.: 004473-3" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+      <p className="bns-novo-hint">
+        Com o código FIPE (está na consulta do site da FIPE) o valor sai exato na hora.
+        Sem ele, o app tenta achar pelo nome — marca primeiro, depois o modelo.
+      </p>
+      {erro && <span className="bns-novo-erro">✗ {erro}</span>}
+      <button className="bns-novo-add" onClick={() => void criar()} disabled={busy}>
+        {busy ? "adicionando…" : "Adicionar"}
+      </button>
+    </div>
+  );
+}
+
 export default function BensPage() {
+  const [lista, setLista] = useState<BemLista[]>([]);
   const [dados, setDados] = useState<FipeResp | null>(null);
   const [carregando, setCarregando] = useState(true);
-  const [detalhe, setDetalhe] = useState<VeiculoFipe | null>(null);
-  // Histórico FIPE por carro (12 meses) — buscado UMA vez para a grade e
-  // reaproveitado pelo popup (best-effort: sem rede, o card fica sem spark).
+  const [detalheId, setDetalheId] = useState<string | null>(null);
+  const [gerindo, setGerindo] = useState(false);
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // Histórico FIPE por carro — buscado UMA vez para a grade e reaproveitado
+  // pelo popup (best-effort: sem rede, o card fica sem spark).
   const [histMap, setHistMap] = useState<Record<string, PontoHist[]>>({});
-  const fechar = useCallback(() => setDetalhe(null), []);
+  const histBuscado = useRef(new Set<string>());
+  const fechar = useCallback(() => setDetalheId(null), []);
+
+  const carregarLista = useCallback(async () => {
+    try {
+      const d = (await (await fetch(`/api/bens/lista?_t=${Date.now()}`)).json()) as { bens?: BemLista[] };
+      if (d.bens) setLista(d.bens);
+      return d.bens ?? null;
+    } catch { return null; }
+  }, []);
+
+  const carregarFipe = useCallback(async (fresco = false) => {
+    try {
+      const d = (await (await fetch(`/api/bens/fipe${fresco ? `?_t=${Date.now()}` : ""}`)).json()) as FipeResp;
+      setDados(d);
+      return d;
+    } catch { return null; }
+  }, []);
 
   useEffect(() => {
-    const carros = dados?.veiculos ?? [];
+    let vivo = true;
+    (async () => {
+      // Lista primeiro (leve — fotos e nomes na tela já); FIPE na sequência.
+      await carregarLista();
+      if (!vivo) return;
+      await carregarFipe();
+      if (vivo) setCarregando(false);
+    })();
+    return () => { vivo = false; };
+  }, [carregarLista, carregarFipe]);
+
+  useEffect(() => {
     let vivo = true;
     // SEQUENCIAL de propósito: cada histórico completo já dispara dezenas de
     // consultas na API gratuita da FIPE — dois carros em paralelo dobravam a
     // rajada e batiam no rate limit (o gráfico "não carregava").
     (async () => {
-      for (const v of carros) {
+      for (const b of lista) {
         if (!vivo) return;
-        const bem = bemPorId(v.id);
-        if (!v.codigoFipe || !bem || histMap[v.id]) continue;
+        if (!b.codigoFipe || !b.anoModelo || histBuscado.current.has(b.id)) continue;
+        histBuscado.current.add(b.id);
         try {
-          const r = await fetch(`/api/bens/fipe/historico?codigo=${encodeURIComponent(v.codigoFipe)}&ano=${bem.anoModelo}`);
+          const r = await fetch(`/api/bens/fipe/historico?codigo=${encodeURIComponent(b.codigoFipe)}&ano=${b.anoModelo}`);
           const d = (await r.json()) as { pontos?: PontoHist[] };
           if (vivo && d.pontos && d.pontos.length >= 2) {
-            setHistMap((m) => ({ ...m, [v.id]: d.pontos! }));
+            setHistMap((m) => ({ ...m, [b.id]: d.pontos! }));
           }
         } catch { /* sem spark no card */ }
       }
     })();
     return () => { vivo = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dados]);
-
-  useEffect(() => {
-    let vivo = true;
-    fetch("/api/bens/fipe")
-      .then((r) => r.json())
-      .then((d: FipeResp) => { if (vivo) setDados(d); })
-      .catch(() => {})
-      .finally(() => { if (vivo) setCarregando(false); });
-    return () => { vivo = false; };
-  }, []);
+  }, [lista]);
 
   // Salva o ajuste na planilha e recarrega os valores FRESCOS (fura o cache
   // CDN com ?_t=). Devolve null no sucesso, ou a mensagem de erro.
@@ -312,17 +440,82 @@ export default function BensPage() {
       });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!r.ok || !d.ok) return d.error ?? `HTTP ${r.status}`;
-      const fresco = (await (await fetch(`/api/bens/fipe?_t=${Date.now()}`)).json()) as FipeResp;
-      setDados(fresco);
-      const novo = fresco.veiculos?.find((x) => x.id === id);
-      if (novo) setDetalhe(novo);
+      await carregarFipe(true);
       return null;
     } catch (e) {
       return e instanceof Error ? e.message : "falha ao salvar";
     }
-  }, []);
+  }, [carregarFipe]);
+
+  // Upload de foto própria: redimensiona no cliente, grava na planilha e
+  // recarrega a lista (a URL versionada fura o cache CDN sozinha).
+  const enviarFoto = useCallback(async (id: string, file: File): Promise<string | null> => {
+    try {
+      const dataUrl = await arquivoParaDataUrl(file);
+      const r = await fetch("/api/bens/foto-propria", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, dataUrl }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!r.ok || !d.ok) return d.error ?? `HTTP ${r.status}`;
+      await carregarLista();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "falha no upload";
+    }
+  }, [carregarLista]);
+
+  const restaurarFoto = useCallback(async (id: string) => {
+    setBusyId(id);
+    try {
+      await fetch("/api/bens/foto-propria", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await carregarLista();
+    } finally { setBusyId(null); }
+  }, [carregarLista]);
+
+  const removerBem = useCallback(async (b: BemLista) => {
+    if (!window.confirm(`Remover "${b.nome}" dos bens?\nEle sai da página e do patrimônio da Home.`)) return;
+    setBusyId(b.id);
+    try {
+      const r = await fetch("/api/bens/lista", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: b.id }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!r.ok || !d.ok) { window.alert(`Não removi: ${d.error ?? `HTTP ${r.status}`}`); return; }
+      await Promise.all([carregarLista(), carregarFipe(true)]);
+    } finally { setBusyId(null); }
+  }, [carregarLista, carregarFipe]);
+
+  const criarBem = useCallback(async (dados: { nome: string; anoModelo: number; codigoFipe?: string; detalhe?: string; cor?: string }): Promise<string | null> => {
+    try {
+      const r = await fetch("/api/bens/lista", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dados),
+      });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!r.ok || !d.ok) return d.error ?? `HTTP ${r.status}`;
+      await Promise.all([carregarLista(), carregarFipe(true)]);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "falha ao adicionar";
+    }
+  }, [carregarLista, carregarFipe]);
 
   const total = dados?.total ?? 0;
+  const fipePorId = new Map((dados?.veiculos ?? []).map((v) => [v.id, v]));
+  const detalheBem = detalheId ? lista.find((b) => b.id === detalheId) : undefined;
+  const detalheFipe: VeiculoFipe | null = detalheId
+    ? fipePorId.get(detalheId)
+      ?? (detalheBem ? { id: detalheBem.id, nome: detalheBem.nome, detalhe: detalheBem.detalhe, ok: false } : null)
+    : null;
 
   return (
     <>
@@ -343,36 +536,83 @@ export default function BensPage() {
 
       {/* Carros */}
       <section className="bns-sec">
-        <h2 className="bns-h"><Car size={15} strokeWidth={1.7} /> Carros</h2>
+        <h2 className="bns-h">
+          <Car size={15} strokeWidth={1.7} /> Carros
+          <button className={`bns-ger${gerindo ? " on" : ""}`} onClick={() => { setGerindo((g) => !g); setNovoAberto(false); }}>
+            <Settings2 size={12} /> {gerindo ? "Concluir" : "Gerenciar"}
+          </button>
+        </h2>
         <div className="bns-grid">
-          {(dados?.veiculos ?? [{ id: "tcross", nome: "VW T-Cross Highline 250 TSI", detalhe: "2025 · Cinza", ok: false }, { id: "onix", nome: "Chevrolet Onix Joy 1.0", detalhe: "2020 · Branco", ok: false }]).map((v) => (
-            <article key={v.id} className="bns-card" onClick={() => setDetalhe(v)} role="button" tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetalhe(v); } }}>
-              <div className="bns-foto">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={fotoSrc(v.id)} alt={v.nome} loading="lazy" />
-              </div>
-              <div className="bns-body">
-                <span className="bns-detalhe">{v.detalhe}</span>
-                <h3 className="bns-nome">{v.nome}</h3>
-                <div className="bns-rule" />
-                {histMap[v.id] && <MiniSpark pontos={histMap[v.id]} />}
-                <div className="bns-foot">
-                  <div className="bns-valor-blk">
-                    <span className="bns-valor">{carregando ? "…" : v.ok ? fmtBRL(v.valorFinalNum ?? v.valorNum ?? 0) : "—"}</span>
-                    <span className="bns-valor-lbl">
-                      {v.ok
-                        ? (v.ajustePct ?? 0) !== 0
-                          ? `FIPE ${v.ajustePct! > 0 ? "+" : "−"}${Math.abs(v.ajustePct!)}%`
-                          : "valor FIPE"
-                        : carregando ? "consultando FIPE…" : `FIPE indisponível${v.erro ? ` — ${v.erro}` : ""}`}
-                    </span>
-                  </div>
-                  <span className="bns-mais">detalhes →</span>
+          {lista.map((b) => {
+            const v = fipePorId.get(b.id);
+            return (
+              <article key={b.id} className="bns-card" onClick={() => setDetalheId(b.id)} role="button" tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetalheId(b.id); } }}>
+                <div className="bns-foto">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={b.foto} alt={b.nome} loading="lazy" />
+                  {gerindo && (
+                    <div className="bns-acoes" onClick={(e) => e.stopPropagation()}>
+                      <label className="bns-acao" title="Trocar foto">
+                        <Camera size={13} />
+                        <input
+                          type="file" accept="image/*" hidden disabled={busyId === b.id}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]; e.target.value = "";
+                            if (!f) return;
+                            setBusyId(b.id);
+                            void enviarFoto(b.id, f).then((erro) => {
+                              setBusyId(null);
+                              if (erro) window.alert(`Foto não trocada: ${erro}`);
+                            });
+                          }}
+                        />
+                      </label>
+                      {b.fotoPropria && (
+                        <button className="bns-acao" title="Voltar à foto padrão" disabled={busyId === b.id}
+                          onClick={() => void restaurarFoto(b.id)}>
+                          <Undo2 size={13} />
+                        </button>
+                      )}
+                      <button className="bns-acao perigo" title="Remover bem" disabled={busyId === b.id}
+                        onClick={() => void removerBem(b)}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
+                  {busyId === b.id && <span className="bns-busy">salvando…</span>}
                 </div>
-              </div>
-            </article>
-          ))}
+                <div className="bns-body">
+                  <span className="bns-detalhe">{b.detalhe}</span>
+                  <h3 className="bns-nome">{b.nome}</h3>
+                  <div className="bns-rule" />
+                  {histMap[b.id] && <MiniSpark pontos={histMap[b.id]} />}
+                  <div className="bns-foot">
+                    <div className="bns-valor-blk">
+                      <span className="bns-valor">{carregando ? "…" : v?.ok ? fmtBRL(v.valorFinalNum ?? v.valorNum ?? 0) : "—"}</span>
+                      <span className="bns-valor-lbl">
+                        {v?.ok
+                          ? (v.ajustePct ?? 0) !== 0
+                            ? `FIPE ${v.ajustePct! > 0 ? "+" : "−"}${Math.abs(v.ajustePct!)}%`
+                            : "valor FIPE"
+                          : carregando ? "consultando FIPE…" : `FIPE indisponível${v?.erro ? ` — ${v.erro}` : ""}`}
+                      </span>
+                    </div>
+                    <span className="bns-mais">detalhes →</span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {gerindo && !novoAberto && (
+            <button className="bns-add" onClick={() => setNovoAberto(true)}>
+              <Plus size={18} />
+              <span>Adicionar carro</span>
+            </button>
+          )}
+          {gerindo && novoAberto && (
+            <NovoBemForm onCriar={criarBem} onFechar={() => setNovoAberto(false)} />
+          )}
         </div>
       </section>
 
@@ -394,7 +634,16 @@ export default function BensPage() {
         </div>
       </section>
 
-      {detalhe && <DetalheModal v={detalhe} histPronto={histMap[detalhe.id] ?? null} onClose={fechar} onAjuste={salvarAjuste} />}
+      {detalheFipe && (
+        <DetalheModal
+          v={detalheFipe}
+          bem={detalheBem}
+          histPronto={histMap[detalheFipe.id] ?? null}
+          onClose={fechar}
+          onAjuste={salvarAjuste}
+          onFoto={enviarFoto}
+        />
+      )}
 
       <style>{CSS}</style>
     </>
@@ -413,6 +662,10 @@ const CSS = `
 .bns-h{display:flex;align-items:center;gap:7px;margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
   font-weight:600;color:#c4ced2;}
 .bns-h svg{color:#8fb8c9;}
+.bns-ger{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:10px;font-weight:600;
+  letter-spacing:.08em;padding:4px 11px;border-radius:999px;cursor:pointer;color:var(--muted,#8b969b);
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);transition:all .15s;}
+.bns-ger.on{color:#0d1214;background:#8fb8c9;border-color:#8fb8c9;}
 
 .bns-grid{display:grid;grid-template-columns:1fr;gap:14px;}
 @media(min-width:720px){.bns-grid{grid-template-columns:1fr 1fr;}}
@@ -422,7 +675,7 @@ const CSS = `
 .bns-card:hover{transform:translateY(-3px);border-color:rgba(143,184,201,0.35);
   box-shadow:0 30px 54px -30px rgba(0,0,0,0.9),0 0 30px -16px rgba(143,184,201,0.5);}
 .bns-card:focus-visible{outline:1px solid rgba(143,184,201,0.6);outline-offset:2px;}
-.bns-foto{aspect-ratio:16/8.4;background:#0d1114;overflow:hidden;}
+.bns-foto{aspect-ratio:16/8.4;background:#0d1114;overflow:hidden;position:relative;}
 .bns-foto img{width:100%;height:100%;object-fit:cover;display:block;}
 .bns-body{padding:14px 16px 13px;display:flex;flex-direction:column;gap:6px;}
 .bns-detalhe{font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;color:var(--muted,#8b969b);}
@@ -436,6 +689,38 @@ const CSS = `
 .bns-fipe-cod{font-family:ui-monospace,"SF Mono",monospace;font-size:10px;color:rgba(255,255,255,0.34);}
 .bns-mais{font-size:10.5px;color:var(--muted,#8b969b);opacity:.7;white-space:nowrap;}
 .bns-card:hover .bns-mais{color:#8fb8c9;opacity:1;}
+
+/* Modo Gerenciar — ações sobre a foto do card */
+.bns-acoes{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:2;}
+.bns-acao{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;cursor:pointer;color:#e7eef0;
+  background:rgba(6,10,13,0.72);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(8px);}
+.bns-acao:active{background:rgba(255,255,255,0.16);}
+.bns-acao:disabled{opacity:.4;cursor:default;}
+.bns-acao.perigo{color:#ffb3b3;border-color:rgba(255,120,120,0.35);}
+.bns-busy{position:absolute;left:8px;bottom:8px;font-size:10px;font-weight:600;color:#e7eef0;
+  background:rgba(6,10,13,0.72);border:1px solid rgba(255,255,255,0.18);border-radius:999px;padding:3px 9px;backdrop-filter:blur(8px);}
+
+/* Card "adicionar" + formulário de novo bem */
+.bns-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:150px;
+  border-radius:16px;cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--muted,#8b969b);
+  background:rgba(255,255,255,0.015);border:1px dashed rgba(255,255,255,0.18);transition:all .2s;}
+.bns-add:hover{color:#8fb8c9;border-color:rgba(143,184,201,0.5);}
+.bns-novo{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:16px;
+  background:linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));border:1px solid rgba(143,184,201,0.35);}
+.bns-novo-head{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:600;color:#c4ced2;}
+.bns-novo-head button{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;cursor:pointer;color:#e7eef0;
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);}
+.bns-novo-row{display:flex;gap:8px;}
+.bns-inp{width:100%;font:inherit;font-size:13px;color:#e9f2f4;background:#0a0d10;border:1px solid rgba(255,255,255,0.12);
+  border-radius:9px;padding:8px 10px;outline:none;}
+.bns-inp:focus{border-color:rgba(143,184,201,0.5);}
+.bns-inp::placeholder{color:rgba(255,255,255,0.28);}
+.bns-novo-hint{margin:0;font-size:10.5px;line-height:1.45;color:var(--muted,#8b969b);}
+.bns-novo-erro{font-size:11px;color:#ffb3b3;}
+.bns-novo-add{font:inherit;font-size:12px;font-weight:700;color:#04121a;cursor:pointer;align-self:flex-start;
+  background:linear-gradient(180deg,#8fb8c9,#5f93a8);border:none;padding:8px 18px;border-radius:999px;}
+.bns-novo-add:disabled{opacity:.5;cursor:default;}
 
 .bns-empty{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:16px;
   background:rgba(255,255,255,0.018);border:1px dashed rgba(255,255,255,0.14);}
@@ -456,8 +741,14 @@ const CSS = `
 @keyframes bns-pop{from{transform:scale(.96);opacity:.4;}to{transform:scale(1);opacity:1;}}
 .bns-md-x{position:absolute;top:10px;right:10px;z-index:2;width:32px;height:32px;display:grid;place-items:center;border-radius:50%;
   color:#e7eef0;background:rgba(6,10,13,0.6);border:1px solid rgba(255,255,255,0.16);cursor:pointer;backdrop-filter:blur(8px);}
-.bns-md-foto{aspect-ratio:16/8.6;background:#0d1114;}
+.bns-md-foto{aspect-ratio:16/8.6;background:#0d1114;position:relative;}
 .bns-md-foto img{width:100%;height:100%;object-fit:cover;display:block;}
+.bns-foto-btn{position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  font-size:10.5px;font-weight:600;color:#e7eef0;background:rgba(6,10,13,0.72);border:1px solid rgba(255,255,255,0.2);
+  border-radius:999px;padding:5px 11px;backdrop-filter:blur(8px);}
+.bns-foto-btn.busy{opacity:.6;cursor:default;}
+.bns-foto-erro{position:absolute;right:10px;bottom:10px;font-size:10.5px;color:#ffb3b3;
+  background:rgba(6,10,13,0.72);border-radius:999px;padding:5px 11px;}
 .bns-md-body{padding:16px 18px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:7px;}
 .bns-md-nome{margin:0;font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif;
   font-size:clamp(20px,5.4vw,24px);font-weight:500;color:#f3f6f7;line-height:1.08;}

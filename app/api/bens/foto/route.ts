@@ -5,7 +5,7 @@
 // policy bloqueia o host — funciona em produção.
 
 import { NextRequest } from "next/server";
-import { bemPorId } from "@/lib/bens";
+import { acharBem } from "@/lib/bens-store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -62,7 +62,7 @@ const FALLBACK_SVG = (nome: string) => `<svg xmlns="http://www.w3.org/2000/svg" 
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id") ?? "";
-  const bem = bemPorId(id);
+  const bem = await acharBem(id).catch(() => undefined);
   const fallback = () => new Response(FALLBACK_SVG(bem?.nome ?? "veículo"), {
     headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, s-maxage=3600" },
   });

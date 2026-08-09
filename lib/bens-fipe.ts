@@ -4,7 +4,8 @@
 // patrimônio total. Resolução: código FIPE pinado (v2, direto) → busca por nome
 // (v1). Cache de dados do Next (12h) segura a carga na API do parallelum.
 
-import { VEICULOS, FRACAO_BENS } from "./bens";
+import { FRACAO_BENS } from "./bens";
+import { listarBens } from "./bens-store";
 import { lerEscopo } from "./app-config";
 
 const BASE = "https://parallelum.com.br/fipe/api/v1/carros";
@@ -63,10 +64,13 @@ async function lerAjustes(): Promise<Map<string, number>> {
 }
 
 export async function computeBensFipe(): Promise<BensFipe> {
-  const [marcas, ajustes] = await Promise.all([j<Item[]>(`${BASE}/marcas`), lerAjustes()]);
+  // Bens vindos da semente estática + aba bens_lista (add/remove pela UI).
+  const [marcas, ajustes, veiculos] = await Promise.all([
+    j<Item[]>(`${BASE}/marcas`), lerAjustes(), listarBens(),
+  ]);
   const out: BemFipe[] = [];
 
-  for (const v of VEICULOS) {
+  for (const v of veiculos) {
     // Caminho 1 — código FIPE pinado (v2, consulta direta; imune a grafia de
     // nome). Sufixos de combustível: 5=Flex (diagnóstico ago/2026 provou que os
     // dois carros usam "-5"; só "1"/"3" deixava este caminho morto), 1=gasolina,
