@@ -41,7 +41,9 @@ export const VEICULOS: BemVeiculo[] = [
     marcaBusca: "volkswagen",
     modeloBusca: ["t-cross", "hig", "250"],
     anoModelo: 2025,
-    fotoLocal: "/bens/tcross.jpg",
+    // ?v= — cache-buster: a foto foi TROCADA (ago/2026) mantendo o nome do
+    // arquivo; sem a query, navegador/CDN seguram a antiga indefinidamente.
+    fotoLocal: "/bens/tcross.jpg?v=2",
     fotoBusca: ["Volkswagen T-Cross facelift", "Volkswagen T-Cross 2024", "Volkswagen T-Cross"],
     fotoRequer: ["t-cross"],
     fotoBonus: ["facelift", "2024", "2025", "grey", "gray", "grau", "silver"],
