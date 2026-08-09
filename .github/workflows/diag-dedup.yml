@@ -1,4 +1,4 @@
-# TEMPORÁRIO — diagnóstico do dedup B3 (apagar depois). Imprime só vereditos.
+# TEMPORÁRIO — diagnóstico do dedup B3, rodada 2 (apagar depois).
 name: diag-dedup
 on:
   push:
@@ -8,80 +8,15 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Compara operações do xlsx com a aba meus_ativos
+      - name: Linhas KNCR11 como estão gravadas
         run: |
           curl -sS --max-time 60 -o ativos.json "https://meus-investimentos-dev.vercel.app/api/sheets/meus_ativos"
           python3 - <<'PY'
-          import json, re, datetime
-
+          import json
           rows = json.load(open("ativos.json"))
-          def pick(row, *aliases):
-              want = {a.lower().replace(" ", "").replace("_", "") for a in aliases}
-              for k, v in row.items():
-                  kk = k.lower().replace(" ", "").replace("_", "")
-                  # tira acento básico
-                  kk = kk.replace("í","i").replace("ç","c").replace("ã","a").replace("é","e")
-                  if kk in want and v not in (None, ""): return str(v)
-              return ""
-          def pv(s):
-              s = str(s).strip()
-              if "," in s and "." not in s: s = s.replace(",", ".")
-              elif "," in s and "." in s:
-                  if s.rfind(",") > s.rfind("."): s = s.replace(".", "").replace(",", ".")
-                  else: s = s.replace(",", "")
-              try: return float(s)
-              except: return 0.0
-          def nd(s):
-              s = str(s).strip()
-              m = re.match(r"^(\d{2})/(\d{2})/(\d{4})", s)
-              if m: return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
-              m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
-              return m.group(0) if m else s
-
-          sheet = []
+          if rows: print("colunas:", list(rows[0].keys()))
           for r in rows:
-              tk = pick(r, "simbolo", "símbolo", "ticker", "symbol", "ativo", "papel").upper()
-              tk = re.sub(r"\.[A-Z]{1,2}$", "", tk)
-              if not tk: continue
-              sheet.append({
-                  "tk": tk,
-                  "tipo": pick(r, "tipodetransacao", "tipodetransação", "tipo", "operacao").lower(),
-                  "qty": pv(pick(r, "quantidade", "qtd") or "0"),
-                  "preco": pv(pick(r, "preco", "preço") or "0"),
-                  "data": nd(pick(r, "data") or ""),
-              })
-          print(f"aba meus_ativos: {len(sheet)} linhas lidas")
-
-          OPS = [
-              ("VALE3",  "venda",  100, 56.53,   "2025-09-10"),
-              ("KNCR11", "compra", 1,   105.0,   "2025-09-23"),
-              ("KNCR11", "compra", 1,   104.778, "2025-10-23"),
-              ("KNCR11", "compra", 1,   105.416, "2025-11-26"),
-              ("KNCR11", "compra", 1,   105.783, "2025-12-23"),
-              ("IVVB11", "venda",  15,  432.26,  "2026-01-02"),
-              ("KNCR11", "compra", 1,   106.07,  "2026-01-26"),
-          ]
-          def aprox(a, b): return abs(a-b) <= max(0.01, 0.005*max(abs(a), abs(b)))
-          for tk, tipo, qty, preco, data in OPS:
-              d0 = datetime.date.fromisoformat(data)
-              exato = janela = None
-              for s in sheet:
-                  if s["tk"] != tk: continue
-                  if tipo not in s["tipo"] and s["tipo"] not in ("compra","venda","buy","sell",""): pass
-                  tipook = (tipo in s["tipo"]) or (tipo=="compra" and s["tipo"] in ("buy","aporte")) or (tipo=="venda" and s["tipo"] in ("sell","resgate"))
-                  if not tipook: continue
-                  qok, pok = aprox(s["qty"], qty), aprox(s["preco"], preco)
-                  try: dd = (datetime.date.fromisoformat(s["data"]) - d0).days
-                  except: dd = 999
-                  if qok and pok and dd == 0: exato = s; break
-                  if qok and pok and abs(dd) <= 7: janela = (s, dd)
-              if exato: print(f"{tk} {tipo} {data}: EXATO na planilha")
-              elif janela: print(f"{tk} {tipo} {data}: EXISTE mas com data deslocada {janela[1]:+d} dias (planilha={janela[0]['data']})")
-              else:
-                  proximas = sorted(set(s["data"] for s in sheet if s["tk"] == tk and abs((datetime.date.fromisoformat(s["data"]) - d0).days) <= 45 if re.match(r"\d{4}-\d{2}-\d{2}", s["data"])))
-                  print(f"{tk} {tipo} {data}: AUSENTE (datas de {tk} num raio de 45d: {proximas or 'nenhuma'})")
-
-          for tk in ("KNCR11", "VALE3", "IVVB11"):
-              n = sum(1 for s in sheet if s["tk"] == tk)
-              print(f"total de linhas {tk} na planilha: {n}")
+              vals = {k: str(v) for k, v in r.items()}
+              if any("KNCR11" in v.upper() for v in vals.values()):
+                  print(vals)
           PY
