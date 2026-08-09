@@ -1,6 +1,5 @@
-# Diagnóstico TEMPORÁRIO — curva de juros do Radar sem dados.
-# O JSON antigo do Tesouro Direto devolve 410 (aposentado). Descobrir o
-# endpoint NOVO que o site usa hoje + validar alternativas. Apagar depois.
+# Diagnóstico TEMPORÁRIO — rodada 2: o CKAN do Tesouro Transparente tem
+# datastore (consulta filtrada, sem baixar o CSV inteiro)? Apagar depois.
 name: diag-juros
 
 on:
@@ -10,40 +9,35 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 5
     steps:
-      - name: endpoints antigos e pagina atual
+      - name: ckan datastore
         run: |
           set +e
-          UA='-H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"'
-          echo "=== endpoint antigo (esperado 410) ==="
-          curl -sS -m 20 -o /tmp/old -w "HTTP %{http_code} em %{time_total}s\n" \
-            -H "User-Agent: Mozilla/5.0" \
-            "https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json"
-          head -c 200 /tmp/old; echo
-          echo "=== fallback b3 antigo ==="
-          curl -sS -m 20 -o /tmp/old2 -w "HTTP %{http_code}\n" -H "User-Agent: Mozilla/5.0" \
-            "https://apitesourodireto.b3.com.br/treasury/api/v1/treasurybonds"
-          head -c 200 /tmp/old2; echo
-          echo "=== pagina precos-e-taxas (o site novo) ==="
-          curl -sSL -m 25 -o /tmp/pg -w "HTTP %{http_code} tamanho %{size_download}\n" \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" \
-            -H "Accept: text/html,application/xhtml+xml" \
-            "https://www.tesourodireto.com.br/titulos/precos-e-taxas.htm"
-          echo "--- candidatos a endpoint no HTML ---"
-          grep -o -E '(https?:)?//[^"'"'"' ]*(api|json|tdws|treasury|bond|titulo)[^"'"'"' ]*' /tmp/pg | sort -u | head -30
-          echo "--- scripts do bundle ---"
-          grep -o -E 'src="[^"]+\.js[^"]*"' /tmp/pg | head -15
-
-      - name: alternativas abertas
-        run: |
-          set +e
-          echo "=== Tesouro Transparente CKAN (CSV historico) — HEAD ==="
-          curl -sSIL -m 30 -H "User-Agent: Mozilla/5.0" \
-            "https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv" \
-            | grep -i -E "HTTP|content-length|content-type|last-modified" | head -8
-          echo "=== BCB Focus Selic (sanidade — parte que talvez funcione) ==="
-          curl -sS -m 20 -o /tmp/focus -w "HTTP %{http_code}\n" -H "User-Agent: Mozilla/5.0" \
-            "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoSelic?%24top=3&%24format=json&%24orderby=Data%20desc"
-          head -c 250 /tmp/focus; echo
+          B="https://www.tesourotransparente.gov.br/ckan/api/3/action"
+          R="796d2059-14e9-44e3-80c9-2d9e30b405c1"
+          echo "=== datastore_search limit=2 ==="
+          curl -sS -m 25 -H "User-Agent: Mozilla/5.0" -o /tmp/ds -w "HTTP %{http_code} em %{time_total}s\n" \
+            "$B/datastore_search?resource_id=$R&limit=2"
+          head -c 900 /tmp/ds; echo
+          echo "=== datastore_search_sql (última Data Base) ==="
+          SQL=$(python3 -c "import urllib.parse; print(urllib.parse.quote('SELECT MAX(\"Data Base\") AS max_data FROM \"$R\"'))")
+          curl -sS -m 30 -H "User-Agent: Mozilla/5.0" -o /tmp/sql -w "HTTP %{http_code} em %{time_total}s\n" \
+            "$B/datastore_search_sql?sql=$SQL"
+          head -c 500 /tmp/sql; echo
+          echo "=== resource_show (datastore_active?) ==="
+          curl -sS -m 20 -H "User-Agent: Mozilla/5.0" -o /tmp/rs -w "HTTP %{http_code}\n" "$B/resource_show?id=$R"
+          python3 -c "
+          import json
+          try:
+            d=json.load(open('/tmp/rs'))
+            r=d.get('result',{})
+            print('datastore_active:', r.get('datastore_active'), '| format:', r.get('format'), '| size:', r.get('size'), '| last_modified:', r.get('last_modified'))
+          except Exception as e:
+            print('parse falhou:', e)
+          "
+          echo "=== bytes finais do CSV via Range (dados recentes ficam no fim?) ==="
+          curl -sS -m 30 -H "User-Agent: Mozilla/5.0" -H "Range: bytes=-1200" -o /tmp/tail -w "HTTP %{http_code} tamanho %{size_download}\n" \
+            "https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/$R/download/PrecoTaxaTesouroDireto.csv"
+          tail -c 400 /tmp/tail; echo
           true
