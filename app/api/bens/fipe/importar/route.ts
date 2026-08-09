@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTab, ensureTab, appendRowsTyped } from "@/lib/gsheets";
-import { VEICULOS } from "@/lib/bens";
+import { listarBens } from "@/lib/bens-store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   const codigo = String(body.codigo ?? "").trim();
-  const codigosValidos = new Set(VEICULOS.map((v) => v.codigoFipe).filter(Boolean));
+  const codigosValidos = new Set((await listarBens()).map((v) => v.codigoFipe).filter(Boolean));
   if (!codigosValidos.has(codigo)) {
     return NextResponse.json({ error: "código FIPE não cadastrado" }, { status: 400, headers: CORS });
   }

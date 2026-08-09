@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { lerEscopo, gravarEscopo } from "@/lib/app-config";
-import { bemPorId } from "@/lib/bens";
+import { acharBem } from "@/lib/bens-store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { /* segue com vazio */ }
   const id = String(body.id ?? "");
   const pct = Number(body.pct);
-  if (!bemPorId(id)) return NextResponse.json({ error: "veículo desconhecido" }, { status: 400 });
+  if (!(await acharBem(id))) return NextResponse.json({ error: "veículo desconhecido" }, { status: 400 });
   if (!Number.isFinite(pct) || pct < -90 || pct > 100) {
     return NextResponse.json({ error: "pct inválido (use −90 a +100)" }, { status: 400 });
   }
