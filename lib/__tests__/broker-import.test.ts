@@ -52,6 +52,41 @@ describe("dedup — a DATA faz parte da identidade do trade", () => {
   });
 });
 
+// Caso real (ago/2026): a planilha guarda a data do PREGÃO e o preço da nota;
+// a Movimentação da B3 traz a LIQUIDAÇÃO (D+2, até -4 dias corridos na virada
+// de ano) e o valor de liquidação (~0,6% diferente). O dedup exigia data igual
+// e 0,5% de preço → 6 operações já registradas apareciam como "novas" e o
+// Aplicar duplicaria tudo.
+describe("dedup — pregão × liquidação (Movimentação B3)", () => {
+  it("reinvestimento de FII: liquidação D+2 e preço 0,6% acima casam", () => {
+    const existente = [{ "símbolo": "KNCR11.SA", "tipo de transação": "Compra", quantidade: "1", "preço": "105.62", data: "2025-09-19" }];
+    const incoming = [makeTradeRow({ data: "2025-09-23", tipo: "Compra", ticker: "KNCR11", qtd: 1, preco: 105.0, valorBruto: 105, comissao: 0, moeda: "BRL" })];
+    expect(dedupTrades(existente, incoming).get(0)).toBe("existente");
+  });
+
+  it("venda na virada de ano: 29/12 (pregão) ≡ 02/01 (liquidação)", () => {
+    const existente = [{ "símbolo": "IVVB11.SA", "tipo de transação": "Venda", quantidade: "15", "preço": "432,26", data: "2025-12-29" }];
+    const incoming = [makeTradeRow({ data: "2026-01-02", tipo: "Venda", ticker: "IVVB11", qtd: 15, preco: 432.26, valorBruto: 6483.9, comissao: 0, moeda: "BRL" })];
+    expect(dedupTrades(existente, incoming).get(0)).toBe("existente");
+  });
+
+  it("reinvestimentos MENSAIS seguem distintos (janela não engole o mês seguinte)", () => {
+    const existente = [{ "símbolo": "KNCR11.SA", "tipo de transação": "Compra", quantidade: "1", "preço": "105.39", data: "2025-10-21" }];
+    const incoming = [makeTradeRow({ data: "2025-11-26", tipo: "Compra", ticker: "KNCR11", qtd: 1, preco: 105.416, valorBruto: 105.42, comissao: 0, moeda: "BRL" })];
+    expect(dedupTrades(existente, incoming).get(0)).toBe("novo");
+  });
+
+  it("com data exata E deslocada disponíveis, casa com a exata", () => {
+    const existente = [
+      { "símbolo": "KNCR11.SA", "tipo de transação": "Compra", quantidade: "1", "preço": "105", data: "2025-09-21" },
+      { "símbolo": "KNCR11.SA", "tipo de transação": "Compra", quantidade: "1", "preço": "105", data: "2025-09-23" },
+    ];
+    const incoming = [makeTradeRow({ data: "2025-09-23", tipo: "Compra", ticker: "KNCR11", qtd: 1, preco: 105.0, valorBruto: 105, comissao: 0, moeda: "BRL" })];
+    const st = dedupTrades(existente, incoming);
+    expect(st.get(0)).toBe("existente");
+  });
+});
+
 // Caso 2 e 3: forex USD.CAD — micro-ajustes filtrados; câmbio real reconhecido.
 describe("câmbio", () => {
   it("filtra micro-ajuste de câmbio (<10)", () => {

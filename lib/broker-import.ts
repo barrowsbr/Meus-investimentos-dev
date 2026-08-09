@@ -306,28 +306,49 @@ export function dedupTrades(
     if (ticker) existingTrades.push({ ticker, tipo, qty, preco, date, matched: false });
   }
 
-  // Igualdade aproximada: tolerância proporcional (0,5%) OU absoluta pequena —
-  // muito mais precisa que o Math.round a INTEIRO anterior (que fazia 10,20 ≈
-  // 10,49 e 0,4 ≈ 0,5 casarem falsamente).
+  // Igualdade aproximada: tolerância proporcional OU absoluta pequena — muito
+  // mais precisa que o Math.round a INTEIRO anterior (que fazia 10,20 ≈ 10,49 e
+  // 0,4 ≈ 0,5 casarem falsamente). Quantidade usa 0,5%; preço tolera 1% porque
+  // a MESMA operação chega com preços um pouco diferentes conforme a fonte
+  // (nota da corretora × Movimentação da B3, que traz o valor de liquidação —
+  // diferença sistemática de ~0,6% observada nos reinvestimentos de FII).
   const aprox = (a: number, b: number, rel = 0.005, abs = 0.01) =>
     Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
 
+  // Datas da MESMA operação divergem entre fontes: a planilha guarda o pregão,
+  // a Movimentação da B3 a liquidação (D+2 úteis — até 4-5 dias corridos sobre
+  // feriado/virada de ano). Janela de ±5 dias corridos casa essas variantes sem
+  // colidir com aportes mensais (~30 dias). Sem data de um dos lados, casa.
+  const DATA_JANELA_DIAS = 5;
+  const dataCompativel = (a: string, b: string): boolean => {
+    if (!a || !b) return true;
+    if (a === b) return true;
+    const ta = Date.parse(a + "T12:00:00Z");
+    const tb = Date.parse(b + "T12:00:00Z");
+    if (isNaN(ta) || isNaN(tb)) return false;
+    return Math.abs(ta - tb) <= DATA_JANELA_DIAS * 86400000;
+  };
+
   function findMatch(ticker: string, tipo: string, qty: number, preco: number, date: string): typeof existingTrades[0] | null {
     const dNorm = normalizeDate(date);
+    let melhor: typeof existingTrades[0] | null = null;
+    let melhorDist = Infinity;
     for (const t of existingTrades) {
       if (t.matched) continue;
       if (t.ticker !== ticker) continue;
       if (t.tipo !== tipo) continue;
-      // A DATA é parte da identidade do trade: um re-import tem a MESMA data.
-      // Sem isto, aportes mensais idênticos (100 CMIG4 @ 10,20 em jan e fev)
-      // casavam entre si e a 2ª compra era descartada como "existente". Só exige
-      // igualdade quando ambos os lados têm data (fallback p/ linhas sem data).
-      if (t.date && dNorm && t.date !== dNorm) continue;
+      // A DATA segue parte da identidade do trade (aportes mensais idênticos não
+      // podem casar entre si) — mas com a janela de ±5 dias p/ pregão × liquidação.
+      if (!dataCompativel(t.date, dNorm)) continue;
       if (!aprox(t.qty, qty)) continue;
-      if (!aprox(t.preco, preco)) continue;
-      return t;
+      if (!aprox(t.preco, preco, 0.01)) continue;
+      // Preferir o match de data mais próxima (exata ganha da deslocada).
+      const dist = t.date && dNorm
+        ? Math.abs(Date.parse(t.date + "T12:00:00Z") - Date.parse(dNorm + "T12:00:00Z"))
+        : Number.MAX_SAFE_INTEGER; // sem data: só casa se nada com data casar
+      if (dist < melhorDist || melhor === null) { melhor = t; melhorDist = dist; }
     }
-    return null;
+    return melhor;
   }
 
   function findSplitMatch(ticker: string, tipo: string, totalValue: number, date: string): boolean {
@@ -335,9 +356,9 @@ export function dedupTrades(
     for (const t of existingTrades) {
       if (t.matched) continue;
       if (t.ticker !== ticker || t.tipo !== tipo) continue;
-      // Split = ordem fragmentada no MESMO dia; sem a data, um aporte mensal de
-      // mesmo valor total viraria "split" do mês anterior.
-      if (t.date && dNorm && t.date !== dNorm) continue;
+      // Split = ordem fragmentada; mesma janela de data do findMatch (sem ela,
+      // um aporte mensal de mesmo valor total viraria "split" do mês anterior).
+      if (!dataCompativel(t.date, dNorm)) continue;
       const existVal = t.qty * t.preco;
       const diff = Math.abs(existVal - totalValue);
       if (totalValue > 0 && (diff < 5 || diff / totalValue < 0.01)) return true;
