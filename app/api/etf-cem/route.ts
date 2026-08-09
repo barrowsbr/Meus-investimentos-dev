@@ -1,5 +1,6 @@
-// ETF Cem — as ~100 maiores empresas do mundo, usando o VOO (S&P 500) como
-// proxy. Holdings via lib/etf-holdings (fonte curada SSGA/iShares, mesma do
+// ETF Cem — o S&P 500 COMPLETO (~500 empresas) via VOO como proxy; o nome
+// "Cem" ficou da versão original (top 100) e a UI mostra 100 por vez.
+// Holdings via lib/etf-holdings (fonte curada SSGA/iShares, mesma do
 // look-through); preço + fundamentals (P/L, yield, 52 semanas, market cap)
 // via Yahoo em lote. O ATH histórico fica na rota irmã /api/etf-cem/ath
 // (pesada, cacheada por muito mais tempo).
@@ -52,7 +53,7 @@ export async function GET() {
       return NextResponse.json({ error: "holdings do VOO indisponíveis" }, { status: 503 });
     }
 
-    // Top 100 por peso, com símbolo Yahoo válido.
+    // Índice completo por peso (S&P 500 ≈ 503 papéis), com símbolo Yahoo válido.
     const top: Array<{ sym: string; nome: string; pesoPct: number }> = [];
     const vistos = new Set<string>();
     for (const h of [...holdings].sort((a, b) => b.weight_pct - a.weight_pct)) {
@@ -60,26 +61,32 @@ export async function GET() {
       if (!sym || vistos.has(sym)) continue;
       vistos.add(sym);
       top.push({ sym, nome: h.name || sym, pesoPct: h.weight_pct });
-      if (top.length >= 100) break;
+      if (top.length >= 510) break; // proteção contra fonte suja; o índice tem ~503
     }
 
-    // Cotações + fundamentals em lotes de 25 (o quote do Yahoo aceita array).
+    // Cotações + fundamentals em lotes de 50 (o quote do Yahoo aceita array).
+    // Fallback de lote com falha: divide em metades, nunca um-a-um (500 papéis
+    // um a um estouraria o maxDuration num throttle).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const YF: any = (await import("yahoo-finance2")).default;
     const yf = typeof YF === "function" ? new YF() : YF;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const quotes = new Map<string, any>();
-    for (let i = 0; i < top.length; i += 25) {
-      const batch = top.slice(i, i + 25).map((t) => t.sym);
+    const cotarLote = async (batch: string[], podeDividir: boolean): Promise<void> => {
       try {
         const res = await yf.quote(batch);
         for (const q of Array.isArray(res) ? res : [res]) if (q?.symbol) quotes.set(q.symbol, q);
       } catch {
-        // lote falhou (throttle) — tenta um a um, best-effort
-        for (const s of batch) {
-          try { const q = await yf.quote(s); if (q?.symbol) quotes.set(q.symbol, q); } catch { /* sem cotação */ }
+        if (podeDividir && batch.length > 5) {
+          const meio = Math.ceil(batch.length / 2);
+          await cotarLote(batch.slice(0, meio), false);
+          await cotarLote(batch.slice(meio), false);
         }
+        // best-effort: lote irrecuperável fica sem cotação (a UI mostra "—")
       }
+    };
+    for (let i = 0; i < top.length; i += 50) {
+      await cotarLote(top.slice(i, i + 50).map((t) => t.sym), true);
     }
 
     const empresas: EmpresaCem[] = top.map((t) => {
