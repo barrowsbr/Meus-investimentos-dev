@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOwner } from "@/lib/auth-server";
 import { fetchTab, ensureTab, appendRowsTyped } from "@/lib/gsheets";
+import { lerEscopo, gravarEscopo } from "@/lib/app-config";
 import { parseOfx, pareceOfx, type TransacaoCartao } from "@/lib/financas/ofx";
 import {
   CATEGORIAS, categoriaEfetiva, normalizarEstabelecimento,
@@ -68,7 +69,16 @@ async function lerRegras(): Promise<Map<string, string>> {
 
 export async function GET() {
   try {
-    const [transacoes, regras] = await Promise.all([lerTransacoes(), lerRegras()]);
+    const [transacoes, regras, cfg] = await Promise.all([
+      lerTransacoes(),
+      lerRegras(),
+      lerEscopo("cartao").catch(() => new Map<string, string>()),
+    ]);
+    // Dia de fechamento da fatura — aprendido do DTEND do próprio OFX no
+    // import. Permite a visão "por fatura" (o ciclo do Nubank cruza a virada
+    // do mês; agrupar só por mês calendário nunca bate com o app do banco).
+    const fechamentoDia = Number(cfg.get("fechamento_dia")) || null;
+    const datas = transacoes.map((t) => t.data);
     return NextResponse.json({
       transacoes: transacoes.map((t) => ({
         ...t,
@@ -79,6 +89,8 @@ export async function GET() {
       categorias: CATEGORIAS,
       assinaturas: detectarAssinaturas(transacoes),
       parcelamentos: detectarParcelamentos(transacoes),
+      fechamentoDia,
+      cobertura: datas.length ? { de: datas[datas.length - 1], ate: datas[0] } : null,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "erro" }, { status: 500 });
@@ -112,6 +124,12 @@ export async function POST(request: NextRequest) {
           t.parcela ? `${t.parcela.n}/${t.parcela.total}` : "",
         ]),
       );
+    }
+
+    // Aprende o dia de fechamento da fatura pelo DTEND do arquivo (best-effort).
+    const diaFechamento = Number(periodo?.fim?.slice(8, 10));
+    if (Number.isFinite(diaFechamento) && diaFechamento >= 1) {
+      try { await gravarEscopo("cartao", [["fechamento_dia", String(diaFechamento)]]); } catch { /* demo/sem SA */ }
     }
 
     return NextResponse.json({

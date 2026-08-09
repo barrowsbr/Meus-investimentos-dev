@@ -32,7 +32,10 @@ interface ParcelamentoDet {
 }
 interface RespCartao {
   transacoes: Trans[]; categorias: string[];
-  assinaturas: AssinaturaDet[]; parcelamentos: ParcelamentoDet[]; error?: string;
+  assinaturas: AssinaturaDet[]; parcelamentos: ParcelamentoDet[];
+  fechamentoDia?: number | null;
+  cobertura?: { de: string; ate: string } | null;
+  error?: string;
 }
 
 const TOOLTIP_STYLE = { background: "#13141A", border: "1px solid #1E2028", borderRadius: 12, color: "var(--text)", fontSize: 12, padding: "8px 12px" };
@@ -57,7 +60,10 @@ export default function GastosTab({
 }) {
   const [cartao, setCartao] = useState<RespCartao | null>(null);
   const [erroCartao, setErroCartao] = useState<string | null>(null);
-  const [mes, setMes] = useState<string>("");     // "" = mês mais recente; "tudo"
+  const [mes, setMes] = useState<string>("");     // "" = período mais recente; "tudo"
+  // "fatura" agrupa pelo ciclo real do cartão (fecha no dia aprendido do OFX) —
+  // é o que BATE com o app do Nubank; mês calendário corta a fatura ao meio.
+  const [agrupamento, setAgrupamento] = useState<"fatura" | "mes">("fatura");
   const [salvandoCat, setSalvandoCat] = useState<string | null>(null);
 
   const carregar = () => {
@@ -93,16 +99,33 @@ export default function GastosTab({
     });
   }, [parcAtivos, totalAssinaturas]);
 
-  // ── Cartão: período + resumo ───────────────────────────────────────────────
+  // ── Cartão: período (mês calendário OU ciclo de fatura) + resumo ──────────
+  const fechamentoDia = cartao?.fechamentoDia ?? null;
+  const modoFatura = agrupamento === "fatura" && fechamentoDia != null;
+
+  // Chave do período de uma transação: mês calendário, ou o mês de FECHAMENTO
+  // da fatura a que ela pertence (dia ≥ fechamento → fecha no mês seguinte).
+  const chavePeriodo = useMemo(() => (t: Trans): string => {
+    const ym = t.data.slice(0, 7);
+    if (!modoFatura) return ym;
+    const dia = Number(t.data.slice(8, 10));
+    if (dia < fechamentoDia!) return ym;
+    const [y, m] = ym.split("-").map(Number);
+    const prox = new Date(Date.UTC(y, m, 1));
+    return `${prox.getUTCFullYear()}-${String(prox.getUTCMonth() + 1).padStart(2, "0")}`;
+  }, [modoFatura, fechamentoDia]);
+
   const mesesDisponiveis = useMemo(() => {
-    const s = new Set((cartao?.transacoes ?? []).map((t) => t.data.slice(0, 7)));
+    const s = new Set((cartao?.transacoes ?? []).map(chavePeriodo));
     return [...s].sort().reverse();
-  }, [cartao]);
-  const mesAtivo = mes || mesesDisponiveis[0] || "";
+  }, [cartao, chavePeriodo]);
+  const mesAtivo = (mes !== "tudo" && mesesDisponiveis.includes(mes) ? mes : "") || mesesDisponiveis[0] || "";
   const doPeriodo = useMemo(() => {
     const ts = cartao?.transacoes ?? [];
-    return mes === "tudo" ? ts : ts.filter((t) => t.data.slice(0, 7) === mesAtivo);
-  }, [cartao, mes, mesAtivo]);
+    return mes === "tudo" ? ts : ts.filter((t) => chavePeriodo(t) === mesAtivo);
+  }, [cartao, mes, mesAtivo, chavePeriodo]);
+
+  const rotuloPeriodo = (ym: string) => (modoFatura ? `fat. ${mesLabel(ym)}` : mesLabel(ym));
 
   const resumo = useMemo(() => {
     let gastos = 0, creditos = 0;
@@ -113,7 +136,11 @@ export default function GastosTab({
       else creditos += t.valor;
     }
     const cats = [...porCat.entries()].sort((a, b) => b[1] - a[1]);
-    return { gastos, creditos, cats, n: doPeriodo.filter((t) => t.valor < 0 && t.categoria !== "Pagamento").length };
+    return {
+      gastos, creditos, cats,
+      liquido: gastos - creditos,
+      n: doPeriodo.filter((t) => t.valor < 0 && t.categoria !== "Pagamento").length,
+    };
   }, [doPeriodo]);
 
   const recategorizar = async (t: Trans, categoria: string) => {
@@ -159,9 +186,15 @@ export default function GastosTab({
       {/* ── Compromissos: 3 números que resumem o mês ── */}
       <div className="grid grid-cols-3 gap-3">
         <div className="glass-card p-3.5">
-          <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Gastos no cartão · {temCartao ? (mes === "tudo" ? "tudo" : mesLabel(mesAtivo)) : "—"}</p>
-          <p className="font-mono text-xl font-extrabold text-zinc-100">{temCartao ? brl(resumo.gastos) : "—"}</p>
-          <p className="text-[10.5px] text-zinc-500">{temCartao ? `${resumo.n} compras${resumo.creditos > 0 ? ` · estornos ${brl(resumo.creditos)}` : ""}` : "importe o OFX"}</p>
+          <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">
+            {modoFatura ? "Fatura" : "Gastos"} · {temCartao ? (mes === "tudo" ? "tudo" : rotuloPeriodo(mesAtivo)) : "—"}
+          </p>
+          <p className="font-mono text-xl font-extrabold text-zinc-100">{temCartao ? brl(resumo.liquido) : "—"}</p>
+          <p className="text-[10.5px] text-zinc-500">
+            {temCartao
+              ? `${resumo.n} compras${resumo.creditos > 0 ? ` · ${brl(resumo.gastos)} − estornos ${brl(resumo.creditos)}` : ""}`
+              : "importe o OFX"}
+          </p>
         </div>
         <div className="glass-card p-3.5">
           <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Assinaturas</p>
@@ -191,13 +224,25 @@ export default function GastosTab({
         ) : (
           <div className="space-y-4 pt-3">
             <div className="flex flex-wrap items-center gap-1.5">
+              {fechamentoDia != null && (
+                <div className="flex rounded-md overflow-hidden mr-1" style={{ border: "1px solid var(--line)" }}>
+                  {(["fatura", "mes"] as const).map((g) => (
+                    <button key={g} onClick={() => { setAgrupamento(g); setMes(""); }}
+                      title={g === "fatura" ? `Ciclo da fatura (fecha dia ${fechamentoDia}) — bate com o app do banco` : "Mês calendário"}
+                      className="font-mono text-[10px] font-bold px-2 py-1.5 uppercase"
+                      style={{ background: agrupamento === g ? "rgba(255,255,255,0.08)" : "transparent", color: agrupamento === g ? "var(--text)" : "var(--faint)" }}>
+                      {g === "fatura" ? "Fatura" : "Mês"}
+                    </button>
+                  ))}
+                </div>
+              )}
               {mesesDisponiveis.slice(0, 6).map((m) => {
                 const on = mes !== "tudo" && m === mesAtivo;
                 return (
                   <button key={m} onClick={() => setMes(m)}
                     className="font-mono text-[11px] font-bold px-3 py-1.5 rounded-md"
                     style={{ background: on ? "var(--accent-soft, rgba(52,211,153,0.12))" : "var(--panel)", border: `1px solid ${on ? "var(--pos)" : "var(--line)"}`, color: on ? "var(--pos)" : "var(--muted)" }}>
-                    {mesLabel(m)}
+                    {rotuloPeriodo(m)}
                   </button>
                 );
               })}
@@ -208,6 +253,14 @@ export default function GastosTab({
               </button>
               <button onClick={carregar} title="Recarregar" className="ml-auto text-zinc-600 hover:text-zinc-400"><RefreshCw size={13} /></button>
             </div>
+            {cartao?.cobertura && (
+              <p className="text-[10.5px] text-zinc-600">
+                Dados importados de <span className="text-zinc-400 font-mono">{dataCurta(cartao.cobertura.de)}</span> a{" "}
+                <span className="text-zinc-400 font-mono">{dataCurta(cartao.cobertura.ate)}</span> — cada OFX cobre uma fatura
+                (~30 dias); para o histórico antigo, exporte as faturas FECHADAS no app do Nubank e suba uma a uma
+                (a importação nunca duplica).
+              </p>
+            )}
 
             {/* Categorias */}
             {resumo.cats.length > 0 && (
