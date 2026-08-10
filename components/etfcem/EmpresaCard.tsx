@@ -7,6 +7,7 @@
 // Tudo best-effort: campo sem dado vira "—", nunca erro.
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, ExternalLink, Star, Landmark, CalendarDays, Users } from "lucide-react";
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
@@ -142,7 +143,12 @@ export default function EmpresaCard({
   const upside = det?.alvoMedio != null && det?.preco != null && det.preco > 0
     ? ((det.alvoMedio / det.preco) - 1) * 100 : null;
 
-  return (
+  // PORTAL no <body>: o layout tem ancestrais com transform/backdrop-filter,
+  // que viram o "containing block" de position:fixed — sem o portal, o card
+  // ancorava no fim da LISTA (o usuário tinha que rolar até lá embaixo) em
+  // vez de sobrepor a tela.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="dialog" aria-modal="true" aria-label={`Detalhes de ${empresa.nome}`}>
       <button className="absolute inset-0" style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(2px)" }} onClick={aoFechar} aria-label="Fechar" />
       <div
@@ -278,6 +284,7 @@ export default function EmpresaCard({
           Abrir no Yahoo Finance <ExternalLink size={12} />
         </a>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
