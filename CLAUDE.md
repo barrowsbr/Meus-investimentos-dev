@@ -517,6 +517,7 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
 
 - **Mercado & Cotações**: Yahoo Finance (livre) · brapi.dev (`BRAPI_TOKEN` opc.) ·
+  Zacks Rank via quote-feed.zacks.com (livre — badge nos cards de detalhe) ·
   CoinGecko (livre) · mempool.space (livre) · Financial Modeling Prep (`FMP_API_KEY` opc.) ·
   Alpha Vantage (`ALPHAVANTAGE_API_KEY` opc.)
 - **Câmbio & Juros**: BCB PTAX/Olinda (livre) · BCB SGS (livre) · AwesomeAPI (livre) ·

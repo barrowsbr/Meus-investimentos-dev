@@ -9,6 +9,7 @@ import { brl, currency, pct } from "@/lib/format";
 import { displayName } from "@/lib/asset-brands";
 import { yahooTicker } from "@/lib/yahoo-symbol";
 import AssetLogo from "@/components/AssetLogo";
+import ZacksBadge from "@/components/ZacksBadge";
 import CandleChart from "@/components/CandleChart";
 import AssetNews from "@/components/AssetNews";
 import AssetBuzz from "@/components/AssetBuzz";
@@ -210,6 +211,7 @@ export default function AssetDetailModal({
                 <span className="font-mono text-xs font-semibold" style={{ color: "var(--muted)" }}>{p.ticker}</span>
                 <span className="text-[10px]" style={{ color: "var(--muted)" }}>· {p.moeda}</span>
                 <span className="tag" style={{ backgroundColor: `${sectorColor}15`, color: sectorColor }}>{p.setor}</span>
+                <ZacksBadge ticker={p.ticker} />
               </div>
             </div>
           </div>
