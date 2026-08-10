@@ -139,11 +139,31 @@ export async function lerMapaSimbolos(): Promise<Map<string, string>> {
 
 /** Resolve ISINs sem símbolo via busca do Yahoo (progressivo, maiores pesos
  *  primeiro) e persiste os novos na aba. Devolve o mapa atualizado. */
+// A busca por ISIN às vezes devolve um CROSS-LISTING primeiro (Alphabet →
+// "1GOOGL.MI" de Milão, em EUR). Para papel dos EUA, a listagem primária não
+// tem sufixo de bolsa — preferimos ela.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function escolherSimbolo(quotes: any[], pais: string): string | null {
+  const validos = quotes.filter((q) => typeof q?.symbol === "string" && q.symbol);
+  if (validos.length === 0) return null;
+  if (pais === "United States") {
+    const primaria = validos.find((q) => !String(q.symbol).includes("."));
+    if (primaria) return String(primaria.symbol).toUpperCase();
+  }
+  return String(validos[0].symbol).toUpperCase();
+}
+
+// Mapeamento suspeito: papel dos EUA com sufixo de bolsa = cross-listing
+// gravado antes da regra acima — re-buscar (o append corrige via last-wins).
+function suspeito(p: PapelAcwi, symbol: string | undefined): boolean {
+  return !!symbol && symbol !== SEM_SIMBOLO && p.pais === "United States" && symbol.includes(".");
+}
+
 export async function resolverSimbolos(
   papeis: PapelAcwi[],
   mapa: Map<string, string>,
 ): Promise<{ mapa: Map<string, string>; buscados: number; pendentes: number }> {
-  const faltam = papeis.filter((p) => !mapa.has(p.isin));
+  const faltam = papeis.filter((p) => !mapa.has(p.isin) || suspeito(p, mapa.get(p.isin)));
   const lote = faltam.slice(0, MAX_BUSCAS_POR_RODADA);
   if (lote.length === 0) return { mapa, buscados: 0, pendentes: 0 };
 
@@ -158,10 +178,8 @@ export async function resolverSimbolos(
       try {
         // validateResult:false — o schema do search do Yahoo não valida na lib
         // e lançaria ValidationError em TODA busca (asset-meta.ts faz igual).
-        const r = await yf.search(p.isin, { quotesCount: 3, newsCount: 0 }, { validateResult: false });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const q = (r?.quotes ?? []).find((x: any) => typeof x?.symbol === "string" && x.symbol);
-        const symbol = q?.symbol ? String(q.symbol).toUpperCase() : SEM_SIMBOLO;
+        const r = await yf.search(p.isin, { quotesCount: 6, newsCount: 0 }, { validateResult: false });
+        const symbol = escolherSimbolo(r?.quotes ?? [], p.pais) ?? SEM_SIMBOLO;
         mapa.set(p.isin, symbol);
         novos.push([p.isin, symbol, p.nome]);
       } catch { /* throttle — fica para a próxima rodada */ }
