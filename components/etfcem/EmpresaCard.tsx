@@ -11,10 +11,12 @@ import { createPortal } from "react-dom";
 import { X, ExternalLink, Star, Landmark, CalendarDays, Users } from "lucide-react";
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
+import { nomePais, bandeiraPais } from "@/components/etfcem/paises";
 
 interface Detalhe {
   sym: string; nome: string | null; moeda: string; preco: number | null; varDiaPct: number | null;
-  setor: string | null; industria: string | null; funcionarios: number | null; resumo: string | null;
+  setor: string | null; industria: string | null; bolsa: string | null;
+  funcionarios: number | null; resumo: string | null;
   mcap: number | null; pe: number | null; peForward: number | null; peg: number | null; pb: number | null;
   ps: number | null; eps: number | null; beta: number | null; roePct: number | null;
   margemLiqPct: number | null; crescReceitaPct: number | null;
@@ -28,7 +30,7 @@ interface Detalhe {
 }
 
 export interface EmpresaResumo {
-  sym: string; nome: string; moeda: string;
+  sym: string; nome: string; moeda: string; pais: string; bolsa: string | null;
   distAth: number | null; athEff: number | null; athAno: number | null; athReal: boolean;
 }
 
@@ -171,7 +173,10 @@ export default function EmpresaCard({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-zinc-100">{det?.nome ?? empresa.nome}</p>
             <p className="truncate text-[10px] text-zinc-500">
-              {empresa.sym}{det?.setor ? ` · ${det.setor}` : ""}{det?.industria ? ` · ${det.industria}` : ""}
+              {empresa.sym} · {bandeiraPais(empresa.pais)} {nomePais(empresa.pais)}{(det?.bolsa ?? empresa.bolsa) ? ` · ${det?.bolsa ?? empresa.bolsa}` : ""}
+            </p>
+            <p className="truncate text-[10px] text-zinc-600">
+              {det?.setor ?? ""}{det?.industria ? ` · ${det.industria}` : ""}
             </p>
           </div>
           <button
