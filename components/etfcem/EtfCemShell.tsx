@@ -21,6 +21,7 @@ import EmpresaCard, { type EmpresaResumo } from "@/components/etfcem/EmpresaCard
 
 interface EmpresaCem {
   sym: string; nome: string; pesoPct: number;
+  origem: "sp500" | "mundo"; pais: string | null;
   preco: number | null; moeda: string; varDiaPct: number | null;
   pe: number | null; peForward: number | null; eps: number | null;
   yieldPct: number | null; pb: number | null; mcap: number | null;
@@ -65,6 +66,7 @@ export default function EtfCemShell() {
   const [peMax, setPeMax] = useState<number | null>(null);
   const [soBarganhas, setSoBarganhas] = useState(false);
   const [ordem, setOrdem] = useState<Ordem>("desconto");
+  const [regiao, setRegiao] = useState<"todas" | "sp500" | "mundo">("todas");
   // ~500 linhas de uma vez pesa no celular — renderiza 100 por vez.
   const [mostrar, setMostrar] = useState(100);
   // Card de detalhe (tocar na linha abre; era link direto pro Yahoo).
@@ -164,6 +166,7 @@ export default function EtfCemShell() {
       const q = busca.trim().toLowerCase();
       out = out.filter((l) => `${l.sym} ${l.nome}`.toLowerCase().includes(q));
     }
+    if (regiao !== "todas") out = out.filter((l) => l.origem === regiao);
     if (distMin > 0) out = out.filter((l) => l.distAth !== null && l.distAth <= -distMin);
     if (peMax !== null) out = out.filter((l) => l.pe !== null && l.pe > 0 && l.pe <= peMax);
     if (soBarganhas) out = out.filter(ehBarganha);
@@ -173,11 +176,12 @@ export default function EtfCemShell() {
       topo: (a, b) => (b.distAth ?? -999) - (a.distAth ?? -999),
       pe: (a, b) => (a.pe !== null && a.pe > 0 ? a.pe : 9e9) - (b.pe !== null && b.pe > 0 ? b.pe : 9e9),
       yield: (a, b) => (b.yieldPct ?? -1) - (a.yieldPct ?? -1),
-      peso: (a, b) => b.pesoPct - a.pesoPct,
+      // Estrangeiras não têm peso no VOO — desempata por market cap.
+      peso: (a, b) => (b.pesoPct - a.pesoPct) || ((b.mcap ?? 0) - (a.mcap ?? 0)),
     };
     return [...out].sort(cmp[ordem]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linhas, busca, distMin, peMax, soBarganhas, soObservando, watch, ordem, medianaPE]);
+  }, [linhas, busca, distMin, peMax, soBarganhas, soObservando, watch, ordem, regiao, medianaPE]);
 
   if (erro) return <p className="p-6 text-center text-xs text-red-400">ETF Cem indisponível: {erro}</p>;
 
@@ -186,7 +190,7 @@ export default function EtfCemShell() {
       <div>
         <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Crown size={18} className="text-amber-400" /> ETF Cem</h1>
         <p className="text-xs text-zinc-500">
-          {data ? `As ${data.empresas.length} empresas do S&P 500` : "O S&P 500 completo"} via {data?.proxy ?? "VOO"} — preço, P/L e distância do topo histórico
+          {data ? `${data.empresas.length} das maiores empresas do mundo` : "As maiores empresas do mundo"} (S&P 500 + gigantes fora dos EUA) — preço, P/L e distância do topo histórico
           {athPend && <span className="ml-1 text-zinc-600">· calculando ATHs…</span>}
         </p>
       </div>
@@ -217,6 +221,11 @@ export default function EtfCemShell() {
             style={{ border: "1px solid rgba(255,255,255,0.1)" }}
           />
         </div>
+        <select value={regiao} onChange={(e) => setRegiao(e.target.value as typeof regiao)} className="rounded-lg bg-white/[0.05] px-2.5 py-2 text-xs text-zinc-200" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+          <option value="todas">Região: mundo todo</option>
+          <option value="sp500">EUA (S&P 500)</option>
+          <option value="mundo">Fora dos EUA</option>
+        </select>
         <select value={distMin} onChange={(e) => setDistMin(Number(e.target.value))} className="rounded-lg bg-white/[0.05] px-2.5 py-2 text-xs text-zinc-200" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
           <option value={0}>Distância do topo: todas</option>
           <option value={10}>≥ 10% abaixo do topo</option>
@@ -296,7 +305,7 @@ export default function EtfCemShell() {
                     {barganha && <Gem size={11} className="shrink-0 text-emerald-400" />}
                   </p>
                   <p className="truncate text-[10px] text-zinc-500">
-                    {l.sym} · peso {l.pesoPct.toFixed(2)}%{l.rating ? ` · ${l.rating}` : ""}
+                    {l.sym} · {l.origem === "mundo" ? (l.pais ?? "fora dos EUA") : `peso ${l.pesoPct.toFixed(2)}%`}{l.rating ? ` · ${l.rating}` : ""}
                   </p>
                 </div>
                 <div className="text-right">
@@ -342,7 +351,8 @@ export default function EtfCemShell() {
       )}
 
       <p className="text-[10px] text-zinc-600">
-        Proxy: {data?.proxy ?? "VOO (S&P 500)"} — o S&P 500 completo, as maiores empresas listadas do mundo.
+        S&P 500 completo (via VOO) + as maiores empresas fora dos EUA via ADR em bolsa americana (cotação em USD).
+        Sem listagem líquida nos EUA (Samsung, Saudi Aramco) ficam de fora.
         Topo histórico pelo fechamento mensal (Yahoo, desde 1970); enquanto o ATH carrega, vale a máxima de 52 semanas.
         P/L trailing (projetado entre parênteses). 💎 barganha = ≥15% abaixo do topo com P/L positivo abaixo da mediana —
         é filtro quantitativo, não recomendação: preço baixo pode ter motivo.
