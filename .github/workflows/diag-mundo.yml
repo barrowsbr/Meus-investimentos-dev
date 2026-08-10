@@ -1,0 +1,31 @@
+# TEMPORÁRIO — re-valida o mapeamento do índice mundo em produção (apagar depois).
+name: diag-mundo
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-mundo.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Espera o deploy e roda 3 refreshes (avança o mapeamento)
+        run: |
+          sleep 180
+          for i in 1 2 3; do
+            echo "── refresh $i"
+            curl -sS --max-time 90 -o r.json -w "HTTP %{http_code}\n" "https://meus-investimentos-dev.vercel.app/api/etf-cem?refresh=1" || true
+            python3 - <<'PY'
+          import json
+          d = json.load(open("r.json"))
+          if "error" in d:
+              print("ERRO:", d["error"])
+          else:
+              es = d["empresas"]
+              com_sym = [e for e in es if e.get("sym")]
+              com_preco = [e for e in com_sym if e.get("preco") is not None and e.get("varDiaPct") is not None]
+              print("empresas:", len(es), "| com símbolo:", len(com_sym), "| com cotação:", len(com_preco), "| pendentes:", d.get("pendentes"))
+              print("top 5:", [(e["sym"], e["moeda"], round(e["pesoPct"], 2)) for e in es[:5]])
+              naousd = [e for e in com_preco if e["moeda"] != "USD"][:4]
+              print("não-USD:", [(e["sym"], e["pais"], e["moeda"], e["preco"], round((e.get("mcapUsd") or 0)/1e9)) for e in naousd])
+          PY
+          done
