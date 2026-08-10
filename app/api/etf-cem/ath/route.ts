@@ -37,8 +37,10 @@ async function fetchAth(yf: any, sym: string): Promise<AthInfo | null> {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  // Aceita símbolos de qualquer bolsa do índice mundo: NVDA, BRK-B, 2330.TW,
+  // 7203.T, NESN.SW, RIO.L…
   const symbols = (searchParams.get("symbols") ?? "")
-    .split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{1,6}(-[A-Z])?$/.test(s))
+    .split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z0-9]{1,10}(-[A-Z])?(\.[A-Z]{1,4})?$/.test(s))
     .slice(0, 25);
   if (symbols.length === 0) return NextResponse.json({ error: "symbols obrigatório (até 25, CSV)" }, { status: 400 });
 

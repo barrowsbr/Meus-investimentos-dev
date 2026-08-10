@@ -1,155 +1,71 @@
-// ETF Cem — o S&P 500 COMPLETO (~500 empresas) via VOO como proxy; o nome
-// "Cem" ficou da versão original (top 100) e a UI mostra 100 por vez.
-// Holdings via lib/etf-holdings (fonte curada SSGA/iShares, mesma do
-// look-through); preço + fundamentals (P/L, yield, 52 semanas, market cap)
-// via Yahoo em lote. O ATH histórico fica na rota irmã /api/etf-cem/ath
-// (pesada, cacheada por muito mais tempo).
+// ETF Cem — ÍNDICE MUNDO de verdade: top 500 do MSCI ACWI (composição real e
+// diária via SPDR ACWI/SSGA — ver lib/etf-mundo.ts). "Cem" ficou como nome da
+// página; a UI mostra 100 por vez.
+//
+// Cada papel vem identificado por ISIN; o símbolo Yahoo sai do cache na aba
+// `etf_mundo_map` (resolução progressiva — papéis ainda sem símbolo aparecem
+// com os dados do próprio arquivo da SSGA, sem cotação ao vivo). Cotações em
+// lote no Yahoo, na MOEDA LOCAL de cada bolsa; market cap é convertido para
+// USD (única métrica em que moeda misturada enganaria o olho).
+//
+// ?refresh=1 (botão "Atualizar" da página) fura o cache do lambda e re-baixa
+// a composição na hora.
 
-import { NextResponse } from "next/server";
-import { fetchHoldings } from "@/lib/etf-holdings";
+import { NextRequest, NextResponse } from "next/server";
+import { fetchComposicaoAcwi, lerMapaSimbolos, resolverSimbolos, SEM_SIMBOLO } from "@/lib/etf-mundo";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export interface EmpresaCem {
-  sym: string;          // símbolo Yahoo (BRK-B)
+  sym: string | null;   // símbolo Yahoo (2330.TW, NESN.SW, NVDA) — null se ainda não mapeado
+  isin: string;
   nome: string;
-  pesoPct: number;      // peso no ETF (0 nas estrangeiras — não vêm do VOO)
-  origem: "sp500" | "mundo";
-  pais: string | null;  // só nas estrangeiras
+  pesoPct: number;      // peso no MSCI ACWI
+  pais: string;
+  setor: string;
   preco: number | null;
-  moeda: string;
+  moeda: string;        // moeda do preço (local da bolsa)
   varDiaPct: number | null;
-  pe: number | null;          // P/L trailing
+  pe: number | null;
   peForward: number | null;
   eps: number | null;
-  yieldPct: number | null;    // dividend yield 12m (%)
-  pb: number | null;          // preço/valor patrimonial
-  mcap: number | null;        // market cap (USD)
+  yieldPct: number | null;
+  pb: number | null;
+  mcapUsd: number | null;  // market cap CONVERTIDO para USD
   w52High: number | null;
   w52Low: number | null;
-  rating: string | null;      // ex.: "1.8 - Buy" (consenso de analistas do Yahoo)
-}
-
-// ── As maiores do RESTO DO MUNDO — o S&P 500 só aceita empresa domiciliada
-// nos EUA, então "as maiores do mundo" exige somar as gigantes estrangeiras.
-// Todas abaixo negociam em bolsa/OTC americana (ADR ou listagem direta), em
-// USD, com os MESMOS campos do Yahoo do resto da página (P/L, mcap, ATH...).
-// Curadoria estática por market cap (~55 nomes; revisitar de vez em quando).
-// Sem listagem líquida nos EUA ficam de fora: Samsung, Saudi Aramco,
-// Kweichow Moutai, Reliance.
-const MUNDO: Array<[sym: string, nome: string, pais: string]> = [
-  ["TSM", "Taiwan Semiconductor (TSMC)", "Taiwan"],
-  ["ASML", "ASML Holding", "Holanda"],
-  ["SAP", "SAP SE", "Alemanha"],
-  ["NVO", "Novo Nordisk", "Dinamarca"],
-  ["NSRGY", "Nestlé", "Suíça"],
-  ["RHHBY", "Roche", "Suíça"],
-  ["NVS", "Novartis", "Suíça"],
-  ["UBS", "UBS Group", "Suíça"],
-  ["ABBNY", "ABB", "Suíça"],
-  ["LVMUY", "LVMH", "França"],
-  ["HESAY", "Hermès", "França"],
-  ["LRLCY", "L'Oréal", "França"],
-  ["TTE", "TotalEnergies", "França"],
-  ["SNY", "Sanofi", "França"],
-  ["SBGSY", "Schneider Electric", "França"],
-  ["EADSY", "Airbus", "França/UE"],
-  ["SIEGY", "Siemens", "Alemanha"],
-  ["DTEGY", "Deutsche Telekom", "Alemanha"],
-  ["ALIZY", "Allianz", "Alemanha"],
-  ["AZN", "AstraZeneca", "Reino Unido"],
-  ["SHEL", "Shell", "Reino Unido"],
-  ["HSBC", "HSBC Holdings", "Reino Unido"],
-  ["UL", "Unilever", "Reino Unido"],
-  ["BP", "BP", "Reino Unido"],
-  ["GSK", "GSK", "Reino Unido"],
-  ["RELX", "RELX", "Reino Unido"],
-  ["NGG", "National Grid", "Reino Unido"],
-  ["ARM", "Arm Holdings", "Reino Unido"],
-  ["RIO", "Rio Tinto", "Reino Unido/Austrália"],
-  ["BHP", "BHP Group", "Austrália"],
-  ["TM", "Toyota Motor", "Japão"],
-  ["SONY", "Sony Group", "Japão"],
-  ["MUFG", "Mitsubishi UFJ", "Japão"],
-  ["SMFG", "Sumitomo Mitsui", "Japão"],
-  ["HMC", "Honda Motor", "Japão"],
-  ["TCEHY", "Tencent", "China"],
-  ["BABA", "Alibaba", "China"],
-  ["PDD", "PDD Holdings (Temu)", "China"],
-  ["NTES", "NetEase", "China"],
-  ["JD", "JD.com", "China"],
-  ["BIDU", "Baidu", "China"],
-  ["IDCBY", "ICBC", "China"],
-  ["PROSY", "Prosus", "Holanda"],
-  ["ING", "ING Group", "Holanda"],
-  ["PHG", "Philips", "Holanda"],
-  ["SAN", "Banco Santander", "Espanha"],
-  ["BBVA", "BBVA", "Espanha"],
-  ["IDEXY", "Inditex (Zara)", "Espanha"],
-  ["RACE", "Ferrari", "Itália"],
-  ["ENLAY", "Enel", "Itália"],
-  ["STLA", "Stellantis", "Itália/França"],
-  ["RY", "Royal Bank of Canada", "Canadá"],
-  ["TD", "TD Bank", "Canadá"],
-  ["ENB", "Enbridge", "Canadá"],
-  ["CNQ", "Canadian Natural Resources", "Canadá"],
-  ["SHOP", "Shopify", "Canadá"],
-  ["CNI", "Canadian National Railway", "Canadá"],
-  ["HDB", "HDFC Bank", "Índia"],
-  ["IBN", "ICICI Bank", "Índia"],
-  ["INFY", "Infosys", "Índia"],
-  ["MELI", "MercadoLibre", "América Latina"],
-  ["NU", "Nubank", "Brasil"],
-  ["VALE", "Vale", "Brasil"],
-  ["PBR", "Petrobras", "Brasil"],
-  ["ITUB", "Itaú Unibanco", "Brasil"],
-];
-
-// Ticker do holding (SSGA/iShares) → Yahoo: classes de ação usam hífen.
-function toYahoo(sym: string): string | null {
-  const s = sym.toUpperCase().trim().replace(/\./g, "-");
-  if (!/^[A-Z]{1,6}(-[A-Z])?$/.test(s)) return null; // pula caixa/futuros/linhas sujas
-  return s;
+  rating: string | null;
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
 
+// GBp/ZAc = pence/centavos — Yahoo cota Londres/Joanesburgo assim.
+function normalizaMoeda(moeda: string): { codigo: string; fator: number } {
+  if (moeda === "GBp" || moeda === "GBX") return { codigo: "GBP", fator: 0.01 };
+  if (moeda === "ZAc") return { codigo: "ZAR", fator: 0.01 };
+  return { codigo: moeda.toUpperCase(), fator: 1 };
+}
+
 // Cache do lambda (o CDN segura o resto via s-maxage).
 let cache: { t: number; body: unknown } | null = null;
-const TTL = 15 * 60 * 1000;
+const TTL = 30 * 60 * 1000;
 
-export async function GET() {
-  if (cache && Date.now() - cache.t < TTL) {
+export async function GET(req: NextRequest) {
+  const refresh = req.nextUrl.searchParams.get("refresh") === "1";
+  if (!refresh && cache && Date.now() - cache.t < TTL) {
     return NextResponse.json(cache.body, { headers: { "Cache-Control": "s-maxage=1800, stale-while-revalidate=3600" } });
   }
   try {
-    const { holdings, source } = await fetchHoldings("VOO");
-    if (!holdings || holdings.length === 0) {
-      return NextResponse.json({ error: "holdings do VOO indisponíveis" }, { status: 503 });
+    const { asOf, papeis } = await fetchComposicaoAcwi(500);
+    if (papeis.length === 0) {
+      return NextResponse.json({ error: "composição do ACWI indisponível" }, { status: 503 });
     }
 
-    // Índice completo por peso (S&P 500 ≈ 503 papéis), com símbolo Yahoo válido.
-    const top: Array<{ sym: string; nome: string; pesoPct: number; origem: "sp500" | "mundo"; pais: string | null }> = [];
-    const vistos = new Set<string>();
-    for (const h of [...holdings].sort((a, b) => b.weight_pct - a.weight_pct)) {
-      const sym = toYahoo(h.ticker);
-      if (!sym || vistos.has(sym)) continue;
-      vistos.add(sym);
-      top.push({ sym, nome: h.name || sym, pesoPct: h.weight_pct, origem: "sp500", pais: null });
-      if (top.length >= 510) break; // proteção contra fonte suja; o índice tem ~503
-    }
-    // + as maiores fora dos EUA (ADRs) — dedup contra o índice por segurança.
-    for (const [sym, nome, pais] of MUNDO) {
-      if (vistos.has(sym)) continue;
-      vistos.add(sym);
-      top.push({ sym, nome, pesoPct: 0, origem: "mundo", pais });
-    }
+    // ISIN → símbolo Yahoo (cache na planilha + resolução progressiva).
+    const { mapa, pendentes } = await resolverSimbolos(papeis, await lerMapaSimbolos());
 
-    // Cotações + fundamentals em lotes de 50 (o quote do Yahoo aceita array).
-    // Fallback de lote com falha: divide em metades, nunca um-a-um (500 papéis
-    // um a um estouraria o maxDuration num throttle).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const YF: any = (await import("yahoo-finance2")).default;
     const yf = typeof YF === "function" ? new YF() : YF;
@@ -165,39 +81,84 @@ export async function GET() {
           await cotarLote(batch.slice(0, meio), false);
           await cotarLote(batch.slice(meio), false);
         }
-        // best-effort: lote irrecuperável fica sem cotação (a UI mostra "—")
       }
     };
-    for (let i = 0; i < top.length; i += 50) {
-      await cotarLote(top.slice(i, i + 50).map((t) => t.sym), true);
+    const syms = papeis
+      .map((p) => mapa.get(p.isin))
+      .filter((s): s is string => !!s && s !== SEM_SIMBOLO);
+    for (let i = 0; i < syms.length; i += 50) {
+      await cotarLote(syms.slice(i, i + 50), true);
     }
 
-    const empresas: EmpresaCem[] = top.map((t) => {
-      const q = quotes.get(t.sym);
+    // FX → USD para converter market cap (só métrica absoluta da lista).
+    const moedas = new Set<string>();
+    for (const q of quotes.values()) {
+      const { codigo } = normalizaMoeda(String(q?.currency ?? "USD"));
+      if (codigo !== "USD") moedas.add(codigo);
+    }
+    const fxUsd = new Map<string, number>(); // codigo → quantos CODIGO valem 1 USD
+    if (moedas.size > 0) {
+      try {
+        const fxSyms = [...moedas].map((c) => `USD${c}=X`);
+        const res = await yf.quote(fxSyms);
+        for (const q of Array.isArray(res) ? res : [res]) {
+          const m = String(q?.symbol ?? "").match(/^USD([A-Z]{3})=X$/);
+          const r = num(q?.regularMarketPrice);
+          if (m && r !== null && r > 0) fxUsd.set(m[1], r);
+        }
+      } catch { /* sem FX — mcap dessas moedas fica null */ }
+    }
+
+    const empresas: EmpresaCem[] = papeis.map((p) => {
+      const symRaw = mapa.get(p.isin);
+      const sym = symRaw && symRaw !== SEM_SIMBOLO ? symRaw : null;
+      const q = sym ? quotes.get(sym) : undefined;
+
+      const moedaQ = String(q?.currency ?? p.moeda ?? "USD");
+      const { codigo, fator } = normalizaMoeda(moedaQ);
+      let mcapUsd: number | null = null;
+      const mcapRaw = num(q?.marketCap);
+      if (mcapRaw !== null) {
+        const emMoeda = mcapRaw * fator;
+        mcapUsd = codigo === "USD" ? emMoeda : fxUsd.has(codigo) ? emMoeda / fxUsd.get(codigo)! : null;
+      }
+
       return {
-        sym: t.sym,
-        nome: q?.longName ?? q?.shortName ?? t.nome,
-        pesoPct: Math.round(t.pesoPct * 100) / 100,
-        origem: t.origem,
-        pais: t.pais,
-        preco: num(q?.regularMarketPrice),
-        moeda: String(q?.currency ?? "USD"),
+        sym,
+        isin: p.isin,
+        nome: q?.longName ?? q?.shortName ?? p.nome,
+        pesoPct: Math.round(p.pesoPct * 1000) / 1000,
+        pais: p.pais,
+        setor: p.setor,
+        preco: num(q?.regularMarketPrice) ?? p.precoLocal,
+        moeda: q ? moedaQ : p.moeda,
         varDiaPct: num(q?.regularMarketChangePercent),
         pe: num(q?.trailingPE),
         peForward: num(q?.forwardPE),
         eps: num(q?.epsTrailingTwelveMonths),
         yieldPct: num(q?.trailingAnnualDividendYield) !== null ? (q.trailingAnnualDividendYield as number) * 100 : null,
         pb: num(q?.priceToBook),
-        mcap: num(q?.marketCap),
+        mcapUsd,
         w52High: num(q?.fiftyTwoWeekHigh),
         w52Low: num(q?.fiftyTwoWeekLow),
         rating: typeof q?.averageAnalystRating === "string" ? q.averageAnalystRating : null,
       };
     });
 
-    const body = { updatedAt: new Date().toISOString(), fonte: source, proxy: "S&P 500 (VOO) + ADRs", empresas };
+    const body = {
+      updatedAt: new Date().toISOString(),
+      indice: "MSCI ACWI",
+      fonte: "SPDR MSCI ACWI (SSGA)",
+      asOf,
+      pendentes, // ISINs ainda sem símbolo Yahoo (resolução progressiva)
+      empresas,
+    };
     cache = { t: Date.now(), body };
-    return NextResponse.json(body, { headers: { "Cache-Control": "s-maxage=1800, stale-while-revalidate=3600" } });
+    return NextResponse.json(body, {
+      headers: refresh
+        ? { "Cache-Control": "no-store" }
+        : { "Cache-Control": "s-maxage=1800, stale-while-revalidate=3600" },
+    });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
   }

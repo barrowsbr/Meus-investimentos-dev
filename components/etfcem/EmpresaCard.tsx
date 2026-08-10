@@ -28,12 +28,22 @@ interface Detalhe {
 }
 
 export interface EmpresaResumo {
-  sym: string; nome: string;
+  sym: string; nome: string; moeda: string;
   distAth: number | null; athEff: number | null; athAno: number | null; athReal: boolean;
 }
 
 const usd = (v: number | null, casas = 2) =>
   v === null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+// Valor na moeda de negociação da empresa (índice mundo: nem tudo é USD).
+const dinheiro = (v: number | null, moeda: string) => {
+  if (v === null) return "—";
+  const cur = moeda === "GBp" || moeda === "GBX" ? "GBP" : moeda;
+  try {
+    return v.toLocaleString("pt-BR", { style: "currency", currency: cur, maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 });
+  } catch {
+    return `${cur} ${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+  }
+};
 const f1 = (v: number | null) => (v === null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 const compactUsd = (v: number | null) => {
   if (v === null) return "—";
@@ -180,7 +190,7 @@ export default function EmpresaCard({
         {/* Preço + distância do topo */}
         <div className="mt-3 flex items-end justify-between">
           <div>
-            <p className="font-mono text-xl font-bold text-zinc-100">US$ {usd(det?.preco ?? null)}</p>
+            <p className="font-mono text-xl font-bold text-zinc-100">{dinheiro(det?.preco ?? null, det?.moeda ?? empresa.moeda)}</p>
             <p className={`font-mono text-[11px] ${det?.varDiaPct != null && det.varDiaPct < 0 ? "text-red-400" : "text-emerald-400"}`}>
               {det?.varDiaPct != null ? `${det.varDiaPct >= 0 ? "+" : ""}${det.varDiaPct.toFixed(2)}% hoje` : " "}
             </p>
@@ -191,7 +201,7 @@ export default function EmpresaCard({
                 {empresa.distAth > -5 ? "no topo" : `${empresa.distAth.toFixed(0)}% do topo`}
               </p>
               <p className="text-[9px] text-zinc-600">
-                {empresa.athReal ? "topo histórico" : "máx. 52 semanas"}: US$ {usd(empresa.athEff)}{empresa.athAno ? ` (${empresa.athAno})` : ""}
+                {empresa.athReal ? "topo histórico" : "máx. 52 semanas"}: {dinheiro(empresa.athEff, empresa.moeda)}{empresa.athAno ? ` (${empresa.athAno})` : ""}
               </p>
             </div>
           )}
@@ -212,7 +222,7 @@ export default function EmpresaCard({
               <Metrica label="PEG" valor={f1(det.peg)} />
               <Metrica label="P/VP" valor={f1(det.pb)} />
               <Metrica label="P/Receita" valor={f1(det.ps)} />
-              <Metrica label="LPA (EPS)" valor={usd(det.eps)} />
+              <Metrica label="LPA (EPS)" valor={dinheiro(det.eps, det.moeda)} />
               <Metrica label="ROE" valor={det.roePct != null ? `${f1(det.roePct)}%` : "—"} bom={det.roePct != null && det.roePct >= 15} />
               <Metrica label="Margem líq." valor={det.margemLiqPct != null ? `${f1(det.margemLiqPct)}%` : "—"} />
               <Metrica label="Cresc. receita" valor={det.crescReceitaPct != null ? `${det.crescReceitaPct >= 0 ? "+" : ""}${f1(det.crescReceitaPct)}%` : "—"} bom={det.crescReceitaPct != null && det.crescReceitaPct > 0} />
@@ -230,7 +240,7 @@ export default function EmpresaCard({
               <>
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                   <Metrica label="Yield" valor={det.yieldPct != null ? `${f1(det.yieldPct)}%` : "—"} bom={det.yieldPct != null && det.yieldPct >= 3} />
-                  <Metrica label="Por ação/ano" valor={det.divTaxaAnual != null ? `US$ ${usd(det.divTaxaAnual)}` : "—"} />
+                  <Metrica label="Por ação/ano" valor={dinheiro(det.divTaxaAnual, det.moeda)} />
                   <Metrica label="Payout" valor={det.payoutPct != null ? `${f1(det.payoutPct)}%` : "—"} />
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-zinc-500">
@@ -252,7 +262,7 @@ export default function EmpresaCard({
                 <p className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Analistas</p>
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                   <Metrica label="Consenso" valor={det.rating ? (RATING_PT[det.rating] ?? det.rating) : "—"} bom={det.rating === "buy" || det.rating === "strong_buy"} />
-                  <Metrica label="Preço-alvo" valor={det.alvoMedio != null ? `US$ ${usd(det.alvoMedio)}` : "—"} />
+                  <Metrica label="Preço-alvo" valor={dinheiro(det.alvoMedio, det.moeda)} />
                   <Metrica label="Potencial" valor={upside != null ? `${upside >= 0 ? "+" : ""}${f1(upside)}%` : "—"} bom={upside != null && upside > 0} />
                 </div>
                 <p className="mt-1 text-[10px] text-zinc-600">
