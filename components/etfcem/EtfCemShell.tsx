@@ -23,6 +23,7 @@ import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ChevronRight, L
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
 import EmpresaCard, { type EmpresaResumo } from "@/components/etfcem/EmpresaCard";
+import GruposPanel, { rotuloGrupo, type AgruparPor } from "@/components/etfcem/GruposPanel";
 
 interface EmpresaCem {
   sym: string | null; isin: string; nome: string; pesoPct: number;
@@ -82,6 +83,9 @@ export default function EtfCemShell() {
   const [soBarganhas, setSoBarganhas] = useState(false);
   const [ordem, setOrdem] = useState<Ordem>("desconto");
   const [regiao, setRegiao] = useState<"todas" | "sp500" | "mundo">("todas");
+  // Painel de grupos (setor GICS do índice ou país) — tocar filtra a lista.
+  const [agruparPor, setAgruparPor] = useState<AgruparPor>("setor");
+  const [grupoSel, setGrupoSel] = useState<string | null>(null);
   // ~500 linhas de uma vez pesa no celular — renderiza 100 por vez.
   const [mostrar, setMostrar] = useState(100);
   // Card de detalhe (tocar na linha abre; era link direto pro Yahoo).
@@ -201,6 +205,7 @@ export default function EtfCemShell() {
       out = out.filter((l) => `${l.sym} ${l.nome}`.toLowerCase().includes(q));
     }
     if (regiao !== "todas") out = out.filter((l) => (l.pais === "United States") === (regiao === "sp500"));
+    if (grupoSel !== null) out = out.filter((l) => ((agruparPor === "setor" ? l.setor : l.pais) || "—") === grupoSel);
     if (distMin > 0) out = out.filter((l) => l.distAth !== null && l.distAth <= -distMin);
     if (peMax !== null) out = out.filter((l) => l.pe !== null && l.pe > 0 && l.pe <= peMax);
     if (soBarganhas) out = out.filter(ehBarganha);
@@ -215,7 +220,7 @@ export default function EtfCemShell() {
     };
     return [...out].sort(cmp[ordem]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linhas, busca, distMin, peMax, soBarganhas, soObservando, watch, ordem, regiao, medianaPE]);
+  }, [linhas, busca, distMin, peMax, soBarganhas, soObservando, watch, ordem, regiao, grupoSel, agruparPor, medianaPE]);
 
   if (erro) return <p className="p-6 text-center text-xs text-red-400">ETF Cem indisponível: {erro}</p>;
 
@@ -258,8 +263,27 @@ export default function EtfCemShell() {
         ))}
       </div>
 
+      {/* Grupos: setor GICS ou país — termômetro + filtro por toque */}
+      <GruposPanel
+        linhas={linhas}
+        agruparPor={agruparPor}
+        aoMudarAgrupamento={setAgruparPor}
+        grupoSel={grupoSel}
+        aoSelecionar={(c) => { setGrupoSel(c); setMostrar(100); }}
+      />
+
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2">
+        {grupoSel !== null && (
+          <button
+            onClick={() => setGrupoSel(null)}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold"
+            style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.5)", color: "#fbbf24" }}
+            title="Remover o filtro de grupo"
+          >
+            {rotuloGrupo(agruparPor, grupoSel)} ×
+          </button>
+        )}
         <div className="relative min-w-[170px] flex-1">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
