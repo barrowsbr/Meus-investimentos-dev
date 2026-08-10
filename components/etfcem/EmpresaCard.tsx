@@ -12,6 +12,7 @@ import { X, ExternalLink, Star, Landmark, CalendarDays, Users } from "lucide-rea
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
 import { nomePais, bandeiraPais } from "@/components/etfcem/paises";
+import ZacksBadge from "@/components/ZacksBadge";
 
 interface Detalhe {
   sym: string; nome: string | null; moeda: string; preco: number | null; varDiaPct: number | null;
@@ -211,6 +212,8 @@ export default function EmpresaCard({
             </div>
           )}
         </div>
+
+        <div className="mt-2"><ZacksBadge ticker={empresa.sym} /></div>
 
         {erro && <p className="mt-4 text-center text-xs text-red-400">{erro}</p>}
         {!det && !erro && <p className="mt-4 animate-pulse text-center text-xs text-zinc-500">Carregando detalhes…</p>}

@@ -543,6 +543,16 @@ export const API_REGISTRY: ApiDef[] = [
     },
   },
   {
+    key: "zacks", name: "Zacks Rank (quote-feed)", category: "Mercado & Cotações",
+    host: "quote-feed.zacks.com", purpose: "Zacks Rank 1-5 nos cards de detalhe (ETF Cem e Renda Variável) — feed público, sem chave",
+    envVars: [],
+    probe: async () => {
+      const { status, json } = await getJson("https://quote-feed.zacks.com/index?t=AAPL");
+      const rank = json?.AAPL?.zacks_rank;
+      return typeof rank === "string" && rank ? { ok: true, detail: `AAPL rank ${rank}` } : { ok: false, detail: `HTTP ${status} — sem rank` };
+    },
+  },
+  {
     key: "usgs", name: "USGS Earthquakes", category: "Observatório & Geo",
     host: "earthquake.usgs.gov", purpose: "Terremotos M4.5+ (camada Desastres do globo)",
     envVars: [],
