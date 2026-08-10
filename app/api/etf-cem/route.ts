@@ -25,6 +25,7 @@ export interface EmpresaCem {
   pesoPct: number;      // peso no MSCI ACWI
   pais: string;
   setor: string;
+  bolsa: string | null;    // bolsa da listagem principal (fullExchangeName do Yahoo)
   preco: number | null;
   moeda: string;        // moeda do preço (local da bolsa)
   varDiaPct: number | null;
@@ -130,6 +131,7 @@ export async function GET(req: NextRequest) {
         pesoPct: Math.round(p.pesoPct * 1000) / 1000,
         pais: p.pais,
         setor: p.setor,
+        bolsa: typeof q?.fullExchangeName === "string" ? q.fullExchangeName : typeof q?.exchange === "string" ? q.exchange : null,
         preco: num(q?.regularMarketPrice) ?? p.precoLocal,
         moeda: q ? moedaQ : p.moeda,
         varDiaPct: num(q?.regularMarketChangePercent),

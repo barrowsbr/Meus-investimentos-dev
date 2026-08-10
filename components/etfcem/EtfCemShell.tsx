@@ -24,10 +24,11 @@ import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
 import EmpresaCard, { type EmpresaResumo } from "@/components/etfcem/EmpresaCard";
 import GruposPanel, { rotuloGrupo, type AgruparPor } from "@/components/etfcem/GruposPanel";
+import { nomePais, bandeiraPais } from "@/components/etfcem/paises";
 
 interface EmpresaCem {
   sym: string | null; isin: string; nome: string; pesoPct: number;
-  pais: string; setor: string;
+  pais: string; setor: string; bolsa: string | null;
   preco: number | null; moeda: string; varDiaPct: number | null;
   pe: number | null; peForward: number | null; eps: number | null;
   yieldPct: number | null; pb: number | null; mcapUsd: number | null;
@@ -354,8 +355,8 @@ export default function EtfCemShell() {
             <div
               key={l.isin}
               role="button" tabIndex={0}
-              onClick={() => { if (l.sym) setAberta({ sym: l.sym, nome: l.nome, moeda: l.moeda, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); }}
-              onKeyDown={(e) => { if (l.sym && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setAberta({ sym: l.sym, nome: l.nome, moeda: l.moeda, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); } }}
+              onClick={() => { if (l.sym) setAberta({ sym: l.sym, nome: l.nome, moeda: l.moeda, pais: l.pais, bolsa: l.bolsa, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); }}
+              onKeyDown={(e) => { if (l.sym && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setAberta({ sym: l.sym, nome: l.nome, moeda: l.moeda, pais: l.pais, bolsa: l.bolsa, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); } }}
               className="block cursor-pointer rounded-2xl p-3 transition-colors hover:bg-white/[0.05]"
               style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${observada ? "rgba(245,158,11,0.35)" : barganha ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.07)"}` }}
             >
@@ -377,7 +378,7 @@ export default function EtfCemShell() {
                     {barganha && <Gem size={11} className="shrink-0 text-emerald-400" />}
                   </p>
                   <p className="truncate text-[10px] text-zinc-500">
-                    {l.sym ?? "mapeando…"} · {l.pais} · peso {l.pesoPct.toFixed(2)}%{l.rating ? ` · ${l.rating}` : ""}
+                    {l.sym ?? "mapeando…"} · {bandeiraPais(l.pais)} {nomePais(l.pais)}{l.bolsa ? ` · ${l.bolsa}` : ""} · peso {l.pesoPct.toFixed(2)}%
                   </p>
                 </div>
                 <div className="text-right">

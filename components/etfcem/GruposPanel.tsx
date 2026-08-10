@@ -10,6 +10,7 @@
 
 import { useMemo } from "react";
 import { Layers } from "lucide-react";
+import { nomePais, bandeiraPais } from "@/components/etfcem/paises";
 
 export interface LinhaGrupo {
   setor: string;
@@ -36,18 +37,10 @@ const SETOR_PT: Record<string, string> = {
   "Utilities": "Utilidades",
   "Real Estate": "Imobiliário",
 };
-const PAIS_PT: Record<string, string> = {
-  "United States": "EUA", "Japan": "Japão", "United Kingdom": "Reino Unido",
-  "Canada": "Canadá", "France": "França", "Germany": "Alemanha",
-  "Switzerland": "Suíça", "Australia": "Austrália", "Taiwan": "Taiwan",
-  "China": "China", "South Korea": "Coreia do Sul", "India": "Índia",
-  "Netherlands": "Holanda", "Spain": "Espanha", "Italy": "Itália",
-  "Sweden": "Suécia", "Denmark": "Dinamarca", "Brazil": "Brasil",
-  "Hong Kong": "Hong Kong", "Singapore": "Singapura", "Saudi Arabia": "Arábia Saudita",
-};
 
 export function rotuloGrupo(por: AgruparPor, chave: string): string {
-  return (por === "setor" ? SETOR_PT[chave] : PAIS_PT[chave]) ?? chave;
+  if (por === "pais") return `${bandeiraPais(chave)} ${nomePais(chave)}`.trim();
+  return SETOR_PT[chave] ?? chave;
 }
 
 interface Grupo {

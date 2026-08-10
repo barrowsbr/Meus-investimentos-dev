@@ -18,6 +18,7 @@ interface Detalhe {
   varDiaPct: number | null;
   setor: string | null;
   industria: string | null;
+  bolsa: string | null;
   funcionarios: number | null;
   resumo: string | null;
   mcap: number | null;
@@ -130,6 +131,7 @@ export async function GET(req: Request) {
       preco: num(price?.regularMarketPrice),
       varDiaPct: pct(price?.regularMarketChangePercent),
       setor: typeof perfil?.sector === "string" ? perfil.sector : null,
+      bolsa: typeof price?.exchangeName === "string" ? price.exchangeName : typeof price?.fullExchangeName === "string" ? price.fullExchangeName : null,
       industria: typeof perfil?.industry === "string" ? perfil.industry : null,
       funcionarios: num(perfil?.fullTimeEmployees),
       resumo: resumoBruto ? (resumoBruto.length > 640 ? resumoBruto.slice(0, 640).replace(/\s+\S*$/, "") + "…" : resumoBruto) : null,
