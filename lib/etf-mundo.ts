@@ -156,7 +156,9 @@ export async function resolverSimbolos(
     const leva = lote.slice(i, i + CONCORRENCIA_BUSCA);
     await Promise.all(leva.map(async (p) => {
       try {
-        const r = await yf.search(p.isin, { quotesCount: 3, newsCount: 0 });
+        // validateResult:false — o schema do search do Yahoo não valida na lib
+        // e lançaria ValidationError em TODA busca (asset-meta.ts faz igual).
+        const r = await yf.search(p.isin, { quotesCount: 3, newsCount: 0 }, { validateResult: false });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const q = (r?.quotes ?? []).find((x: any) => typeof x?.symbol === "string" && x.symbol);
         const symbol = q?.symbol ? String(q.symbol).toUpperCase() : SEM_SIMBOLO;
