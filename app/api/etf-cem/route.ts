@@ -1,4 +1,4 @@
-// ETF Cem — ÍNDICE MUNDO de verdade: top 500 do MSCI ACWI (composição real e
+// ETF Cem — ÍNDICE MUNDO de verdade: top 1000 do MSCI ACWI (composição real e
 // diária via SPDR ACWI/SSGA — ver lib/etf-mundo.ts). "Cem" ficou como nome da
 // página; a UI mostra 100 por vez.
 //
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cache.body, { headers: { "Cache-Control": "s-maxage=1800, stale-while-revalidate=3600" } });
   }
   try {
-    const { asOf, papeis } = await fetchComposicaoAcwi(500);
+    const { asOf, papeis } = await fetchComposicaoAcwi(1000);
     if (papeis.length === 0) {
       return NextResponse.json({ error: "composição do ACWI indisponível" }, { status: 503 });
     }
