@@ -1,9 +1,14 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ETF Cem — o S&P 500 COMPLETO (~500 empresas, VOO como proxy; o nome "Cem"
-// ficou da versão original e a lista mostra 100 por vez), com o
-// olhar de COMPRADOR: preço, P/L, dividend yield e, principalmente, a
+// ETF Cem — ÍNDICE MUNDO de verdade: top 500 do MSCI ACWI, composição real e
+// diária da SSGA (lib/etf-mundo.ts). O nome "Cem" ficou da versão original e
+// a lista mostra 100 por vez. Preço na MOEDA LOCAL de cada bolsa (percentuais
+// comparam entre moedas; market cap chega convertido em USD). Papel ainda sem
+// símbolo Yahoo (mapeamento ISIN progressivo) aparece com os dados do próprio
+// arquivo do índice, sem cotação ao vivo. Botão ATUALIZAR re-baixa a
+// composição (?refresh=1 fura os caches). Olhar de COMPRADOR: preço, P/L,
+// dividend yield e, principalmente, a
 // DISTÂNCIA DO TOPO HISTÓRICO (ATH). Filtros para separar o que está em
 // desconto do que está no pico; "possíveis barganhas" = longe do topo E com
 // P/L abaixo da mediana do grupo (lucro positivo). Dado real > opinião: a
@@ -14,20 +19,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ChevronRight, Landmark, Star } from "lucide-react";
+import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ChevronRight, Landmark, Star, RefreshCw } from "lucide-react";
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
 import EmpresaCard, { type EmpresaResumo } from "@/components/etfcem/EmpresaCard";
 
 interface EmpresaCem {
-  sym: string; nome: string; pesoPct: number;
-  origem: "sp500" | "mundo"; pais: string | null;
+  sym: string | null; isin: string; nome: string; pesoPct: number;
+  pais: string; setor: string;
   preco: number | null; moeda: string; varDiaPct: number | null;
   pe: number | null; peForward: number | null; eps: number | null;
-  yieldPct: number | null; pb: number | null; mcap: number | null;
+  yieldPct: number | null; pb: number | null; mcapUsd: number | null;
   w52High: number | null; w52Low: number | null; rating: string | null;
 }
-interface Payload { updatedAt: string; fonte: string; proxy: string; empresas: EmpresaCem[] }
+interface Payload {
+  updatedAt: string; indice: string; fonte: string; asOf: string | null;
+  pendentes: number; empresas: EmpresaCem[];
+}
 interface AthInfo { ath: number; ano: number | null }
 
 type Ordem = "desconto" | "topo" | "pe" | "yield" | "peso";
@@ -35,8 +43,15 @@ const ORDEM_LABEL: Record<Ordem, string> = {
   desconto: "Mais longe do topo", topo: "Mais perto do topo", pe: "Menor P/L", yield: "Maior yield", peso: "Maior peso",
 };
 
-const usd = (v: number | null) =>
-  v === null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Preço na moeda local da bolsa (valores grandes sem casas decimais).
+const preco = (v: number | null, moeda: string) => {
+  if (v === null) return "—";
+  try {
+    return v.toLocaleString("pt-BR", { style: "currency", currency: moeda === "GBp" || moeda === "GBX" ? "GBP" : moeda, maximumFractionDigits: v >= 1000 ? 0 : 2 });
+  } catch {
+    return `${moeda} ${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+  }
+};
 const compactUsd = (v: number | null) => {
   if (v === null) return "—";
   if (v >= 1e12) return `US$ ${(v / 1e12).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} tri`;
@@ -92,6 +107,7 @@ export default function EtfCemShell() {
     });
   };
 
+  const [atualizando, setAtualizando] = useState(false);
   useEffect(() => {
     fetchJsonCached<Payload>("/api/etf-cem", 10 * 60_000)
       .then((d) => {
@@ -101,6 +117,24 @@ export default function EtfCemShell() {
       .catch((e) => setErro(e instanceof Error ? e.message : "Erro ao carregar"));
   }, []);
 
+  // Botão ATUALIZAR — re-baixa a composição do índice na hora, furando o
+  // cache do lambda/CDN (e avança o mapeamento ISIN→símbolo pendente).
+  const atualizarComposicao = async () => {
+    if (atualizando) return;
+    setAtualizando(true);
+    try {
+      const r = await fetch("/api/etf-cem?refresh=1", { cache: "no-store" });
+      const d = (await r.json()) as Payload & { error?: string };
+      if (d.error) throw new Error(d.error);
+      setData(d);
+      setErro(null);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro ao atualizar");
+    } finally {
+      setAtualizando(false);
+    }
+  };
+
   // ATH em chunks de 25, em FILA com concorrência 2 (não tudo em paralelo:
   // ~500 símbolos = ~20 chunks e cada chunk abre até 6 charts no Yahoo — o
   // paralelismo total viraria throttle/429 e metade dos ATHs não chegava).
@@ -108,7 +142,7 @@ export default function EtfCemShell() {
   // quando os pesos do índice se reordenam, então o cache CDN de 7 dias vale.
   useEffect(() => {
     if (!data) return;
-    const syms = [...data.empresas.map((e) => e.sym)].sort();
+    const syms = data.empresas.map((e) => e.sym).filter((s): s is string => !!s).sort();
     const chunks: string[][] = [];
     for (let i = 0; i < syms.length; i += 25) chunks.push(syms.slice(i, i + 25));
     if (chunks.length === 0) { setAthPend(false); return; }
@@ -134,13 +168,13 @@ export default function EtfCemShell() {
   // Linhas enriquecidas: ATH efetivo = max(ATH histórico, máx. 52s, preço).
   const linhas = useMemo(() => {
     return (data?.empresas ?? []).map((e) => {
-      const a = ath[e.sym]?.ath ?? null;
+      const a = e.sym ? ath[e.sym]?.ath ?? null : null;
       const athEff = Math.max(a ?? 0, e.w52High ?? 0, e.preco ?? 0) || null;
       const distAth = e.preco !== null && athEff ? ((e.preco / athEff) - 1) * 100 : null; // ≤ 0
       const pos52 = e.preco !== null && e.w52High !== null && e.w52Low !== null && e.w52High > e.w52Low
         ? Math.min(100, Math.max(0, ((e.preco - e.w52Low) / (e.w52High - e.w52Low)) * 100))
         : null;
-      return { ...e, athEff, athAno: ath[e.sym]?.ano ?? null, athReal: a !== null, distAth, pos52 };
+      return { ...e, athEff, athAno: e.sym ? ath[e.sym]?.ano ?? null : null, athReal: a !== null, distAth, pos52 };
     });
   }, [data, ath]);
 
@@ -153,7 +187,7 @@ export default function EtfCemShell() {
     const comDist = linhas.filter((l) => l.distAth !== null);
     const desc20 = comDist.filter((l) => l.distAth! <= -20).length;
     const noTopo = comDist.filter((l) => l.distAth! > -5).length;
-    const maior = comDist.reduce<{ sym: string; d: number } | null>((acc, l) => (!acc || l.distAth! < acc.d ? { sym: l.sym, d: l.distAth! } : acc), null);
+    const maior = comDist.reduce<{ sym: string; d: number } | null>((acc, l) => (!acc || l.distAth! < acc.d ? { sym: l.sym ?? l.nome, d: l.distAth! } : acc), null);
     return { desc20, noTopo, maior };
   }, [linhas]);
 
@@ -166,18 +200,18 @@ export default function EtfCemShell() {
       const q = busca.trim().toLowerCase();
       out = out.filter((l) => `${l.sym} ${l.nome}`.toLowerCase().includes(q));
     }
-    if (regiao !== "todas") out = out.filter((l) => l.origem === regiao);
+    if (regiao !== "todas") out = out.filter((l) => (l.pais === "United States") === (regiao === "sp500"));
     if (distMin > 0) out = out.filter((l) => l.distAth !== null && l.distAth <= -distMin);
     if (peMax !== null) out = out.filter((l) => l.pe !== null && l.pe > 0 && l.pe <= peMax);
     if (soBarganhas) out = out.filter(ehBarganha);
-    if (soObservando) out = out.filter((l) => watch.has(l.sym));
+    if (soObservando) out = out.filter((l) => l.sym !== null && watch.has(l.sym));
     const cmp: Record<Ordem, (a: typeof out[number], b: typeof out[number]) => number> = {
       desconto: (a, b) => (a.distAth ?? 0) - (b.distAth ?? 0),
       topo: (a, b) => (b.distAth ?? -999) - (a.distAth ?? -999),
       pe: (a, b) => (a.pe !== null && a.pe > 0 ? a.pe : 9e9) - (b.pe !== null && b.pe > 0 ? b.pe : 9e9),
       yield: (a, b) => (b.yieldPct ?? -1) - (a.yieldPct ?? -1),
       // Estrangeiras não têm peso no VOO — desempata por market cap.
-      peso: (a, b) => (b.pesoPct - a.pesoPct) || ((b.mcap ?? 0) - (a.mcap ?? 0)),
+      peso: (a, b) => b.pesoPct - a.pesoPct,
     };
     return [...out].sort(cmp[ordem]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -187,12 +221,25 @@ export default function EtfCemShell() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Crown size={18} className="text-amber-400" /> ETF Cem</h1>
-        <p className="text-xs text-zinc-500">
-          {data ? `${data.empresas.length} das maiores empresas do mundo` : "As maiores empresas do mundo"} (S&P 500 + gigantes fora dos EUA) — preço, P/L e distância do topo histórico
-          {athPend && <span className="ml-1 text-zinc-600">· calculando ATHs…</span>}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Crown size={18} className="text-amber-400" /> ETF Cem</h1>
+          <p className="text-xs text-zinc-500">
+            Top {data ? data.empresas.length : 500} do índice mundo <span className="text-zinc-400">{data?.indice ?? "MSCI ACWI"}</span>
+            {data?.asOf && <> · composição de <span className="font-mono text-zinc-400">{data.asOf.split("-").reverse().join("/")}</span></>}
+            {athPend && <span className="ml-1 text-zinc-600">· calculando ATHs…</span>}
+            {data != null && data.pendentes > 0 && <span className="ml-1 text-zinc-600">· {data.pendentes} papéis ainda mapeando</span>}
+          </p>
+        </div>
+        <button
+          onClick={atualizarComposicao}
+          disabled={atualizando}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+          title="Re-baixa a composição do índice agora (a SSGA publica diariamente)"
+        >
+          <RefreshCw size={12} className={atualizando ? "animate-spin" : ""} /> {atualizando ? "Atualizando…" : "Atualizar"}
+        </button>
       </div>
 
       {/* KPIs */}
@@ -278,19 +325,20 @@ export default function EtfCemShell() {
         {filtradas.slice(0, mostrar).map((l) => {
           const tone = descontoTone(l.distAth);
           const barganha = ehBarganha(l);
-          const observada = watch.has(l.sym);
+          const observada = l.sym !== null && watch.has(l.sym);
           return (
             <div
-              key={l.sym}
+              key={l.isin}
               role="button" tabIndex={0}
-              onClick={() => setAberta({ sym: l.sym, nome: l.nome, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal })}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAberta({ sym: l.sym, nome: l.nome, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); } }}
+              onClick={() => { if (l.sym) setAberta({ sym: l.sym, nome: l.nome, moeda: l.moeda, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); }}
+              onKeyDown={(e) => { if (l.sym && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setAberta({ sym: l.sym, nome: l.nome, moeda: l.moeda, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); } }}
               className="block cursor-pointer rounded-2xl p-3 transition-colors hover:bg-white/[0.05]"
               style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${observada ? "rgba(245,158,11,0.35)" : barganha ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.07)"}` }}
             >
               <div className="flex items-center gap-3">
                 <button
-                  onClick={(e) => { e.stopPropagation(); alternarWatch(l.sym); }}
+                  disabled={l.sym === null}
+                  onClick={(e) => { e.stopPropagation(); if (l.sym) alternarWatch(l.sym); }}
                   className="shrink-0 rounded-lg p-1 transition-colors hover:bg-white/10"
                   style={{ color: observada ? "#fbbf24" : "#52525b" }}
                   aria-label={observada ? `Deixar de observar ${l.sym}` : `Observar ${l.sym}`}
@@ -298,23 +346,23 @@ export default function EtfCemShell() {
                 >
                   <Star size={15} fill={observada ? "currentColor" : "none"} />
                 </button>
-                <AssetLogo ticker={l.sym} size={34} />
+                <AssetLogo ticker={l.sym ?? l.isin} size={34} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-zinc-100">
                     {l.nome}
                     {barganha && <Gem size={11} className="shrink-0 text-emerald-400" />}
                   </p>
                   <p className="truncate text-[10px] text-zinc-500">
-                    {l.sym} · {l.origem === "mundo" ? (l.pais ?? "fora dos EUA") : `peso ${l.pesoPct.toFixed(2)}%`}{l.rating ? ` · ${l.rating}` : ""}
+                    {l.sym ?? "mapeando…"} · {l.pais} · peso {l.pesoPct.toFixed(2)}%{l.rating ? ` · ${l.rating}` : ""}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-xs font-bold text-zinc-100">US$ {usd(l.preco)}</p>
+                  <p className="font-mono text-xs font-bold text-zinc-100">{preco(l.preco, l.moeda)}</p>
                   <p className={`font-mono text-[10px] ${l.varDiaPct !== null && l.varDiaPct < 0 ? "text-red-400" : "text-emerald-400"}`}>
                     {l.varDiaPct !== null ? `${l.varDiaPct >= 0 ? "+" : ""}${l.varDiaPct.toFixed(2)}% hoje` : "—"}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-lg px-2 py-1 font-mono text-[11px] font-bold" style={{ background: tone.bg, border: `1px solid ${tone.border}`, color: tone.color }} title={l.athEff ? `Topo ${l.athReal ? "histórico" : "(52s, ATH carregando)"}: US$ ${usd(l.athEff)}${l.athAno ? ` em ${l.athAno}` : ""}` : undefined}>
+                <span className="shrink-0 rounded-lg px-2 py-1 font-mono text-[11px] font-bold" style={{ background: tone.bg, border: `1px solid ${tone.border}`, color: tone.color }} title={l.athEff ? `Topo ${l.athReal ? "histórico" : "(52s, ATH carregando)"}: ${preco(l.athEff, l.moeda)}${l.athAno ? ` em ${l.athAno}` : ""}` : undefined}>
                   {tone.label}
                 </span>
               </div>
@@ -324,9 +372,9 @@ export default function EtfCemShell() {
                 <span>P/L <span className={`font-mono ${l.pe !== null && medianaPE !== null && l.pe > 0 && l.pe < medianaPE ? "text-emerald-400" : "text-zinc-300"}`}>{f1(l.pe)}</span>{l.peForward !== null && <span className="text-zinc-600"> (proj. {f1(l.peForward)})</span>}</span>
                 <span>yield <span className="font-mono text-zinc-300">{l.yieldPct !== null ? `${l.yieldPct.toFixed(1)}%` : "—"}</span></span>
                 <span>P/VP <span className="font-mono text-zinc-300">{f1(l.pb)}</span></span>
-                <span className="flex items-center gap-1"><Landmark size={9} /> {compactUsd(l.mcap)}</span>
+                <span className="flex items-center gap-1"><Landmark size={9} /> {compactUsd(l.mcapUsd)}</span>
                 {l.pos52 !== null && (
-                  <span className="flex min-w-[110px] flex-1 items-center gap-1.5" title={`Faixa 52 semanas: US$ ${usd(l.w52Low)} – US$ ${usd(l.w52High)}`}>
+                  <span className="flex min-w-[110px] flex-1 items-center gap-1.5" title={`Faixa 52 semanas: ${preco(l.w52Low, l.moeda)} – ${preco(l.w52High, l.moeda)}`}>
                     <span className="font-mono text-[9px] text-zinc-600">52s</span>
                     <span className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
                       <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${l.pos52}%`, background: l.pos52 >= 80 ? "#60a5fa" : l.pos52 <= 30 ? "#34d399" : "#a1a1aa" }} />
@@ -351,8 +399,8 @@ export default function EtfCemShell() {
       )}
 
       <p className="text-[10px] text-zinc-600">
-        S&P 500 completo (via VOO) + as maiores empresas fora dos EUA via ADR em bolsa americana (cotação em USD).
-        Sem listagem líquida nos EUA (Samsung, Saudi Aramco) ficam de fora.
+        Índice: {data?.indice ?? "MSCI ACWI"} — composição completa e diária via {data?.fonte ?? "SPDR MSCI ACWI (SSGA)"};
+        top 500 por peso, com peso oficial do índice. Preços na moeda local de cada bolsa (market cap convertido em USD).
         Topo histórico pelo fechamento mensal (Yahoo, desde 1970); enquanto o ATH carrega, vale a máxima de 52 semanas.
         P/L trailing (projetado entre parênteses). 💎 barganha = ≥15% abaixo do topo com P/L positivo abaixo da mediana —
         é filtro quantitativo, não recomendação: preço baixo pode ter motivo.

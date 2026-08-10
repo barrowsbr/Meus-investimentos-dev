@@ -60,7 +60,7 @@ const TTL = 6 * 60 * 60 * 1000;
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const sym = (searchParams.get("symbol") ?? "").trim().toUpperCase();
-  if (!/^[A-Z]{1,6}(-[A-Z])?$/.test(sym)) {
+  if (!/^[A-Z0-9]{1,10}(-[A-Z])?(\.[A-Z]{1,4})?$/.test(sym)) {
     return NextResponse.json({ error: "symbol inválido" }, { status: 400 });
   }
 
