@@ -8,6 +8,10 @@ import { brandFor } from "@/lib/asset-brands";
 // 30 dias pelo revalidate e a logo "nunca chegava").
 //
 // Ordem das fontes (cada uma cai para a próxima):
+//   0. icons.brapi.dev/icons/<T>.svg (B3) — CDN de ícones da brapi, SEM token e
+//      SEM passar pela API de quote (que sem BRAPI_TOKEN limita a 4 tickers).
+//      Diagnóstico ago/2026: cobre ações E ETFs BR (IVVB11 incluso); Parqet e
+//      FMP são 404 para B3 inteira.
 //   1. brapi (B3): campo logourl do quote — melhor cobertura de ações/FIIs BR
 //   2. FMP images.financialmodelingprep.com/symbol — US e vários internacionais
 //      (o host antigo financialmodelingprep.com/image-stock fica como legado)
@@ -135,8 +139,10 @@ export async function GET(
   const t = ticker.toUpperCase();
   const clean = t.replace(/\.[A-Z0-9]+$/, "");
 
-  // 1) B3 → brapi logourl (fonte específica do mercado BR, melhor qualidade).
+  // 0-1) B3 → CDN de ícones da brapi direto (sem token), depois logourl do quote.
   if (isB3(t, clean)) {
+    const direto = await tryImage(`https://icons.brapi.dev/icons/${encodeURIComponent(clean)}.svg`);
+    if (direto) return direto;
     const u = await brapiLogoUrl(clean);
     if (u) {
       const img = await tryImage(u);

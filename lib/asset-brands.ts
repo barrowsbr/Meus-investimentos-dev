@@ -37,6 +37,11 @@ export const BRANDS: Record<string, Brand> = {
   EQTL3: { name: "Equatorial", domain: "equatorialenergia.com.br" },
   BPAC11: { name: "BTG Pactual", domain: "btgpactual.com" },
 
+  // ── FIIs ── (a brapi não tem ícone de FII; o domínio da gestora resolve)
+  KNCR11: { name: "Kinea Rendimentos", domain: "kinea.com.br" },
+  KNIP11: { name: "Kinea IPCA", domain: "kinea.com.br" },
+  KNRI11: { name: "Kinea Renda Imobiliária", domain: "kinea.com.br" },
+
   // ── ETFs negociados na B3 ──
   IVVB11: { name: "iShares S&P 500 (BRL)", domain: "ishares.com" },
   BOVA11: { name: "iShares Ibovespa", domain: "ishares.com" },
