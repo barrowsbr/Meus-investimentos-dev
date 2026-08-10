@@ -1,0 +1,44 @@
+# TEMPORÁRIO — inspeção do CSV de holdings do ACWI (apagar depois).
+name: diag-acwi
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-acwi.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixa e disseca o CSV do ACWI
+        run: |
+          URL="https://www.ishares.com/us/products/239600/ishares-msci-acwi-etf/1467271812596.ajax?fileType=csv&fileName=ACWI_holdings&dataType=fund"
+          curl -sSL --max-time 60 -A "Mozilla/5.0" -o acwi.csv "$URL" -w "HTTP %{http_code}, %{size_download} bytes\n"
+          echo "== primeiras 14 linhas =="
+          head -14 acwi.csv
+          echo "== total de linhas =="
+          wc -l < acwi.csv
+          echo "== exemplos de bolsas/moedas (colunas via python) =="
+          python3 - <<'PY'
+          import csv
+          rows = list(csv.reader(open("acwi.csv", encoding="utf-8-sig")))
+          # acha a linha de header (contém "Ticker")
+          hi = next(i for i, r in enumerate(rows) if r and r[0].strip() == "Ticker")
+          hdr = rows[hi]
+          print("header:", hdr)
+          dados = [r for r in rows[hi+1:] if len(r) == len(hdr)]
+          print("linhas de dados:", len(dados))
+          iEx = hdr.index("Exchange") if "Exchange" in hdr else -1
+          iLoc = hdr.index("Location") if "Location" in hdr else -1
+          iCur = hdr.index("Market Currency") if "Market Currency" in hdr else (hdr.index("Currency") if "Currency" in hdr else -1)
+          iCls = hdr.index("Asset Class") if "Asset Class" in hdr else -1
+          from collections import Counter
+          if iEx >= 0: print("bolsas:", Counter(r[iEx] for r in dados).most_common(40))
+          if iCur >= 0: print("moedas:", Counter(r[iCur] for r in dados).most_common(30))
+          if iCls >= 0: print("classes:", Counter(r[iCls] for r in dados).most_common())
+          print("5 exemplos não-EUA:")
+          n = 0
+          for r in dados:
+              if iLoc >= 0 and r[iLoc] not in ("United States", ""):
+                  print(r[:3], "|", r[iLoc] if iLoc>=0 else "?", "|", r[iEx] if iEx>=0 else "?", "|", r[iCur] if iCur>=0 else "?")
+                  n += 1
+                  if n >= 5: break
+          PY
