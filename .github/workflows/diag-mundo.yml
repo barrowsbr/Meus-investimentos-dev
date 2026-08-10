@@ -1,0 +1,31 @@
+# TEMPORÁRIO — valida o índice mundo em produção (apagar depois).
+name: diag-mundo
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-mundo.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Espera o deploy e testa /api/etf-cem
+        run: |
+          sleep 180
+          curl -sS --max-time 90 -o r.json -w "HTTP %{http_code}\n" "https://meus-investimentos-dev.vercel.app/api/etf-cem?refresh=1"
+          python3 - <<'PY'
+          import json
+          d = json.load(open("r.json"))
+          if "error" in d:
+              print("ERRO:", d["error"]); raise SystemExit(1)
+          es = d["empresas"]
+          print("indice:", d.get("indice"), "| asOf:", d.get("asOf"), "| empresas:", len(es), "| pendentes:", d.get("pendentes"))
+          com_sym = [e for e in es if e.get("sym")]
+          com_preco = [e for e in com_sym if e.get("preco") is not None]
+          print("com símbolo:", len(com_sym), "| com cotação:", len(com_preco))
+          paises = {}
+          for e in es: paises[e["pais"]] = paises.get(e["pais"], 0) + 1
+          print("países (top 10):", sorted(paises.items(), key=lambda x: -x[1])[:10])
+          print("top 5:", [(e["sym"], e["pais"], e["moeda"], round(e["pesoPct"], 2)) for e in es[:5]])
+          naousd = [e for e in com_preco if e["moeda"] not in ("USD",)][:3]
+          print("exemplos não-USD:", [(e["sym"], e["moeda"], e["preco"], e.get("mcapUsd")) for e in naousd])
+          PY
