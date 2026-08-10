@@ -14,9 +14,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ExternalLink, Landmark, Star } from "lucide-react";
+import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ChevronRight, Landmark, Star } from "lucide-react";
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
+import EmpresaCard, { type EmpresaResumo } from "@/components/etfcem/EmpresaCard";
 
 interface EmpresaCem {
   sym: string; nome: string; pesoPct: number;
@@ -66,6 +67,8 @@ export default function EtfCemShell() {
   const [ordem, setOrdem] = useState<Ordem>("desconto");
   // ~500 linhas de uma vez pesa no celular — renderiza 100 por vez.
   const [mostrar, setMostrar] = useState(100);
+  // Card de detalhe (tocar na linha abre; era link direto pro Yahoo).
+  const [aberta, setAberta] = useState<EmpresaResumo | null>(null);
 
   // Observando (watchlist) — persiste no aparelho (localStorage), para marcar
   // empresas e reencontrá-las com um toque ao voltar no app.
@@ -268,16 +271,17 @@ export default function EtfCemShell() {
           const barganha = ehBarganha(l);
           const observada = watch.has(l.sym);
           return (
-            <a
+            <div
               key={l.sym}
-              href={`https://finance.yahoo.com/quote/${encodeURIComponent(l.sym)}`}
-              target="_blank" rel="noopener noreferrer"
-              className="block rounded-2xl p-3 transition-colors hover:bg-white/[0.05]"
+              role="button" tabIndex={0}
+              onClick={() => setAberta({ sym: l.sym, nome: l.nome, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal })}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAberta({ sym: l.sym, nome: l.nome, distAth: l.distAth, athEff: l.athEff, athAno: l.athAno, athReal: l.athReal }); } }}
+              className="block cursor-pointer rounded-2xl p-3 transition-colors hover:bg-white/[0.05]"
               style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${observada ? "rgba(245,158,11,0.35)" : barganha ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.07)"}` }}
             >
               <div className="flex items-center gap-3">
                 <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); alternarWatch(l.sym); }}
+                  onClick={(e) => { e.stopPropagation(); alternarWatch(l.sym); }}
                   className="shrink-0 rounded-lg p-1 transition-colors hover:bg-white/10"
                   style={{ color: observada ? "#fbbf24" : "#52525b" }}
                   aria-label={observada ? `Deixar de observar ${l.sym}` : `Observar ${l.sym}`}
@@ -320,9 +324,9 @@ export default function EtfCemShell() {
                     </span>
                   </span>
                 )}
-                <ExternalLink size={10} className="text-zinc-700" />
+                <ChevronRight size={10} className="text-zinc-700" />
               </div>
-            </a>
+            </div>
           );
         })}
       </div>
@@ -343,6 +347,15 @@ export default function EtfCemShell() {
         P/L trailing (projetado entre parênteses). 💎 barganha = ≥15% abaixo do topo com P/L positivo abaixo da mediana —
         é filtro quantitativo, não recomendação: preço baixo pode ter motivo.
       </p>
+
+      {aberta && (
+        <EmpresaCard
+          empresa={aberta}
+          observada={watch.has(aberta.sym)}
+          aoAlternarWatch={alternarWatch}
+          aoFechar={() => setAberta(null)}
+        />
+      )}
     </div>
   );
 }
