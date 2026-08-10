@@ -1,4 +1,4 @@
-# TEMPORÁRIO — descobrir a URL certa do CSV do ACWI (apagar depois).
+# TEMPORÁRIO — fontes de índice mundo (apagar depois).
 name: diag-acwi
 on:
   push:
@@ -8,19 +8,32 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Testa candidatos de URL
+      - name: IVV iShares (controle) + SSGA SPYY + Vanguard VT
         run: |
-          try() {
-            echo "── $1"
-            curl -sS --max-time 40 -A "Mozilla/5.0" -o out.bin -w "HTTP %{http_code} · %{size_download}b · %{content_type}\n" "$1" || true
-            head -c 200 out.bin | tr -d '\0'; echo; echo
-          }
-          # 1) descobrir o link real varrendo o HTML da página do produto
-          curl -sS --max-time 40 -A "Mozilla/5.0" -o page.html "https://www.ishares.com/us/products/239600/ishares-msci-acwi-etf"
-          echo "== links .ajax achados na página =="
-          grep -o '[^"]*\.ajax[^"]*' page.html | grep -i -E "csv|holding" | head -5
-          grep -o 'href="[^"]*fileType=csv[^"]*"' page.html | head -5
-          # 2) candidatos diretos
-          try "https://www.ishares.com/us/products/239600/ishares-msci-acwi-etf/1467271812596.ajax?fileType=csv&fileName=ACWI_holdings&dataType=fund"
-          try "https://www.blackrock.com/us/individual/products/239600/ishares-msci-acwi-etf/1464253357814.ajax?fileType=csv&fileName=ACWI_holdings&dataType=fund"
-          try "https://www.ishares.com/uk/individual/en/products/251850/ishares-msci-acwi-ucits-etf/1506575576011.ajax?fileType=csv&fileName=SSAC_holdings&dataType=fund"
+          echo "── IVV (controle — funciona em prod)"
+          curl -sS --max-time 40 -A "Mozilla/5.0" -o ivv.csv -w "HTTP %{http_code} · %{size_download}b · %{content_type}\n" \
+            "https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf/1467271812596.ajax?fileType=csv&fileName=IVV_holdings&dataType=fund" || true
+          head -c 120 ivv.csv; echo; echo
+          echo "── SSGA SPDR MSCI ACWI UCITS (SPYY)"
+          curl -sS --max-time 40 -A "Mozilla/5.0" -o spyy.xlsx -w "HTTP %{http_code} · %{size_download}b · %{content_type}\n" \
+            "https://www.ssga.com/library-content/products/fund-data/etfs/emea/holdings-daily-emea-en-spyy-gy.xlsx" || true
+          head -c 8 spyy.xlsx | xxd | head -1; echo
+          echo "── Vanguard VT (JSON)"
+          curl -sS --max-time 40 -A "Mozilla/5.0" -H "Accept: application/json" -o vt.json -w "HTTP %{http_code} · %{size_download}b · %{content_type}\n" \
+            "https://investor.vanguard.com/investment-products/etfs/profile/api/VT/portfolio-holding/stock" || true
+          head -c 300 vt.json; echo; echo
+          echo "── dissecação SSGA (se for xlsx)"
+          if head -c 2 spyy.xlsx | grep -q PK; then
+            pip -q install openpyxl 2>/dev/null
+            python3 - <<'PY'
+          import openpyxl
+          wb = openpyxl.load_workbook("spyy.xlsx", read_only=True)
+          ws = wb.worksheets[0]
+          rows = ws.iter_rows(values_only=True)
+          for i, r in enumerate(rows):
+              print(i, [str(c)[:28] if c is not None else "" for c in r[:9]])
+              if i > 12: break
+          n = sum(1 for _ in ws.iter_rows())
+          print("total linhas:", n)
+          PY
+          fi
