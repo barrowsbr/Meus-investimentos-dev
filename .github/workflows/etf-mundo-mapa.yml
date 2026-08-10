@@ -1,0 +1,32 @@
+# ETF Cem / índice mundo — pré-enche o mapeamento ISIN→símbolo Yahoo.
+#
+# Cada GET /api/etf-cem?refresh=1 resolve até 60 ISINs pendentes e grava na aba
+# etf_mundo_map (golden source). Com o top 1000 do MSCI ACWI, encher o mapa do
+# zero levaria ~17 cliques no botão Atualizar — este workflow faz isso sozinho,
+# em loop, de madrugada (composição nova da SSGA já publicada). Depois que o
+# mapa enche, cada rodada custa ~zero (0 pendentes → o loop para na 1ª volta).
+#
+# Roda por GitHub Actions (NÃO é cron da Vercel — Hobby só permite 1×/dia lá e
+# este é só 1×/dia mesmo, mas manter fora evita mexer no vercel.json). A rota é
+# de leitura pública — não precisa de CRON_SECRET.
+name: ETF mundo — mapa ISIN
+on:
+  schedule:
+    - cron: "40 8 * * 1-5"   # 05h40 BRT, dias úteis
+  workflow_dispatch: {}
+jobs:
+  mapear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Loop de refresh até zerar pendentes
+        run: |
+          APP="https://meus-investimentos-dev.vercel.app"
+          for i in $(seq 1 20); do
+            pend=$(curl -sS --max-time 90 "$APP/api/etf-cem?refresh=1" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('pendentes', 'erro'))" 2>/dev/null || echo erro)
+            echo "rodada $i → pendentes: $pend"
+            if [ "$pend" = "0" ]; then echo "mapa completo"; exit 0; fi
+            if [ "$pend" = "erro" ]; then sleep 20; fi
+            sleep 5
+          done
+          echo "::warning::20 rodadas e ainda há pendentes — continua amanhã (ou throttle do Yahoo hoje)"

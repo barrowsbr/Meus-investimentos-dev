@@ -1,7 +1,7 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ETF Cem — ÍNDICE MUNDO de verdade: top 500 do MSCI ACWI, composição real e
+// ETF Cem — ÍNDICE MUNDO de verdade: top 1000 do MSCI ACWI, composição real e
 // diária da SSGA (lib/etf-mundo.ts). O nome "Cem" ficou da versão original e
 // a lista mostra 100 por vez. Preço na MOEDA LOCAL de cada bolsa (percentuais
 // comparam entre moedas; market cap chega convertido em USD). Papel ainda sem
@@ -231,7 +231,7 @@ export default function EtfCemShell() {
         <div>
           <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Crown size={18} className="text-amber-400" /> ETF Cem</h1>
           <p className="text-xs text-zinc-500">
-            Top {data ? data.empresas.length : 500} do índice mundo <span className="text-zinc-400">{data?.indice ?? "MSCI ACWI"}</span>
+            Top {data ? data.empresas.length : 1000} do índice mundo <span className="text-zinc-400">{data?.indice ?? "MSCI ACWI"}</span>
             {data?.asOf && <> · composição de <span className="font-mono text-zinc-400">{data.asOf.split("-").reverse().join("/")}</span></>}
             {athPend && <span className="ml-1 text-zinc-600">· calculando ATHs…</span>}
             {data != null && data.pendentes > 0 && <span className="ml-1 text-zinc-600">· {data.pendentes} papéis ainda mapeando</span>}
@@ -425,7 +425,7 @@ export default function EtfCemShell() {
 
       <p className="text-[10px] text-zinc-600">
         Índice: {data?.indice ?? "MSCI ACWI"} — composição completa e diária via {data?.fonte ?? "SPDR MSCI ACWI (SSGA)"};
-        top 500 por peso, com peso oficial do índice. Preços na moeda local de cada bolsa (market cap convertido em USD).
+        top 1000 por peso, com peso oficial do índice. Preços na moeda local de cada bolsa (market cap convertido em USD).
         Topo histórico pelo fechamento mensal (Yahoo, desde 1970); enquanto o ATH carrega, vale a máxima de 52 semanas.
         P/L trailing (projetado entre parênteses). 💎 barganha = ≥15% abaixo do topo com P/L positivo abaixo da mediana —
         é filtro quantitativo, não recomendação: preço baixo pode ter motivo.

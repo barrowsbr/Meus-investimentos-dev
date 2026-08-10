@@ -1,6 +1,6 @@
 "use client";
 
-// Painel de GRUPOS do índice mundo — agrega as 500 por SETOR (GICS, vindo do
+// Painel de GRUPOS do índice mundo — agrega as 1000 por SETOR (GICS, vindo do
 // arquivo do índice) ou por PAÍS e mostra o termômetro de cada grupo:
 //   · variação do dia PONDERADA pelo peso no índice (o "hoje")
 //   · distância MEDIANA do topo histórico (o "estrutural")

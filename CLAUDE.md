@@ -20,7 +20,7 @@ app/                    Páginas (App Router) e API routes
   (Análise)             performance, setores, evolucao, cambio, simulacoes, trades
   (Gestão)              impostos, alavancagem, financas, fluxos
   (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
-                        etf-cem (índice mundo: top 500 do MSCI ACWI, composição diária da SSGA/SPYY em lib/etf-mundo.ts, mapa ISIN→Yahoo cacheado na aba etf_mundo_map — P/L e distância do ATH; "Cem" é o nome, a UI mostra 100 por vez),
+                        etf-cem (índice mundo: top 1000 do MSCI ACWI, composição diária da SSGA/SPYY em lib/etf-mundo.ts, mapa ISIN→Yahoo cacheado na aba etf_mundo_map — P/L e distância do ATH; "Cem" é o nome, a UI mostra 100 por vez),
                         configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/
