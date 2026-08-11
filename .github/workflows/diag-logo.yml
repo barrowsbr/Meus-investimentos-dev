@@ -1,4 +1,4 @@
-# TEMPORÁRIO — qual domínio rende favicon para os FIIs CSHG (apagar depois).
+# TEMPORÁRIO — extrai o ícone real do site da Pátria (apagar depois).
 name: diag-logo
 on:
   push:
@@ -8,9 +8,19 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Favicons candidatos
+      - name: Icons do site
         run: |
-          for d in patria.com cshg.com.br patriainvestimentos.com.br hedgingriffo.com.br; do
-            r=$(curl -sSL -o f.bin -w "%{http_code} %{content_type}" --max-time 15 "https://www.google.com/s2/favicons?domain=$d&sz=128" || echo falha)
-            echo "$d → $r · $(wc -c < f.bin) bytes"
+          curl -sSL --max-time 20 -A "Mozilla/5.0" -o page.html "https://www.patria.com" -w "HTTP %{http_code}\n" || true
+          grep -o '<link[^>]*rel="[^"]*icon[^"]*"[^>]*>' page.html | head -6
+          for u in "https://www.patria.com/apple-touch-icon.png" "https://www.patria.com/favicon-32x32.png" "https://www.patria.com/favicon.ico"; do
+            code=$(curl -sSL -A "Mozilla/5.0" -o icon.bin -w "%{http_code}" --max-time 15 "$u" || echo 000)
+            size=$(wc -c < icon.bin)
+            tipo=$(file -b icon.bin | head -c 60)
+            echo "── $u → $code · ${size}b · $tipo"
+            if [ "$code" = "200" ] && [ "$size" -gt 500 ] && [ "$size" -lt 60000 ]; then
+              echo "BASE64_INICIO $u"
+              base64 -w 120 icon.bin
+              echo "BASE64_FIM"
+              break
+            fi
           done
