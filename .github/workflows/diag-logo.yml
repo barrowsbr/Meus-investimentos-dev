@@ -1,0 +1,62 @@
+# TEMPORÁRIO — congela as logos da carteira em public/logos (apagar depois).
+name: diag-logo
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-logo.yml]
+permissions:
+  contents: write
+jobs:
+  logos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/oi-44yimr
+      - name: Baixa, converte e commita
+        run: |
+          pip -q install pillow
+          APP="https://meus-investimentos-dev.vercel.app"
+          tickers=$(curl -sS --max-time 60 "$APP/api/sheets/meus_ativos" | python3 -c "
+          import json,sys
+          rows=json.load(sys.stdin)
+          ts=set()
+          for r in rows:
+              for k,v in r.items():
+                  if k.lower().startswith(('símbolo','simbolo')) and v: ts.add(str(v).strip().upper())
+          print(' '.join(sorted(ts)))")
+          echo "tickers: $tickers"
+          ok=0; falha=""
+          for t in $tickers; do
+            slug=$(python3 -c "import re,sys; print(re.sub(r'\.[A-Z0-9]+$','', '$t'))")
+            [ -f "public/logos/$slug.png" ] && { echo "$slug já commitado"; continue; }
+            code=$(curl -sSL -A "Mozilla/5.0" -o raw.img -w "%{http_code}" --max-time 40 "$APP/api/logo/$t?v=freeze" || echo 000)
+            if [ "$code" != "200" ]; then
+              sleep 3
+              code=$(curl -sSL -A "Mozilla/5.0" -o raw.img -w "%{http_code}" --max-time 40 "$APP/api/logo/$t?v=freeze2" || echo 000)
+            fi
+            if [ "$code" = "200" ]; then
+              python3 - "$slug" <<'PY'
+          import sys
+          from PIL import Image
+          slug = sys.argv[1]
+          img = Image.open("raw.img")
+          try: img.size = max(img.info.get("sizes", {img.size}))
+          except Exception: pass
+          img = img.convert("RGBA")
+          if max(img.size) > 256:
+              img.thumbnail((256, 256), Image.LANCZOS)
+          img.save(f"public/logos/{slug}.png")
+          print(f"{slug}.png salvo {img.size}")
+          PY
+              ok=$((ok+1))
+            else
+              falha="$falha $t"
+            fi
+          done
+          echo "salvas: $ok · falharam:${falha:-nenhuma}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/logos/
+          git diff --cached --quiet || git commit -m "Logos: congela as logos da carteira em public/logos (deploy-proof)"
+          git push
