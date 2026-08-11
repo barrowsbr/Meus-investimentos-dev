@@ -1,0 +1,29 @@
+# TEMPORÁRIO — mede as logos da carteira em prod (apagar depois).
+name: diag-logo
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-logo.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Logos dos tickers da carteira, 2 passadas
+        run: |
+          APP="https://meus-investimentos-dev.vercel.app"
+          tickers=$(curl -sS --max-time 60 "$APP/api/sheets/meus_ativos" | python3 -c "
+          import json,sys
+          rows=json.load(sys.stdin)
+          ts=set()
+          for r in rows:
+              for k,v in r.items():
+                  if k.lower().startswith(('símbolo','simbolo')) and v: ts.add(str(v).strip().upper())
+          print(' '.join(sorted(ts)))")
+          echo "tickers: $tickers"
+          for pass in 1 2; do
+            echo "══ passada $pass"
+            for t in $tickers; do
+              r=$(curl -sS -o /dev/null -w "%{http_code} %{time_total}s %{content_type}" --max-time 30 "$APP/api/logo/$t")
+              echo "$t → $r"
+            done
+          done
