@@ -1,0 +1,18 @@
+# TEMPORÁRIO — confirma os 3 FIIs pós-deploy (apagar depois).
+name: diag-logo
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [.github/workflows/diag-logo.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: FIIs pós-fix
+        run: |
+          sleep 180
+          APP="https://meus-investimentos-dev.vercel.app"
+          for t in XPML11.SA HGCR11.SA HGLG11 IBM; do
+            r=$(curl -sS -o /dev/null -w "%{http_code} %{time_total}s %{content_type}" --max-time 30 "$APP/api/logo/$t?v=fii")
+            echo "$t → $r"
+          done
