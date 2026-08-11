@@ -122,6 +122,12 @@ export default function RadarShell() {
     setSelected({ name: meta.name, iso, flag: meta.flag, region: meta.region });
   };
 
+  // ── Deep-link: ?transmissao=1 (sino de notificações do cabeçalho) ─────────
+  useEffect(() => {
+    if (searchParams.get("transmissao") === "1") setShowTransmissao(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Deep-link: ?country=Brasil ou ?symbol=^BVSP ────────────────────────────
   const [didDeepLink, setDidDeepLink] = useState(false);
   useEffect(() => {
