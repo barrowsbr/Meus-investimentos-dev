@@ -41,6 +41,10 @@ export const BRANDS: Record<string, Brand> = {
   KNCR11: { name: "Kinea Rendimentos", domain: "kinea.com.br" },
   KNIP11: { name: "Kinea IPCA", domain: "kinea.com.br" },
   KNRI11: { name: "Kinea Renda Imobiliária", domain: "kinea.com.br" },
+  XPML11: { name: "XP Malls", domain: "xpasset.com.br" },
+  HGCR11: { name: "CSHG Recebíveis", domain: "patria.com" },
+  HGLG11: { name: "CSHG Logística", domain: "patria.com" },
+  HGRE11: { name: "CSHG Real Estate", domain: "patria.com" },
 
   // ── ETFs negociados na B3 ──
   IVVB11: { name: "iShares S&P 500 (BRL)", domain: "ishares.com" },
