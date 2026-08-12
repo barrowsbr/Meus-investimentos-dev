@@ -301,6 +301,13 @@ export default function Simulador() {
     });
     const netGlobal = tpv > 0 ? netMDR / tpv : 0;
     const mdrPond = tpv > 0 ? receita / tpv : 0;
+    // custo IC+Fee médio por produto (ponderado pelo share de bandeira)
+    const icP = [0, 1, 2, 3].map((j) => {
+      let c = 0;
+      for (let i = 0; i < 5; i++) if (ic[i][j] !== null) c += shN[j][i] * ic[i][j];
+      return c;
+    });
+    const icGlobal = tpv > 0 ? custoIC / tpv : 0;
 
     const recAluguel = posQtd * posValor;
     const recPix = pixOn === "Sim" ? pixTpv * pixTaxa : 0;
@@ -348,7 +355,7 @@ export default function Simulador() {
     const okGrowth = growth.every((i) => i.ok);
 
     return {
-      tpvP, trxP, trx, shN, mdrEf, netBP, tpvBP, receita, custoIC, netMDR, netP, netGlobal,
+      tpvP, trxP, trx, shN, mdrEf, netBP, tpvBP, receita, custoIC, icP, icGlobal, netMDR, netP, netGlobal,
       mdrPond, recAluguel, recPix, imp, custoServir, margem, margemPct, payback,
       netNecessario, pricing, growth, okPricing, okGrowth, tier, piso, pisoAluguel,
     };
@@ -432,6 +439,7 @@ export default function Simulador() {
           </div>
           <div className="flex flex-wrap gap-x-8 gap-y-3">
             <Kpi label="Margem" v={brl(r.margem)} s={pct(r.margemPct)} />
+            <Kpi label="IC + Fee" v={pct(r.icGlobal)} s={brl(-r.custoIC)} />
             <Kpi label="NetMDR" v={pct(r.netGlobal)} s={brl(r.netMDR)} />
             <Kpi label="Payback" v={r.payback === Infinity ? "—" : r.payback + " m"} s={"CAC " + brl(cac)} />
             <Kpi label="Transações" v={num(r.trx)} s={"tier " + r.tier} />
@@ -526,14 +534,6 @@ export default function Simulador() {
                   />
                 </>
               )}
-              <details>
-                <summary className="cursor-pointer text-xs" style={{ color: C.mute }}>
-                  Ver IC + Fee do MCC {base.code} (custo, não editável)
-                </summary>
-                <div className="mt-2">
-                  <Matrix rows={BRANDS} cols={["Déb", "Créd", "PSJ1", "PSJ2"]} values={base.ic} onChange={() => {}} disabled />
-                </div>
-              </details>
             </Section>
 
             <Section title="Produtos e perfil" open={open.prod} onToggle={() => tog("prod")}>
@@ -611,6 +611,46 @@ export default function Simulador() {
                   {r.growth.filter((i) => !i.ok).map((i) => i.nome).join(", ") || "nenhum item"}.
                 </div>
               )}
+            </div>
+
+            {/* custo IC + Fee — sempre visível (pedido do dono) */}
+            <div className="rounded-sm p-4" style={{ background: C.card }}>
+              <div className="mb-3 flex items-baseline justify-between">
+                <span className="text-xs font-semibold uppercase tracking-widest">Custo IC + Fee · MCC {base.code}</span>
+                <span className="font-mono text-xs" style={{ color: C.mute }}>médio {pct(r.icGlobal)}</span>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: C.rule }}>
+                    <th className="pb-1 text-left font-normal" style={{ color: C.mute }}>Bandeira</th>
+                    {["Déb", "Créd", "PSJ1", "PSJ2"].map((c) => (
+                      <th key={c} className="pb-1 text-right font-normal" style={{ color: C.mute }}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {BRANDS.map((b, i) => (
+                    <tr key={b}>
+                      <td className="py-1" style={{ color: C.ink }}>{b}</td>
+                      {[0, 1, 2, 3].map((j) => (
+                        <td key={j} className="py-1 text-right font-mono" style={{ color: base.ic[i][j] === null ? C.rule : C.ink }}>
+                          {base.ic[i][j] === null ? "—" : pct(base.ic[i][j], 2)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="border-t" style={{ borderColor: C.ink }}>
+                    <td className="py-1.5 font-semibold">Ponderado (share)</td>
+                    {[0, 1, 2, 3].map((j) => (
+                      <td key={j} className="py-1.5 text-right font-mono font-semibold" style={{ color: C.warn }}>{pct(r.icP[j], 2)}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs" style={{ color: C.mute }}>
+                O que se paga de intercâmbio + fee de bandeira em cada célula — o MDR cobrado precisa cobrir isto.
+                Ponderado usa o share de bandeira atual de cada produto.
+              </div>
             </div>
 
             {/* preço necessário */}
