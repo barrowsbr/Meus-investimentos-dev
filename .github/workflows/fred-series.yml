@@ -40,12 +40,13 @@ jobs:
         run: |
           REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           mkdir repo && cd repo
-          git init -b backups -q
+          # init numa branch DESCARTÁVEL: `git fetch backups:backups` é recusado
+          # quando backups é a branch atual (o erro morria no 2>/dev/null e o
+          # push virava root novo → rejeitado por non-fast-forward).
+          git init -b _tmp -q
           git config user.name "fred-bot"
           git config user.email "actions@github.com"
-          # Mesmo padrão do backup.yml: continua a branch se existir (histórico
-          # de commits = versões antigas de graça); refspec cria a ref local.
-          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || echo "branch backups ainda não existe — criando"
+          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || { echo "branch backups ainda não existe — criando"; git checkout -q -b backups; }
           mkdir -p fred && cp ../fred/*.csv fred/
           git add -A
           git diff --cached --quiet && { echo "sem mudanças desde a última rodada"; exit 0; }
