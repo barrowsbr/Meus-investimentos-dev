@@ -1,0 +1,36 @@
+name: probe-dbnomics
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [".github/workflows/probe-dbnomics.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: DBnomics DFII10
+        run: |
+          curl -sS --max-time 20 "https://api.db.nomics.world/v22/series/FRED/DFII10?observations=1&format=json" -o dfii10.json
+          echo "bytes: $(wc -c < dfii10.json)"
+          python3 -c "
+          import json
+          d = json.load(open('dfii10.json'))
+          doc = d['series']['docs'][0]
+          print('keys:', sorted(doc.keys()))
+          print('period tail:', doc['period'][-4:])
+          print('value tail:', doc['value'][-4:])
+          print('n:', len(doc['period']))
+          "
+      - name: DBnomics T10Y2Y + BAMLH0A0HYM2 (tail)
+        run: |
+          for s in T10Y2Y BAMLH0A0HYM2; do
+            curl -sS --max-time 20 "https://api.db.nomics.world/v22/series/FRED/$s?observations=1&format=json" -o x.json
+            python3 -c "
+          import json
+          d = json.load(open('x.json'))
+          doc = d['series']['docs'][0]
+          print('$s tail:', list(zip(doc['period'][-3:], doc['value'][-3:])), 'n=', len(doc['period']))
+          "
+          done
+      - name: FRED direto (controle)
+        run: |
+          curl -sS --max-time 20 -o /dev/null -w "fredgraph http=%{http_code} t=%{time_total}s\n" "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFII10&cosd=2025-01-01" || echo "fredgraph FALHOU"
