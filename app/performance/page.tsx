@@ -553,6 +553,17 @@ export default function PerformancePage() {
                 </>
               )}
             </div>
+            {/* Filtro de corretora mede o TWR das POSIÇÕES — a conta na corretora
+                inclui caixa parado, tarifas e juros de margem, então o número
+                oficial dela (ex.: PortfolioAnalyst) tende a ficar abaixo.
+                Reconciliado com o IBKR em 12/08/2026: meses sem aporte batem
+                ao centésimo; a diferença acumulada é o atrito de execução. */}
+            {corretoraFilter && (
+              <p className="mt-1.5 text-[10.5px] leading-snug" style={{ color: "var(--faint)" }}>
+                TWR das posições em {corretoraFilter} — não inclui caixa parado, tarifas nem juros de margem da conta;
+                o número oficial da corretora tende a ficar um pouco abaixo.
+              </p>
+            )}
             {classe === "rv" && !tickerFilter && f.rvSetores.length > 1 && (
               <div className="flex flex-wrap items-center gap-1">
                 {["", ...f.rvSetores].map(st => {
