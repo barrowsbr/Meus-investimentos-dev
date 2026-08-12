@@ -8,16 +8,19 @@ export const maxDuration = 30;
 export async function GET() {
   try {
     const store = getDataStore();
-    const [pessoal, assinaturas, parcelamentos] = await Promise.allSettled([
+    const [pessoal, assinaturas, parcelamentos, meses] = await Promise.allSettled([
       store.fetchTab("financas_pessoal"),
       store.fetchTab("financas_assinaturas"),
       store.fetchTab("financas_parcelamentos"),
+      store.fetchTab("financas_meses"),
     ]);
 
     return NextResponse.json({
       pessoal: pessoal.status === "fulfilled" ? pessoal.value : [],
       assinaturas: assinaturas.status === "fulfilled" ? assinaturas.value : [],
       parcelamentos: parcelamentos.status === "fulfilled" ? parcelamentos.value : [],
+      // Aba pode ainda não existir — o parse do cliente é estrito (exige YYYY-MM).
+      meses: meses.status === "fulfilled" ? meses.value : [],
       errors: {
         pessoal: pessoal.status === "rejected" ? String(pessoal.reason) : null,
         assinaturas: assinaturas.status === "rejected" ? String(assinaturas.reason) : null,
@@ -73,6 +76,31 @@ export async function POST(request: Request) {
           String(r.data_compra ?? ""),
         ]);
         await store.writeTab("financas_parcelamentos", headers, rows);
+        break;
+      }
+      case "meses": {
+        // ⚠️ ensureTab ANTES do write: sem a aba exata, o resolveTabName
+        // difuso do writeTab casaria "financas_meses" com "financas" e
+        // LIMPARIA a aba errada.
+        const headers = ["Mes", "Fechado", "Entradas", "Fixas", "Compromissos", "Cartao", "Avaliacao", "Notas", "Teto_Cartao", "Meta_Aporte", "Plano"];
+        const { ensureTab } = await import("@/lib/gsheets");
+        await ensureTab("financas_meses", headers);
+        const rows = (data as Record<string, unknown>[])
+          .filter(r => /^\d{4}-\d{2}$/.test(String(r.mes ?? "")))
+          .map(r => [
+            String(r.mes),
+            r.fechado ? "TRUE" : "FALSE",
+            String(Number(r.entradas ?? 0)),
+            String(Number(r.fixas ?? 0)),
+            String(Number(r.compromissos ?? 0)),
+            String(Number(r.cartao ?? 0)),
+            String(Number(r.avaliacao ?? 0)),
+            String(r.notas ?? ""),
+            String(Number(r.tetoCartao ?? 0)),
+            String(Number(r.metaAporte ?? 0)),
+            String(r.plano ?? ""),
+          ]);
+        await store.writeTab("financas_meses", headers, rows);
         break;
       }
       default:

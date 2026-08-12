@@ -75,6 +75,60 @@ export function parseParcelamentos(raw: Record<string, unknown>[]): Parcelamento
     }));
 }
 
+// ── Dinâmica de meses (aba financas_meses) ───────────────────────────────────
+// 1 linha por mês (YYYY-MM). Duas metades no MESMO registro:
+//   FECHAMENTO — snapshot de como o mês FOI (entradas/fixas/compromissos no
+//     momento do fechamento + gasto real do cartão + avaliação e notas);
+//   PLANO — o que foi combinado PARA este mês (teto de cartão, meta de aporte
+//     e intenções), gravado normalmente no fim do mês anterior.
+
+export interface MesRegistro {
+  mes: string;          // YYYY-MM
+  fechado: boolean;
+  entradas: number;     // snapshot no fechamento
+  fixas: number;
+  compromissos: number;
+  cartao: number;       // gasto real do cartão no mês (registrado ao fechar)
+  avaliacao: number;    // 0 = sem nota; 1..5
+  notas: string;        // como foi, em texto livre
+  tetoCartao: number;   // plano para ESTE mês
+  metaAporte: number;
+  plano: string;        // intenções para este mês
+}
+
+export function mesVazio(mes: string): MesRegistro {
+  return { mes, fechado: false, entradas: 0, fixas: 0, compromissos: 0, cartao: 0, avaliacao: 0, notas: "", tetoCartao: 0, metaAporte: 0, plano: "" };
+}
+
+export function parseMeses(raw: Record<string, unknown>[]): MesRegistro[] {
+  const porMes = new Map<string, MesRegistro>();
+  for (const r of raw) {
+    const mes = String(r.mes ?? "").trim();
+    if (!/^\d{4}-\d{2}$/.test(mes)) continue; // estrito: protege contra aba errada
+    porMes.set(mes, {
+      mes,
+      fechado: ["true", "1", "sim"].includes(String(r.fechado ?? "").toLowerCase().trim()),
+      entradas: num(r.entradas),
+      fixas: num(r.fixas),
+      compromissos: num(r.compromissos),
+      cartao: num(r.cartao),
+      avaliacao: Math.max(0, Math.min(5, Math.trunc(num(r.avaliacao)))),
+      notas: String(r.notas ?? "").trim(),
+      tetoCartao: num(r.teto_cartao ?? r.tetocartao),
+      metaAporte: num(r.meta_aporte ?? r.metaaporte),
+      plano: String(r.plano ?? "").trim(),
+    });
+  }
+  return [...porMes.values()].sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
+/** Soma meses a um YYYY-MM (delta pode ser negativo). */
+export function ymAdd(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const t = y * 12 + (m - 1) + delta;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}
+
 /** Progresso de um parcelamento MANUAL a partir da data de compra. */
 export function calcParcelamento(p: Parcelamento, hoje = new Date()): ParcelamentoCalc {
   let dt: Date = hoje;

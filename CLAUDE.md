@@ -228,6 +228,14 @@ Dados de cartões de crédito, contas bancárias e gastos.
 
 Registro de entradas, saídas e gastos com cartão.
 
+### 11b. `financas_meses` — Dinâmica de meses (Finanças → aba Meses)
+
+1 linha por mês (`mes` YYYY-MM, last-wins): fechamento (snapshot de
+entradas/fixas/compromissos + gasto real do cartão + `avaliacao` 1–5 + `notas`)
+e plano do mês (`teto_cartao`, `meta_aporte`, `plano`). Criada on-demand pelo
+`POST /api/financas {tab:"meses"}` (ensureTab ANTES do write — sem a aba, o
+resolveTabName difuso casaria com `financas` e limparia a aba errada).
+
 ### 12. `app_config` — Configurações do app (aba única: escopo/chave/valor)
 
 Fusão das antigas abas de configuração `historico_config`, `alertas_config`,
