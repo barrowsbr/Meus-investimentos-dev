@@ -1,0 +1,51 @@
+name: Séries FRED (espelho p/ Vercel)
+
+# fred.stlouisfed.org (fredgraph.csv) responde normalmente de runners do GitHub,
+# mas BLOQUEIA os IPs da Vercel (anti-bot Imperva) — o detector de divergência
+# macro ficava sem HY_SPREAD / US_CURVE / US10Y_REAL em produção. Este workflow
+# baixa as séries aqui (onde funciona) e commita os CSVs em backups:fred/; o
+# app lê o espelho via raw.githubusercontent.com (lib/macro-map/sources.ts).
+# Dado público, sem segredo nenhum — não depende de CRON_SECRET.
+# O backup diário da planilha só toca os CSVs da RAIZ da branch (maxdepth 1);
+# o subdiretório fred/ convive sem conflito.
+
+on:
+  schedule:
+    - cron: '15 21 * * 1-5'   # dias úteis 21h15 UTC (18h15 BRT)
+  workflow_dispatch: {}
+  push:
+    branches: [main, claude/oi-44yimr]
+    paths: [".github/workflows/fred-series.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  espelho:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar séries do FRED
+        run: |
+          mkdir -p fred
+          for s in DFII10 T10Y2Y BAMLH0A0HYM2; do
+            curl -sS --max-time 30 "https://fred.stlouisfed.org/graph/fredgraph.csv?id=$s&cosd=$(date -u -d '6 years ago' +%F)" -o "fred/$s.csv"
+            head -1 "fred/$s.csv" | grep -qi "date" || { echo "::error::$s sem header de data"; head -c 200 "fred/$s.csv"; exit 1; }
+            linhas=$(wc -l < "fred/$s.csv")
+            [ "$linhas" -gt 1000 ] || { echo "::error::$s com só $linhas linhas — resposta suspeita"; exit 1; }
+            echo "$s: $linhas linhas"
+          done
+      - name: Publicar em backups:fred/
+        run: |
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          mkdir repo && cd repo
+          git init -b backups -q
+          git config user.name "fred-bot"
+          git config user.email "actions@github.com"
+          # Mesmo padrão do backup.yml: continua a branch se existir (histórico
+          # de commits = versões antigas de graça); refspec cria a ref local.
+          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || echo "branch backups ainda não existe — criando"
+          mkdir -p fred && cp ../fred/*.csv fred/
+          git add -A
+          git diff --cached --quiet && { echo "sem mudanças desde a última rodada"; exit 0; }
+          git commit -q -m "séries FRED $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push "$REMOTE" backups

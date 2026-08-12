@@ -78,7 +78,7 @@ drivers:
     simbolo_fonte: "T10Y2Y"
     persistido: false
     prontidao: integrado
-    nota: "INTEGRADO via FRED T10Y2Y (spread 10a−2a em pontos percentuais, livre, sem key). Positivo = curva normal; negativo = invertida. Série pronta evita subtrair ^TNX e 2YY=F, que vêm em escalas diferentes no Yahoo."
+    nota: "INTEGRADO via FRED T10Y2Y (espelho backups:fred/ do fred-series.yml — o site bloqueia IPs da Vercel). Positivo = curva normal; negativo = invertida. Série pronta evita subtrair ^TNX e 2YY=F, que vêm em escalas diferentes no Yahoo."
   - simbolo: US10Y_REAL
     nome: "Yield real do Treasury 10 anos (TIPS)"
     classe: rate
@@ -86,7 +86,7 @@ drivers:
     simbolo_fonte: "DFII10"
     persistido: false
     prontidao: integrado
-    nota: "INTEGRADO via FRED DFII10 (CSV/fredgraph, livre, sem key). Driver correto p/ custo de oportunidade do ouro."
+    nota: "INTEGRADO via FRED DFII10 (espelho backups:fred/ do fred-series.yml — o site bloqueia IPs da Vercel). Driver correto p/ custo de oportunidade do ouro."
 
   # ── Ações / volatilidade EUA ───────────────────────────────────────────────
   - simbolo: SPX
@@ -130,7 +130,7 @@ drivers:
     simbolo_fonte: "BAMLH0A0HYM2"
     persistido: false
     prontidao: integrado
-    nota: "INTEGRADO via FRED BAMLH0A0HYM2 (ICE BofA US HY OAS, livre). Era ausente do app (nenhum HYG/JNK/OAS)."
+    nota: "INTEGRADO via FRED BAMLH0A0HYM2 (ICE BofA US HY OAS; espelho backups:fred/ do fred-series.yml — o site bloqueia IPs da Vercel). Era ausente do app (nenhum HYG/JNK/OAS)."
 
   # ── Brasil — juros e prêmio de risco ───────────────────────────────────────
   - simbolo: SELIC_EXP

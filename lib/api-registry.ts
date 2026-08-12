@@ -195,13 +195,19 @@ export const API_REGISTRY: ApiDef[] = [
   },
   {
     key: "fred", name: "FRED (St. Louis Fed)", category: "Câmbio & Juros",
-    host: "fred.stlouisfed.org", purpose: "Séries macro EUA — yield real 10a (DFII10) e spread de high yield (OAS) do Mapa de Transmissão Macro",
+    host: "fred.stlouisfed.org", purpose: "Séries macro EUA do Mapa de Transmissão Macro — yield real 10a (DFII10), curva 10a−2a (T10Y2Y) e spread high yield (OAS). O site bloqueia IPs da Vercel; workflow fred-series.yml espelha os CSVs em backups:fred/ e o app lê o espelho primeiro",
     envVars: [],
     probe: async () => {
+      // Mesma cadeia do runtime (lib/macro-map/sources.ts): espelho → direto.
+      const esp = await httpGet("https://raw.githubusercontent.com/barrowsbr/Meus-investimentos-dev/backups/fred/DFII10.csv");
+      if (esp.ok) {
+        const linhas = (await esp.text()).trim().split(/\r?\n/).length;
+        if (linhas > 1) return { ok: true, detail: `espelho GitHub — DFII10 ${linhas - 1} pontos` };
+      }
       const r = await httpGet("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFII10&cosd=2024-01-01");
       const txt = r.ok ? await r.text() : "";
       const linhas = txt.trim().split(/\r?\n/).length;
-      return r.ok && linhas > 1 ? { ok: true, detail: `DFII10 ${linhas - 1} pontos` } : { ok: false, detail: `HTTP ${r.status}` };
+      return r.ok && linhas > 1 ? { ok: true, detail: `direto — DFII10 ${linhas - 1} pontos` } : { ok: false, detail: `espelho e direto falharam (HTTP ${r.status})` };
     },
   },
   {

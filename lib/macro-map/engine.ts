@@ -23,6 +23,11 @@ export interface EngineParams {
   zLongo: number; // janela longa (default 250)
   janelaChoqueDias: number; // quão recente o choque precisa ser p/ contar como "hoje"
   deadband: number; // |retorno| abaixo disso conta como movimento nulo
+  // Efeitos medidos por DIFERENÇA de nível (Δ pontos percentuais / 100), não por
+  // razão b/a−1: séries de juro/spread cruzam zero (curva invertida, yield real
+  // negativo) e a razão inverte o sinal com base negativa. /100 deixa a escala
+  // comparável a retorno (10 bps ≈ 0,001 = deadband).
+  efeitoNivel?: Set<string>;
 }
 
 export const DEFAULT_PARAMS: EngineParams = {
@@ -154,12 +159,20 @@ function effectReturn(
   lagMin: number,
   lagMax: number,
   endClampIdx: number,
-  deadband: number
+  deadband: number,
+  nivel = false
 ): { outcome: Omit<EffectOutcome, "ativo" | "esperado" | "confianca"> | null; hasSpan: boolean } {
   const baseIdx = Math.max(0, shockIdx + lagMin - 1);
   const endIdx = Math.min(shockIdx + lagMax, endClampIdx);
   if (endIdx <= baseIdx) return { outcome: null, hasSpan: false };
-  const ret = returnBetween(effPrice, cal[baseIdx], cal[endIdx]);
+  let ret: number | null;
+  if (nivel) {
+    const a = valueOnOrBefore(effPrice, cal[baseIdx]);
+    const b = valueOnOrBefore(effPrice, cal[endIdx]);
+    ret = a == null || b == null ? null : (b - a) / 100;
+  } else {
+    ret = returnBetween(effPrice, cal[baseIdx], cal[endIdx]);
+  }
   if (ret == null) return { outcome: null, hasSpan: false };
   const obs = sign(ret, deadband);
   return { outcome: { observado: obs, confirmado: false, retorno: ret }, hasSpan: true };
@@ -227,7 +240,7 @@ export function classifyRule(
   for (const sh of shocks) {
     const idx = forwardIdx(cal, sh.date);
     if (idx + primary.defasagem_dias[1] > lastIdx) continue; // janela ainda não decorreu
-    const { outcome, hasSpan } = effectReturn(primaryPrice, cal, idx, primary.defasagem_dias[0], primary.defasagem_dias[1], lastIdx, params.deadband);
+    const { outcome, hasSpan } = effectReturn(primaryPrice, cal, idx, primary.defasagem_dias[0], primary.defasagem_dias[1], lastIdx, params.deadband, params.efeitoNivel?.has(primary.ativo));
     if (!hasSpan || !outcome) continue;
     tot++;
     if (outcome.observado === primary.sinal) conf++;
@@ -241,7 +254,7 @@ export function classifyRule(
     const idx = forwardIdx(cal, sh.date);
     let primarioConfirmado: boolean | null = null;
     if (idx + primary.defasagem_dias[1] <= lastIdx) {
-      const { outcome, hasSpan } = effectReturn(primaryPrice, cal, idx, primary.defasagem_dias[0], primary.defasagem_dias[1], lastIdx, params.deadband);
+      const { outcome, hasSpan } = effectReturn(primaryPrice, cal, idx, primary.defasagem_dias[0], primary.defasagem_dias[1], lastIdx, params.deadband, params.efeitoNivel?.has(primary.ativo));
       if (hasSpan && outcome) primarioConfirmado = outcome.observado === primary.sinal;
     }
     ultimoChoqueGeral = { date: sh.date, z60: round(zcMap.get(sh.date) ?? sh.z), z250: round(zlMap.get(sh.date) ?? 0), primarioConfirmado };
@@ -257,7 +270,7 @@ export function classifyRule(
     const shockIdx = forwardIdx(cal, ultimo.date);
     efeitos = efeitosDisponiveis
       .map((ef): EffectOutcome | null => {
-        const { outcome, hasSpan } = effectReturn(effectPrices[ef.ativo]!, cal, shockIdx, ef.defasagem_dias[0], ef.defasagem_dias[1], lastIdx, params.deadband);
+        const { outcome, hasSpan } = effectReturn(effectPrices[ef.ativo]!, cal, shockIdx, ef.defasagem_dias[0], ef.defasagem_dias[1], lastIdx, params.deadband, params.efeitoNivel?.has(ef.ativo));
         if (!hasSpan || !outcome) return null;
         return { ativo: ef.ativo, esperado: ef.sinal, observado: outcome.observado, confirmado: outcome.observado === ef.sinal, retorno: outcome.retorno, confianca: ef.confianca };
       })
