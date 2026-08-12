@@ -15,10 +15,13 @@ import type { DivergenceReport, RuleEvaluation, Estado } from "./types";
 const driverBySym = new Map(DRIVERS.map((d) => [d.simbolo, d]));
 
 // Converte {date,close}[] do Yahoo numa Series ascendente e deduplicada.
-function toSeries(rows: { date: string; close: number }[]): Series {
+// `aceitaNegativo`: séries de NÍVEL (juro real, inclinação de curva, spread)
+// cruzam zero legitimamente — filtrar >0 truncaria a curva invertida de
+// 2022-24 e corromperia o z-score. Preço de mercado segue exigindo > 0.
+function toSeries(rows: { date: string; close: number }[], aceitaNegativo = false): Series {
   const byDate = new Map<string, number>();
   for (const r of rows) {
-    if (typeof r.close === "number" && isFinite(r.close) && r.close > 0) byDate.set(r.date, r.close);
+    if (typeof r.close === "number" && isFinite(r.close) && (aceitaNegativo || r.close > 0)) byDate.set(r.date, r.close);
   }
   const dates = [...byDate.keys()].sort();
   return { dates, values: dates.map((d) => byDate.get(d)!) };
@@ -61,7 +64,7 @@ async function fetchSeries(sym: string): Promise<Series | undefined> {
     else if (d.fonte === "bcb") rows = await fetchFocusSelic();
     else return undefined; // fonte ainda não integrada
     if (!rows.length) return undefined;
-    const s = toSeries(rows);
+    const s = toSeries(rows, d.fonte === "fred");
     return s.dates.length ? s : undefined;
   } catch {
     return undefined;
@@ -95,7 +98,10 @@ export async function buildDivergenceReport(params?: Partial<EngineParams>): Pro
   }
   const series = await fetchAllSeries(symbols);
 
-  const p: EngineParams | undefined = params ? { ...DEFAULT_PARAMS, ...params } : undefined;
+  // Efeitos em série de NÍVEL (FRED: juro real, curva, spread) medem por
+  // diferença, não razão — nível negativo com razão inverte o sinal.
+  const efeitoNivel = new Set(DRIVERS.filter((d) => d.fonte === "fred").map((d) => d.simbolo));
+  const p: EngineParams = { ...DEFAULT_PARAMS, ...params, efeitoNivel };
 
   const avaliacoes: RuleEvaluation[] = RULES.map((r) => {
     const effects: Record<string, Series | undefined> = {};

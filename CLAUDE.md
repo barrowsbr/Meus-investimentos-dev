@@ -525,7 +525,10 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   **Tesouro Direto** (livre — curva de juros BR: taxas dos títulos Prefixado/IPCA+;
   o DI Futuro da B3 NÃO tem API pública, só market data pago/scraping frágil) ·
   **BCB Focus/Expectativas** (livre — trajetória da Selic por reunião do Copom) ·
-  **FRED** (livre, sem key — yield real 10a DFII10, spread HY BAMLH0A0HYM2, curva T10Y2Y)
+  **FRED** (livre, sem key — yield real 10a DFII10, spread HY BAMLH0A0HYM2, curva T10Y2Y;
+  ⚠️ o fredgraph.csv BLOQUEIA IPs da Vercel — o workflow `fred-series.yml` espelha os CSVs
+  diariamente em `backups:fred/` e `lib/macro-map/sources.ts` lê o espelho primeiro.
+  DBnomics NÃO espelha mais o FRED — não tentar)
 - **Corretora**: IBKR Flex (`IBKR_FLEX_TOKEN` + `IBKR_FLEX_QUERY_ID` OBRIG.)
 - **Dados & Planilha**: Google Sheets leitura (`GOOGLE_API_KEY` + `SPREADSHEET_ID` OBRIG.) ·
   Google Sheets escrita (`GOOGLE_SERVICE_ACCOUNT_JSON` OBRIG. p/ escrita) ·

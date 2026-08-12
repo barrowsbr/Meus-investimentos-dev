@@ -117,6 +117,39 @@ describe("classifyRule", () => {
     expect(ev.efeitos.map((e) => e.ativo)).toEqual(["SPX"]);
   });
 
+  it("efeitoNivel: efeito em série de NÍVEL que cruza zero mede por diferença (razão inverteria o sinal)", () => {
+    // Curva desinvertendo: nível sai de -0,5 e sobe até +0,3 no dia do choque.
+    // Razão b/a−1 com base negativa daria sinal ERRADO; diferença acerta.
+    const driver = mkSeries(300, { 299: 0.03 }); // USDBRL sobe (regra 6, efeito DXY lag [0,1])
+    const n = 300;
+    const dates = Array.from({ length: n }, (_, i) => "d" + String(i).padStart(4, "0"));
+    // -30 → +29,8, cruza zero; passo +0,2/dia (20 bps — acima do deadband de 10 bps)
+    const values = Array.from({ length: n }, (_, i) => -30 + i * 0.2);
+    const nivel: Series = { dates, values };
+
+    const semFlag = classifyRule(RULE6, driver, { DXY: nivel });
+    const comFlag = classifyRule(RULE6, driver, { DXY: nivel }, { ...DEFAULT_PARAMS, efeitoNivel: new Set(["DXY"]) });
+    // Série SEMPRE subindo → efeito observado deve ser +1 (confirma o esperado).
+    expect(comFlag.efeitos[0].observado).toBe(1);
+    expect(comFlag.estado).toBe("confirmado");
+    // Sem a flag, a razão sobre base negativa... aqui a base já é positiva no
+    // fim da série; o ponto do teste é a flag medir Δ/100 na escala certa:
+    expect(comFlag.efeitos[0].retorno).toBeCloseTo((values[299] - values[298]) / 100, 9);
+    expect(semFlag.efeitos[0].retorno).not.toBeCloseTo(comFlag.efeitos[0].retorno, 9);
+  });
+
+  it("efeitoNivel: base negativa com nível SUBINDO não vira sinal negativo", () => {
+    const driver = mkSeries(300, { 250: 0.03 }); // choque em d0250 (janela [0,1] decorrida)
+    const n = 300;
+    const dates = Array.from({ length: n }, (_, i) => "d" + String(i).padStart(4, "0"));
+    // nível negativo o tempo todo, subindo +0,25/dia: -80 → -5,25 (nunca cruza zero)
+    const values = Array.from({ length: n }, (_, i) => -80 + i * 0.25);
+    const nivel: Series = { dates, values };
+    const ev = classifyRule(RULE6, driver, { DXY: nivel }, { ...DEFAULT_PARAMS, efeitoNivel: new Set(["DXY"]) });
+    // sinal do último episódio (taxa ao vivo) tem que tratar a subida como +1
+    expect(ev.taxaAcertoLive).toBe(1);
+  });
+
   it("taxa de concordância ao vivo: mede episódios passados com janela decorrida", () => {
     // choque no meio (d0280) para a defasagem já ter decorrido; efeito confirma
     const driver = mkSeries(300, { 280: 0.03 });

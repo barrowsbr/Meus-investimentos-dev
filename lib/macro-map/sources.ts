@@ -24,24 +24,39 @@ function startISO(yearsBack: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// ── FRED — fredgraph.csv?id=SERIES&cosd=START (CSV livre, sem chave) ──────────
-export async function fetchFred(seriesId: string, yearsBack = 5): Promise<{ date: string; close: number }[]> {
-  const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(seriesId)}&cosd=${startISO(yearsBack)}`;
-  const csv = await getText(url);
-  if (!csv) return [];
+// ── FRED — CSV formato fredgraph (DATE,VALUE; faltante = ".") ─────────────────
+function parseFredCsv(csv: string, minDate: string): { date: string; close: number }[] {
   const out: { date: string; close: number }[] = [];
   const lines = csv.trim().split(/\r?\n/);
   for (let i = 1; i < lines.length; i++) {
-    // formato: DATE,VALUE — valor faltante vem como "."
     const comma = lines[i].indexOf(",");
     if (comma < 0) continue;
     const d = lines[i].slice(0, comma).trim();
     const v = lines[i].slice(comma + 1).trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || v === "." || v === "") continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < minDate || v === "." || v === "") continue;
     const num = Number(v);
     if (isFinite(num)) out.push({ date: d, close: num });
   }
   return out;
+}
+
+// Espelho no GitHub (branch backups, dir fred/): o fredgraph.csv responde de
+// runners do GitHub mas BLOQUEIA os IPs da Vercel (anti-bot Imperva) — em
+// produção as 3 séries ficavam indisponíveis e 5 regras caíam em sem_dados.
+// O workflow .github/workflows/fred-series.yml atualiza os CSVs em dias úteis.
+// Espelho PRIMEIRO (na Vercel o direto só queimaria o timeout); FRED direto
+// como fallback para quando o espelho estiver fora/atrasado.
+const FRED_ESPELHO = "https://raw.githubusercontent.com/barrowsbr/Meus-investimentos-dev/backups/fred";
+
+export async function fetchFred(seriesId: string, yearsBack = 5): Promise<{ date: string; close: number }[]> {
+  const min = startISO(yearsBack);
+  const espelho = await getText(`${FRED_ESPELHO}/${encodeURIComponent(seriesId)}.csv`);
+  if (espelho) {
+    const rows = parseFredCsv(espelho, min);
+    if (rows.length) return rows;
+  }
+  const direto = await getText(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(seriesId)}&cosd=${min}`);
+  return direto ? parseFredCsv(direto, min) : [];
 }
 
 // ── BCB Focus (Olinda) — expectativa de Selic ────────────────────────────────
