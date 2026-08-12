@@ -339,6 +339,17 @@ vence a categorização automática (`lib/financas/categorias.ts`). Assinaturas
 
 ---
 
+## Página Precificador (dado ESTÁTICO de trabalho, fora da planilha)
+
+- `/precificador` (menu Baú): simplificação da planilha de trabalho
+  **DataRequest Polos v2.01 (30/04/2025)** — precificação rápida de adquirência.
+  Busca por atividade/CNAE/MCC, TPV, MDRs propostos por modalidade (+spread
+  Elo/Hiper/Amex), Pix, mix editável e antecipação → margem/mês, net MDR e
+  breakeven por modalidade. Dados em **`lib/precificador-data.ts`** (custos
+  IC+fee por MCC, nomes e CNAE→MCC, gerados da planilha); modelo simplificado
+  de propósito (sem COGS/floating/aluguel/CAC). Para atualizar: reenviar a
+  planilha no chat e regenerar o arquivo. Client-side puro, sem API.
+
 ## Notas
 
 - Os valores monetários na planilha usam **formato brasileiro** (vírgula como separador decimal)
