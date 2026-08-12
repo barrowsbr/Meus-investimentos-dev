@@ -341,14 +341,16 @@ vence a categorização automática (`lib/financas/categorias.ts`). Assinaturas
 
 ## Página Precificador (dado ESTÁTICO de trabalho, fora da planilha)
 
-- `/precificador` (menu Baú): simplificação da planilha de trabalho
-  **DataRequest Polos v2.01 (30/04/2025)** — precificação rápida de adquirência.
-  Busca por atividade/CNAE/MCC, TPV, MDRs propostos por modalidade (+spread
-  Elo/Hiper/Amex), Pix, mix editável e antecipação → margem/mês, net MDR e
-  breakeven por modalidade. Dados em **`lib/precificador-data.ts`** (custos
-  IC+fee por MCC, nomes e CNAE→MCC, gerados da planilha); modelo simplificado
-  de propósito (sem COGS/floating/aluguel/CAC). Para atualizar: reenviar a
-  planilha no chat e regenerar o arquivo. Client-side puro, sem API.
+- `/precificador` (menu Baú): **consulta MCC × CNAE × custo de bandeira**
+  (decisão do dono 12/08: "o resto é ruído"). Busca nos DOIS sentidos (CNAE ou
+  atividade em PT → MCC; MCC → lista de CNAEs), matriz de custo IC+Fee por
+  bandeira×produto como peça central (+ linha ponderada pelo share do MCC) e
+  teste de preço OPCIONAL (MDR por produto → margem célula a célula). SEM
+  custos internos da Stone (custo de servir, CAC, payback, alçadas, PnL) —
+  removidos de propósito. Componente `components/precificador/ConsultaMcc.jsx`
+  (custos/share de 246 MCCs no RAW embutido, base 30/04/2025) +
+  `lib/precificador-data.ts` (CNAE→MCC e nomes). Para atualizar: reenviar a
+  planilha no chat. Client-side puro, sem API.
 
 ## Notas
 
