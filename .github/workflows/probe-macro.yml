@@ -7,43 +7,19 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: FOMC diagnostico
+      - name: FOMC completo 2026 e 2027
         run: |
-          code=$(curl -sS --max-time 30 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36" -o fomc.html -w "%{http_code}" "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm")
-          echo "http=$code bytes=$(wc -c < fomc.html)"
-          grep -c "FOMC Meetings" fomc.html || true
-          grep -oE "20(26|27) FOMC Meetings" fomc.html | head -4 || true
+          curl -sS --max-time 30 -A "Mozilla/5.0" -o fomc.html "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
           python3 - <<'PY'
           import re
           h = open("fomc.html", encoding="utf-8", errors="ignore").read()
-          i = h.find("2026 FOMC Meetings")
-          print("idx2026:", i)
-          if i >= 0:
-              bloco = re.sub(r"<[^>]+>", "|", h[i:i+6000])
-              bloco = re.sub(r"\s+", " ", bloco)
-              print(bloco[:1500])
+          for ano in ["2026", "2027"]:
+              i = h.find(f"{ano} FOMC Meetings")
+              if i < 0: print(ano, "ausente"); continue
+              fim = h.find("FOMC Meetings", i + 10)
+              bloco = h[i:fim if fim > i else i + 20000]
+              texto = re.sub(r"<[^>]+>", " ", bloco)
+              texto = re.sub(r"\s+", " ", texto)
+              pares = re.findall(r"(January|February|March|April|May|June|July|August|September|October|November|December)(?:/[A-Za-z]+)?\s+(\d{1,2}-\d{1,2})", texto)
+              print(ano, pares)
           PY
-      - name: Copom candidatos
-        if: always()
-        run: |
-          for u in \
-            "https://www.bcb.gov.br/api/servico/sitebcb/copom/calendario" \
-            "https://www.bcb.gov.br/api/servico/sitebcb/calendarioreunioescopom" \
-            "https://www.bcb.gov.br/api/servico/sitebcb/agendas/copom" ; do
-            code=$(curl -sS --max-time 20 -A "Mozilla/5.0" -o r.txt -w "%{http_code}" "$u" || echo ERR)
-            echo "== $u -> $code ($(wc -c < r.txt) bytes)"; head -c 200 r.txt; echo
-          done
-          # página institucional
-          code=$(curl -sS --max-time 20 -A "Mozilla/5.0" -o copom.html -w "%{http_code}" "https://www.bcb.gov.br/controleinflacao/copom")
-          echo "pagina copom http=$code bytes=$(wc -c < copom.html)"
-          grep -oiE "(janeiro|março|maio|junho|agosto|setembro|novembro|dezembro)[^<]{0,40}" copom.html | head -10 || true
-      - name: BLS diagnostico
-        if: always()
-        run: |
-          for u in \
-            "https://www.bls.gov/schedule/news_release/empsit.htm" \
-            "https://www.bls.gov/schedule/2026/home.htm" ; do
-            code=$(curl -sS --max-time 20 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36" -H "Accept: text/html" -o b.html -w "%{http_code}" "$u" || echo ERR)
-            echo "== $u -> $code ($(wc -c < b.html) bytes)"
-            grep -oE "[A-Z][a-z]+\.? [0-9]{1,2}, 202[67]" b.html | head -14 || true
-          done
