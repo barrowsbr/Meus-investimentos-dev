@@ -48,7 +48,7 @@ export interface Summary {
   troughTwr?: number;
 }
 
-export interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; ndx_twr?: number | null; acwi_twr?: number | null; ouro_twr?: number | null; btc_twr?: number | null; dolar_twr?: number | null; ipca_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
+export interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; ndx_twr?: number | null; acwi_twr?: number | null; ouro_twr?: number | null; btc_twr?: number | null; europa_twr?: number | null; dax_twr?: number | null; japao_twr?: number | null; asia_twr?: number | null; emergentes_twr?: number | null; dolar_twr?: number | null; ipca_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
 export interface DrawdownPoint { date: string; drawdown: number; nav: number }
 export interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 export interface MonthlyReturn { month: string; return_pct: number }
@@ -115,17 +115,17 @@ export interface RiscoRetornoItem { ticker: string; setor: string; macro: string
 // ── Tipos derivados na página (compartilhados com os componentes) ────────────
 
 // Linha do gráfico principal (chartData — chart mapeado em % na página)
-export interface ChartRow { date: string; fullDate: string; portfolio: number; mwr: number | null; cdi: number | null; ibov: number | null; sp500: number | null; ndx: number | null; acwi: number | null; ouro: number | null; btc: number | null; dolar: number | null; ipca: number | null; nav: number; ret: number | null; fx: number | null; ativo: number | null; ativoMwr: number | null }
+export interface ChartRow { date: string; fullDate: string; portfolio: number; mwr: number | null; cdi: number | null; ibov: number | null; sp500: number | null; ndx: number | null; acwi: number | null; ouro: number | null; btc: number | null; europa: number | null; dax: number | null; japao: number | null; asia: number | null; emergentes: number | null; dolar: number | null; ipca: number | null; nav: number; ret: number | null; fx: number | null; ativo: number | null; ativoMwr: number | null }
 
 // ── Catálogo de benchmarks do gráfico (fonte única da legenda/picker) ────────
 // Todos exibidos SEMPRE na moeda da visão (BRL: índices USD × câmbio do dia;
 // USD: série nativa, e CDI/IBOV/IPCA convertidos dia a dia) — nunca o índice
 // cru. `brlOnly` some na visão USD (dólar vs dólar é zero por definição).
-export type BenchKey = "cdi" | "ibov" | "dolar" | "ipca" | "sp500" | "ndx" | "acwi" | "ouro" | "btc";
+export type BenchKey = "cdi" | "ibov" | "dolar" | "ipca" | "sp500" | "ndx" | "acwi" | "ouro" | "btc" | "europa" | "dax" | "japao" | "asia" | "emergentes";
 export interface BenchMeta {
   key: BenchKey;
   label: string;
-  grupo: "Brasil" | "Mundo";
+  grupo: "Brasil" | "Mundo" | "Regiões";
   dark: string;   // cor da linha nos temas escuros
   light: string;  // cor no tema creme
   nota: string;   // explicação curta (tooltip/linha do picker)
@@ -141,6 +141,12 @@ export const BENCHES: BenchMeta[] = [
   { key: "acwi",  label: "Mundo",      grupo: "Mundo",  dark: "#e879f9", light: "#86198F", nota: "MSCI ACWI (ETF, ~47 países) — só preço, dividendos ~2% a.a. fora" },
   { key: "ouro",  label: "Ouro",       grupo: "Mundo",  dark: "#fde047", light: "#854D0E", nota: "Ouro (COMEX) — o porto-seguro clássico" },
   { key: "btc",   label: "Bitcoin",    grupo: "Mundo",  dark: "#14b8a6", light: "#0F766E", nota: "BTC — atenção: a escala do eixo muda com ele ligado" },
+  // Regiões via ETFs em USD (só preço, dividendos fora — mesmo caveat do ACWI).
+  { key: "europa",     label: "Europa",        grupo: "Regiões", dark: "#60a5fa", light: "#1D4ED8", nota: "Europa desenvolvida (ETF VGK — só preço, dividendos fora)" },
+  { key: "dax",        label: "Alemanha",      grupo: "Regiões", dark: "#a78bfa", light: "#6D28D9", nota: "Alemanha (ETF EWG, proxy do DAX — só preço)" },
+  { key: "japao",      label: "Japão",         grupo: "Regiões", dark: "#fb7185", light: "#BE123C", nota: "Japão (ETF EWJ — só preço)" },
+  { key: "asia",       label: "Ásia ex-Japão", grupo: "Regiões", dark: "#4ade80", light: "#15803D", nota: "Ásia sem Japão (ETF AAXJ: China, Índia, Coreia, Taiwan…)" },
+  { key: "emergentes", label: "Emergentes",    grupo: "Regiões", dark: "#fb923c", light: "#C2410C", nota: "Mercados emergentes (ETF EEM — só preço)" },
 ];
 export const benchColor = (b: BenchMeta, isLight: boolean): string => (isLight ? b.light : b.dark);
 
