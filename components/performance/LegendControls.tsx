@@ -92,7 +92,7 @@ export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimm
 
   const visiveis = BENCHES.filter(b => !(isUsd && b.brlOnly));
   const ativosVisiveis = visiveis.filter(b => ativos.includes(b.key));
-  const grupos: Array<"Brasil" | "Mundo"> = ["Brasil", "Mundo"];
+  const grupos: Array<"Brasil" | "Mundo" | "Regiões"> = ["Brasil", "Mundo", "Regiões"];
 
   return (
     <div ref={rootRef} className="relative">
@@ -133,6 +133,9 @@ export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimm
             transform: shiftX ? `translateX(${shiftX}px)` : undefined,
             width: 316,
             maxWidth: "calc(100vw - 24px)",
+            // 14 réguas no catálogo — rola dentro do popover em vez de estourar a tela.
+            maxHeight: "min(62vh, 560px)",
+            overflowY: "auto",
             background: isLight ? "#FDFAF1" : "rgba(17,17,20,0.97)",
             border: "1px solid var(--line-strong)",
             backdropFilter: "blur(12px)",

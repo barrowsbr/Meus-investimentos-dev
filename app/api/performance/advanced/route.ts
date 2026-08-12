@@ -667,6 +667,23 @@ export async function GET(request: Request) {
     const acwiUsdNorm = normalizeBenchmark(buildPriceBenchmark("ACWI_USD", dates, acwiPrices), benchStart);
     const btcBrlNorm = normalizeBenchmark(buildPriceBenchmark("BTC_BRL", dates, paraBRL(btcPrices)), benchStart);
     const btcUsdNorm = normalizeBenchmark(buildPriceBenchmark("BTC_USD", dates, btcPrices), benchStart);
+    // Regiões (ETFs USD — VGK/EWG/EWJ/AAXJ/EEM): mesmo tratamento dos extras
+    // acima, gerado em lote. Chave = BenchKey do catálogo (europa_twr etc.).
+    const REGIOES: ReadonlyArray<readonly [string, string]> = [
+      ["europa", "VGK"], ["dax", "EWG"], ["japao", "EWJ"], ["asia", "AAXJ"], ["emergentes", "EEM"],
+    ];
+    const regiaoNorm: Record<string, { brl: TwrDayPoint[]; usd: TwrDayPoint[] }> = {};
+    for (const [key, yt] of REGIOES) {
+      const precos = alignedBench(yt);
+      regiaoNorm[key] = {
+        brl: normalizeBenchmark(buildPriceBenchmark(`${key.toUpperCase()}_BRL`, dates, paraBRL(precos)), benchStart),
+        usd: normalizeBenchmark(buildPriceBenchmark(`${key.toUpperCase()}_USD`, dates, precos), benchStart),
+      };
+    }
+    const regiaoMaps = (visao: "brl" | "usd"): Record<string, Map<string, number>> =>
+      Object.fromEntries(Object.entries(regiaoNorm).map(([k, v]) => [k, new Map(v[visao].map(p => [p.date, p.twr]))]));
+    const regiaoFields = (maps: Record<string, Map<string, number>>, date: string): Record<string, number | null> =>
+      Object.fromEntries(Object.entries(maps).map(([k, m]) => [`${k}_twr`, m.get(date) ?? null]));
     // Dólar (USDBRL spot): "e se eu só tivesse segurado dólar?" — só faz
     // sentido na visão BRL (em USD é identicamente zero).
     const dolarNorm = normalizeBenchmark(buildPriceBenchmark("USDBRL", dates, fxUsdSeries), benchStart);
@@ -945,6 +962,7 @@ export async function GET(request: Request) {
       const acwiUsdMap = new Map(acwiUsdNorm.map(p => [p.date, p.twr]));
       const ouroUsdMap = new Map(ouroUsdNorm.map(p => [p.date, p.twr]));
       const btcUsdMap = new Map(btcUsdNorm.map(p => [p.date, p.twr]));
+      const regiaoUsdMaps = regiaoMaps("usd");
       const ipcaUsdMap = new Map(ipcaUsd.map(p => [p.date, p.twr]));
 
       const mwrDiarioUsd = calcularMWRDiario(pts);
@@ -993,6 +1011,7 @@ export async function GET(request: Request) {
           acwi_twr: acwiUsdMap.get(p.date) ?? null,
           ouro_twr: ouroUsdMap.get(p.date) ?? null,
           btc_twr: btcUsdMap.get(p.date) ?? null,
+          ...regiaoFields(regiaoUsdMaps, p.date),
           // Dólar vs. dólar é identicamente zero — sem linha na visão USD.
           dolar_twr: null,
           ipca_twr: ipcaUsdMap.get(p.date) ?? null,
@@ -1210,6 +1229,7 @@ export async function GET(request: Request) {
         const acwiMap = new Map(acwiBrlNorm.map(p => [p.date, p.twr]));
         const ouroMap = new Map(ouroBrlNorm.map(p => [p.date, p.twr]));
         const btcMap = new Map(btcBrlNorm.map(p => [p.date, p.twr]));
+        const regiaoBrlMaps = regiaoMaps("brl");
         const dolarMap = new Map(dolarNorm.map(p => [p.date, p.twr]));
         const ipcaMap = new Map(ipcaNorm.map(p => [p.date, p.twr]));
         const mwrDiario = calcularMWRDiario(meaningfulPoints);
@@ -1240,6 +1260,7 @@ export async function GET(request: Request) {
             acwi_twr: acwiMap.get(p.date) ?? null,
             ouro_twr: ouroMap.get(p.date) ?? null,
             btc_twr: btcMap.get(p.date) ?? null,
+            ...regiaoFields(regiaoBrlMaps, p.date),
             dolar_twr: dolarMap.get(p.date) ?? null,
             ipca_twr: ipcaMap.get(p.date) ?? null,
             fx_twr,

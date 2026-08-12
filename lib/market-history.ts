@@ -29,7 +29,11 @@ const SP500TR_TICKER = "^SP500TR";
 // Benchmarks extras do gráfico de Performance: Nasdaq 100 (^XNDX = total
 // return; ^NDX = preço, fallback histórico), ouro (COMEX), MSCI ACWI (ETF,
 // proxy de "mundo" — só preço, dividendos ~2% a.a. ficam de fora) e Bitcoin.
-export const BENCH_TICKERS = ["^NDX", "^XNDX", "GC=F", "ACWI", "BTC-USD"] as const;
+// Regiões via ETFs USD (mesma régua de conversão dos demais — só preço):
+// VGK = Europa desenvolvida, EWG = Alemanha (proxy do DAX), EWJ = Japão,
+// AAXJ = Ásia ex-Japão, EEM = emergentes. Índices locais crus (^GDAXI, ^N225)
+// ficariam em EUR/JPY — moedas fora do pipeline de FX da visão.
+export const BENCH_TICKERS = ["^NDX", "^XNDX", "GC=F", "ACWI", "BTC-USD", "VGK", "EWG", "EWJ", "AAXJ", "EEM"] as const;
 // Cripto negocia 7 dias/semana. O grid de datas do motor é de DIAS ÚTEIS —
 // deixar o BTC criar linhas de sábado/domingo mudaria o grid do TWR inteiro.
 // Tickers "passivos de grid" só anexam preço a datas que já existem.
