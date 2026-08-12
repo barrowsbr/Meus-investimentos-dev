@@ -27,7 +27,7 @@ jobs:
         if: always()
         run: |
           for y in 2026 2027; do
-            curl -sS --max-time 30 -A "Mozilla/5.0" -o fred.html "https://fred.stlouisfed.org/releases/calendar?rid=50&y=$y" || { echo "$y falhou"; continue; }
+            curl -sS --http1.1 --max-time 30 -A "Mozilla/5.0" -o fred.html "https://fred.stlouisfed.org/releases/calendar?rid=50&y=$y" || { echo "$y falhou"; continue; }
             echo "== $y ($(wc -c < fred.html) bytes)"
             python3 - <<PY
           import re
