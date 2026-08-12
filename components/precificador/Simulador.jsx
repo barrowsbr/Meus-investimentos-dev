@@ -189,19 +189,22 @@ function Matrix({ rows, cols, values, onChange, disabled, scale = 100, digits = 
 /* ---------------- app ---------------- */
 
 export default function Simulador() {
-  const [mcc, setMcc] = useState("5441");
+  // Começa EM BRANCO (pedido do dono): sem o exemplo da planilha — a página
+  // é para precificar os PRÓXIMOS clientes. Escolher o MCC carrega mix,
+  // ticket e share da base; TPV e taxas o usuário informa.
+  const [mcc, setMcc] = useState(null);
   const [busca, setBusca] = useState("");
-  const [tpv, setTpv] = useState(1300000);
-  const [lojas, setLojas] = useState(13);
+  const [tpv, setTpv] = useState(0);
+  const [lojas, setLojas] = useState(1);
 
-  const base = BY_CODE[mcc] || BASE[0];
+  const base = mcc ? BY_CODE[mcc] || null : null;
 
-  const [mix, setMix] = useState(base.mix);
-  const [tkt, setTkt] = useState(base.tkt);
-  const [shb, setShb] = useState(base.shb);
+  const [mix, setMix] = useState([0.25, 0.25, 0.25, 0.25]);
+  const [tkt, setTkt] = useState([0, 0, 0, 0]);
+  const [shb, setShb] = useState([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
   const [modo, setModo] = useState("NetMDR alvo");
   const [alvo, setAlvo] = useState(0.003);
-  const [mdr, setMdr] = useState(base.ic.map((r) => r.map((v) => (v === null ? null : v + 0.003))));
+  const [mdr, setMdr] = useState(null);
 
   const [antecipa, setAntecipa] = useState("Não Antecipa");
   const [taxaAuto, setTaxaAuto] = useState(0.0135);
@@ -236,29 +239,10 @@ export default function Simulador() {
     setMdr(b.ic.map((r) => r.map((v) => (v === null ? null : v + alvo))));
   }
 
-  function cenarioArquivo() {
-    setMcc("5441");
-    setTpv(1300000);
-    setLojas(13);
-    setMix([0.5111, 0.3939, 0.0944, 0.0006]);
-    setTkt([27.83, 40.91, 236.56, 2721.81]);
-    setShb(BY_CODE["5441"].shb);
-    setModo("NetMDR alvo");
-    setAlvo(0.003);
-    setAntecipa("Não Antecipa");
-    setParcela("Parcela");
-    setDomicilio("Outros");
-    setTipo("IPV");
-    setPosQtd(0);
-    setPixOn("Não");
-    setCCliente(50.62);
-    setCTrx(0.017766);
-    setCTpv(0.00034783);
-    setCac(3030.55);
-  }
 
   /* -------- cálculo -------- */
   const r = useMemo(() => {
+    if (!base) return null;
     const ic = base.ic;
     const mixSum = mix.reduce((a, b) => a + b, 0) || 1;
     const mixN = mix.map((v) => v / mixSum);
@@ -274,7 +258,7 @@ export default function Simulador() {
     });
 
     const mdrEf = ic.map((row, i) =>
-      row.map((v, j) => (v === null ? null : modo === "NetMDR alvo" ? v + alvo : mdr[i][j]))
+      row.map((v, j) => (v === null ? null : modo === "NetMDR alvo" || !mdr ? v + alvo : mdr[i][j]))
     );
 
     let receita = 0,
@@ -363,7 +347,7 @@ export default function Simulador() {
       cCliente, cTrx, cTpv, cPos, cac, imposto, antecipa, parcela, domicilio, tipo, taxaAuto,
       margemMin, paybackMax]);
 
-  const veredito = r.okPricing
+  const veredito = !r ? null : r.okPricing
     ? { txt: "Passa na alçada Pricing", cor: C.ok, sub: "A mesa consegue aprovar sem escalar." }
     : r.okGrowth
     ? { txt: "Só passa em Growth", cor: C.warn, sub: "Fora do piso da mesa — precisa de plano G." }
@@ -390,7 +374,7 @@ export default function Simulador() {
     return [...direto, ...viaCnae].slice(0, 40);
   }, [busca]);
 
-  const pnl = [
+  const pnl = !r ? [] : [
     ["MDR bruto", r.receita, r.mdrPond],
     ["Interchange + Fee", -r.custoIC, -r.custoIC / (tpv || 1)],
     ["NetMDR", r.netMDR, r.netGlobal],
@@ -414,13 +398,6 @@ export default function Simulador() {
                 Antes de abrir o DataRequest
               </h1>
             </div>
-            <button
-              onClick={cenarioArquivo}
-              className="rounded-sm border px-3 py-2 text-xs"
-              style={{ borderColor: C.rule, background: C.card, color: C.mute }}
-            >
-              Carregar cenário da planilha (EC S.A)
-            </button>
           </div>
           <p className="mt-2 max-w-2xl text-sm" style={{ color: C.mute }}>
             Bases de IC+Fee, share de bandeira e ticket médio extraídas do arquivo de 30/04/2025.
@@ -428,6 +405,44 @@ export default function Simulador() {
           </p>
         </header>
 
+        {!base ? (
+          /* estado inicial — a página nasce em branco, pronta p/ o próximo cliente */
+          <div className="rounded-sm p-6" style={{ background: C.card }}>
+            <div className="text-xs font-semibold uppercase tracking-widest">Comece pelo MCC</div>
+            <p className="mt-1 mb-4 max-w-xl text-sm" style={{ color: C.mute }}>
+              Busque a atividade em português (ex.: “padaria”), o nome do MCC ou o número.
+              Mix, ticket médio, share de bandeira e custo IC+Fee do MCC entram sozinhos — depois é só informar TPV e taxas.
+            </p>
+            <input
+              autoFocus
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="padaria · restaurante · 5812 · Bakeries…"
+              className="w-full max-w-xl rounded-sm border px-3 py-3 text-sm outline-none"
+              style={{ borderColor: C.rule, background: C.card, color: C.ink }}
+            />
+            {busca && (
+              <div className="mt-1 max-h-72 max-w-xl overflow-y-auto rounded-sm border" style={{ borderColor: C.rule }}>
+                {lista.map((m) => (
+                  <button
+                    key={m.code + m.name}
+                    onClick={() => { carregarMcc(m.code); setBusca(""); }}
+                    className="block w-full px-3 py-2 text-left text-sm hover:opacity-70"
+                    style={{ color: C.ink }}
+                  >
+                    <span className="font-mono">{m.code}</span> · {m.name}
+                  </button>
+                ))}
+                {lista.length === 0 && (
+                  <div className="px-3 py-2 text-sm" style={{ color: C.mute }}>
+                    Nenhum MCC com esse nome ou código na base.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+        <>
         {/* veredito */}
         <div
           className="mb-6 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-sm px-4 py-4"
@@ -741,6 +756,8 @@ export default function Simulador() {
             </p>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );
