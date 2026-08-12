@@ -14,24 +14,26 @@
 // O cartão vive em cartao_transacoes via /api/financas/cartao.
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Wallet, CreditCard, AlertCircle } from "lucide-react";
+import { Wallet, CreditCard, CalendarDays, AlertCircle } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import GastosTab from "@/components/financas/GastosTab";
 import CustosTab from "@/components/financas/CustosTab";
+import MesesTab from "@/components/financas/MesesTab";
 import { SaveIndicator, type SaveStatus } from "@/components/financas/ui";
 import {
-  parseMensalRows, parseAssinaturas, parseParcelamentos,
-  type RowMensal, type Assinatura, type Parcelamento,
+  parseMensalRows, parseAssinaturas, parseParcelamentos, parseMeses,
+  type RowMensal, type Assinatura, type Parcelamento, type MesRegistro,
 } from "@/lib/financas/tipos";
 
 export default function FinancasPage() {
   const [mensalRows, setMensalRows] = useState<RowMensal[]>([]);
   const [assinaturas, setAssinaturas] = useState<Assinatura[]>([]);
   const [parcelamentos, setParcelamentos] = useState<Parcelamento[]>([]);
+  const [meses, setMeses] = useState<MesRegistro[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"gastos" | "custos">("gastos");
+  const [activeTab, setActiveTab] = useState<"gastos" | "custos" | "meses">("gastos");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const initialLoaded = useRef(false);
@@ -50,6 +52,7 @@ export default function FinancasPage() {
         setMensalRows(parseMensalRows(data.pessoal ?? []));
         setAssinaturas(parseAssinaturas(data.assinaturas ?? []));
         setParcelamentos(parseParcelamentos(data.parcelamentos ?? []));
+        setMeses(parseMeses(data.meses ?? []));
         initialLoaded.current = true;
       })
       .catch(err => setLoadError(err.message))
@@ -57,7 +60,7 @@ export default function FinancasPage() {
   }, []);
 
   const doSave = useCallback(async (
-    mensal: RowMensal[], ass: Assinatura[], parc: Parcelamento[],
+    mensal: RowMensal[], ass: Assinatura[], parc: Parcelamento[], mss: MesRegistro[],
   ) => {
     setSaveStatus("saving");
     try {
@@ -68,6 +71,8 @@ export default function FinancasPage() {
           body: JSON.stringify({ tab: "assinaturas", data: ass }) }),
         fetch("/api/financas", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tab: "parcelamentos", data: parc }) }),
+        fetch("/api/financas", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tab: "meses", data: mss }) }),
       ]);
       const bodies = await Promise.all(responses.map(r => r.json()));
       if (bodies.some(b => b.readonly)) { setSaveStatus("readonly"); return; }
@@ -85,15 +90,16 @@ export default function FinancasPage() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveStatus("idle");
     saveTimer.current = setTimeout(() => {
-      doSave(mensalRows, assinaturas, parcelamentos);
+      doSave(mensalRows, assinaturas, parcelamentos, meses);
     }, 1500);
-  }, [mensalRows, assinaturas, parcelamentos, doSave]);
+  }, [mensalRows, assinaturas, parcelamentos, meses, doSave]);
 
   if (loading) return <LoadingSpinner />;
 
   const tabs = [
     { id: "gastos", label: "Gastos", icon: <CreditCard size={14} /> },
     { id: "custos", label: "Custos", icon: <Wallet size={14} /> },
+    { id: "meses", label: "Meses", icon: <CalendarDays size={14} /> },
   ] as const;
 
   return (
@@ -139,6 +145,15 @@ export default function FinancasPage() {
           <CustosTab
             rows={mensalRows}
             setRows={setMensalRows}
+            assinaturas={assinaturas}
+            parcelamentos={parcelamentos}
+          />
+        )}
+        {activeTab === "meses" && (
+          <MesesTab
+            meses={meses}
+            setMeses={setMeses}
+            mensalRows={mensalRows}
             assinaturas={assinaturas}
             parcelamentos={parcelamentos}
           />
