@@ -23,3 +23,19 @@ jobs:
               pares = re.findall(r"(January|February|March|April|May|June|July|August|September|October|November|December)(?:/[A-Za-z]+)?\s+(\d{1,2}-\d{1,2})", texto)
               print(ano, pares)
           PY
+      - name: Payroll via FRED release calendar (rid=50)
+        if: always()
+        run: |
+          for y in 2026 2027; do
+            curl -sS --max-time 30 -A "Mozilla/5.0" -o fred.html "https://fred.stlouisfed.org/releases/calendar?rid=50&y=$y" || { echo "$y falhou"; continue; }
+            echo "== $y ($(wc -c < fred.html) bytes)"
+            python3 - <<PY
+          import re
+          h = open("fred.html", encoding="utf-8", errors="ignore").read()
+          datas = re.findall(r"(20[0-9]{2}-[0-9]{2}-[0-9]{2})", h)
+          # também formato textual
+          txt = re.findall(r"((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+$y)", h)
+          print("iso:", sorted(set(d for d in datas if d.startswith("$y")))[:20])
+          print("txt:", txt[:15])
+          PY
+          done
