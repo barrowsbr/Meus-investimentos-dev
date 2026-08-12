@@ -8,12 +8,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { EVENTOS_MACRO } from "@/lib/agenda-macro";
 
-type Tipo = "ex" | "pagamento" | "anuncio";
+type Tipo = "ex" | "pagamento" | "anuncio" | "macro";
 interface Evento {
   ticker: string; tipo: Tipo; date: string; moeda: string;
   dividendRate: number | null; dividendYield: number | null;
+  detalhe?: string; // eventos macro: linha de apoio (horário/descrição)
 }
+
+// Copom, FOMC e Payroll — datas oficiais fixas (lib/agenda-macro.ts).
+const MACRO_COMO_EVENTOS: Evento[] = EVENTOS_MACRO.map((m) => ({
+  ticker: m.rotulo, tipo: "macro", date: m.date, moeda: "",
+  dividendRate: null, dividendYield: null, detalhe: m.detalhe,
+}));
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -22,15 +30,15 @@ const isoOf = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const brDate = (iso: string) => iso.split("-").reverse().join("/");
 
-const COR: Record<Tipo, string> = { ex: "var(--accent, #E8A33D)", pagamento: "var(--pos, #3FB950)", anuncio: "#22d3ee" };
-const ROTULO: Record<Tipo, string> = { ex: "Data-ex", pagamento: "Pagamento", anuncio: "Anúncio (resultados)" };
+const COR: Record<Tipo, string> = { ex: "var(--accent, #E8A33D)", pagamento: "var(--pos, #3FB950)", anuncio: "#22d3ee", macro: "#a78bfa" };
+const ROTULO: Record<Tipo, string> = { ex: "Data-ex", pagamento: "Pagamento", anuncio: "Anúncio (resultados)", macro: "Macro" };
 
 export default function AgendaPage() {
   const [eventos, setEventos] = useState<Evento[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ym, setYm] = useState(() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; });
   const [selDate, setSelDate] = useState<string | null>(null);
-  const [ativos, setAtivos] = useState<Record<Tipo, boolean>>({ ex: true, pagamento: true, anuncio: true });
+  const [ativos, setAtivos] = useState<Record<Tipo, boolean>>({ ex: true, pagamento: true, anuncio: true, macro: true });
 
   useEffect(() => {
     let alive = true;
@@ -39,13 +47,14 @@ export default function AgendaPage() {
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;
-        if (d?.error) { setErro(d.error); setEventos([]); return; }
+        if (d?.error) { setErro(d.error); setEventos(MACRO_COMO_EVENTOS); return; }
         const evs: Evento[] = Array.isArray(d?.eventos) ? d.eventos : [];
-        setEventos(evs);
-        const prox = evs.find((e) => e.date >= todayISO()) ?? evs[0];
+        const todos = [...evs, ...MACRO_COMO_EVENTOS].sort((a, b) => a.date.localeCompare(b.date));
+        setEventos(todos);
+        const prox = todos.find((e) => e.date >= todayISO()) ?? todos[0];
         if (prox) { const [y, m] = prox.date.split("-").map(Number); setYm({ y, m: m - 1 }); }
       })
-      .catch((e) => { if (alive) { setErro(e instanceof Error ? e.message : "Erro"); setEventos([]); } });
+      .catch((e) => { if (alive) { setErro(e instanceof Error ? e.message : "Erro"); setEventos(MACRO_COMO_EVENTOS); } });
     return () => { alive = false; };
   }, []);
 
@@ -72,7 +81,7 @@ export default function AgendaPage() {
   // Contagem por tipo dentro do mês visível.
   const doMes = useMemo(() => {
     const pref = `${ym.y}-${pad(ym.m + 1)}`;
-    const c: Record<Tipo, number> = { ex: 0, pagamento: 0, anuncio: 0 };
+    const c: Record<Tipo, number> = { ex: 0, pagamento: 0, anuncio: 0, macro: 0 };
     for (const e of visiveis) if (e.date.startsWith(pref)) c[e.tipo]++;
     return c;
   }, [visiveis, ym]);
@@ -100,7 +109,7 @@ export default function AgendaPage() {
 
       {/* filtros por tipo */}
       <div className="mb-4 flex flex-wrap gap-2">
-        {(["ex", "pagamento", "anuncio"] as Tipo[]).map((t) => {
+        {(["ex", "pagamento", "anuncio", "macro"] as Tipo[]).map((t) => {
           const on = ativos[t];
           return (
             <button key={t} onClick={() => toggle(t)}
@@ -147,7 +156,7 @@ export default function AgendaPage() {
                     <span className="font-mono text-[12px]" style={{ color: evs ? "var(--text)" : "var(--faint)", fontWeight: isToday ? 700 : 400 }}>{d}</span>
                     {evs && (
                       <span className="mt-0.5 flex gap-0.5">
-                        {(["ex", "pagamento", "anuncio"] as Tipo[]).filter((t) => tipos.has(t)).map((t) => (
+                        {(["ex", "pagamento", "anuncio", "macro"] as Tipo[]).filter((t) => tipos.has(t)).map((t) => (
                           <span key={t} className="h-1 w-1 rounded-full" style={{ background: COR[t] }} />
                         ))}
                       </span>
@@ -159,7 +168,7 @@ export default function AgendaPage() {
 
             {/* resumo do mês */}
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-[11px]" style={{ borderColor: "var(--line)", color: "var(--muted)" }}>
-              {(["ex", "pagamento", "anuncio"] as Tipo[]).map((t) => (
+              {(["ex", "pagamento", "anuncio", "macro"] as Tipo[]).map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: COR[t] }} />
                   {doMes[t]} {ROTULO[t].split(" ")[0].toLowerCase()}{doMes[t] === 1 ? "" : "s"}
@@ -188,6 +197,9 @@ export default function AgendaPage() {
                         <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{e.ticker}</span>
                         <span className="rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wide" style={{ background: `color-mix(in srgb, ${COR[e.tipo]} 18%, transparent)`, color: COR[e.tipo] }}>{ROTULO[e.tipo]}</span>
                       </div>
+                      {e.detalhe && (
+                        <span className="mt-0.5 block font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>{e.detalhe}</span>
+                      )}
                       {e.dividendYield != null && (
                         <span className="mt-0.5 block font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>
                           yield {e.dividendYield.toFixed(1).replace(".", ",")}%{e.dividendRate != null ? ` · ${e.moeda === "USD" ? "US$" : e.moeda} ${e.dividendRate.toFixed(2)}/ano` : ""}
@@ -201,7 +213,7 @@ export default function AgendaPage() {
             )}
 
             <p className="mt-4 border-t pt-3 text-[10.5px] leading-relaxed" style={{ borderColor: "var(--line)", color: "var(--faint)" }}>
-              <b style={{ color: "var(--muted)" }}>Anúncio</b> = próxima data de <b>resultados</b> da empresa (aproximada) — costumam anunciar proventos junto/perto. <b style={{ color: "var(--muted)" }}>Data-ex</b> e <b style={{ color: "var(--muted)" }}>pagamento</b> só aparecem quando o provento já foi declarado. Valores exatos por ação vêm depois do anúncio.
+              <b style={{ color: "var(--muted)" }}>Anúncio</b> = próxima data de <b>resultados</b> da empresa (aproximada) — costumam anunciar proventos junto/perto. <b style={{ color: "var(--muted)" }}>Data-ex</b> e <b style={{ color: "var(--muted)" }}>pagamento</b> só aparecem quando o provento já foi declarado. <b style={{ color: "var(--muted)" }}>Macro</b> = Copom, FOMC e Payroll — datas oficiais (BCB, Fed e BLS), decisão/divulgação no dia marcado.
             </p>
           </section>
         </div>
