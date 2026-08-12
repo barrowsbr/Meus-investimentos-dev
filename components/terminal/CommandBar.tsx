@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Menu } from "lucide-react";
 import { useGlobeOverlay } from "@/components/GlobeOverlayContext";
-import SinoMacro from "@/components/terminal/SinoMacro";
+import Sino from "@/components/terminal/Sino";
 
 interface Props {
   title: string;
@@ -52,7 +52,7 @@ export default function CommandBar({ title, onMenu }: Props) {
       <div className="flex-1" />
 
       {/* Sino — acontecimentos da transmissão macro (info que só vale se vista rápido) */}
-      <SinoMacro />
+      <Sino />
 
       {/* Logo redonda — dispara o globo holográfico (overlay global) */}
       <button
