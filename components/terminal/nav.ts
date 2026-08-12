@@ -4,6 +4,7 @@ import {
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
   Rocket, Newspaper, Medal, Crown, CalendarDays, Boxes, LayoutGrid, Smile, Radio, Car,
+  Calculator,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -81,6 +82,7 @@ export const SPACES: Space[] = [
       { href: "/expressoes", label: "Expressões", icon: Smile, sub: "Reconhecimento facial ao vivo — 100% no aparelho" },
       { href: "/morse", label: "Morse", icon: Radio, sub: "O cartão do código Morse, vivo — árvore, telégrafo e tradutor" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
+      { href: "/precificador", label: "Precificador", icon: Calculator, sub: "Precificação rápida de adquirência — custos por MCC" },
     ],
   },
 ];
