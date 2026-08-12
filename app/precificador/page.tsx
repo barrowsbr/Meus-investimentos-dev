@@ -1,12 +1,11 @@
-// Precificador — pré-simulador de precificação de adquirência, versão
-// preferida do dono (o componente JSX que ele guardou: matriz MDR 5 bandeiras
-// × 4 produtos, mix/ticket/share POR MCC, trilho de alçadas Pricing/Growth
-// com veredito, PnL com custo de servir e payback vs CAC). Base extraída da
-// planilha DataRequest Polos v2.01 (30/04/2025), embutida no componente;
-// busca em português via CNAE→MCC (lib/precificador-data.ts).
+// Precificador — consulta MCC × CNAE × custo de bandeira (versão "aderente
+// ao uso" do dono): achar MCC por CNAE e vice-versa, ver o custo IC+Fee de
+// cada bandeira×produto do MCC com clareza, e opcionalmente testar um preço
+// (MDR − custo). Sem custos internos da Stone (servir/CAC/alçadas) — ruído.
+// Base embutida no componente (planilha DataRequest Polos v2.01, 30/04/2025).
 
-import Simulador from "@/components/precificador/Simulador";
+import ConsultaMcc from "@/components/precificador/ConsultaMcc";
 
 export default function PrecificadorPage() {
-  return <Simulador />;
+  return <ConsultaMcc />;
 }
