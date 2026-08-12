@@ -31,7 +31,9 @@ jobs:
             curl -sS --max-time 30 "https://fred.stlouisfed.org/graph/fredgraph.csv?id=$s&cosd=$(date -u -d '6 years ago' +%F)" -o "fred/$s.csv"
             head -1 "fred/$s.csv" | grep -qi "date" || { echo "::error::$s sem header de data"; head -c 200 "fred/$s.csv"; exit 1; }
             linhas=$(wc -l < "fred/$s.csv")
-            [ "$linhas" -gt 1000 ] || { echo "::error::$s com só $linhas linhas — resposta suspeita"; exit 1; }
+            # O motor precisa de >=250 pontos (z longo); o fredgraph entrega menos
+            # histórico para algumas séries (BAMLH0A0HYM2 veio com ~800 linhas).
+            [ "$linhas" -gt 400 ] || { echo "::error::$s com só $linhas linhas — resposta suspeita"; exit 1; }
             echo "$s: $linhas linhas"
           done
       - name: Publicar em backups:fred/
