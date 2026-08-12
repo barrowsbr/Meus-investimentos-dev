@@ -1,0 +1,40 @@
+name: probe-macro-calendarios
+on:
+  push:
+    branches: [claude/oi-44yimr]
+    paths: [".github/workflows/probe-macro.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copom (BCB)
+        run: |
+          curl -sS --max-time 30 "https://www.bcb.gov.br/api/servico/sitebcb/copom/calendario" -o copom.json || true
+          head -c 400 copom.json; echo; echo "---"
+          curl -sS --max-time 30 "https://www.bcb.gov.br/controleinflacao/calendarioreunioes" -o copom.html || true
+          grep -oE "[0-9]{1,2} e [0-9]{1,2} de [a-zç]+" copom.html | head -20 || echo "regex html falhou"
+      - name: FOMC (Fed)
+        if: always()
+        run: |
+          curl -sS --max-time 30 "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" -o fomc.html
+          python3 - <<'PY'
+          import re
+          h = open("fomc.html", encoding="utf-8", errors="ignore").read()
+          # blocos por ano
+          for ano in ["2026", "2027"]:
+              i = h.find(f"{ano} FOMC Meetings")
+              if i < 0: print(ano, "não achado"); continue
+              bloco = h[i:i+4000]
+              meses = re.findall(r'divider">\s*([A-Za-z/]+)\s*<.*?fomc-meeting__date[^>]*>\s*([0-9\-–]+)', bloco, re.S)
+              print(ano, meses[:12])
+          PY
+      - name: Payroll (BLS Employment Situation)
+        if: always()
+        run: |
+          curl -sS --max-time 30 -A "Mozilla/5.0" "https://www.bls.gov/schedule/news_release/empsit.htm" -o bls.html
+          python3 - <<'PY'
+          import re
+          h = open("bls.html", encoding="utf-8", errors="ignore").read()
+          datas = re.findall(r'([A-Z][a-z]+\.?\s+\d{1,2},\s+202[6-7])', h)
+          print(datas[:30])
+          PY
