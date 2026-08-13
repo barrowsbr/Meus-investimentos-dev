@@ -18,6 +18,7 @@ export const maxDuration = 45;
 
 interface EventoDividendo {
   ticker: string;
+  ySym: string;          // símbolo Yahoo (p/ link "ver no Yahoo" no popup da Agenda)
   tipo: "ex" | "pagamento" | "anuncio";  // anuncio = próxima data de RESULTADOS (proxy p/ possível divulgação de proventos)
   date: string;          // YYYY-MM-DD
   moeda: string;
@@ -105,9 +106,9 @@ export async function GET(): Promise<NextResponse> {
           // (às vezes um intervalo estimado) — pegamos a 1ª data futura.
           const earnDates: unknown[] = Array.isArray(s?.calendarEvents?.earnings?.earningsDate) ? s.calendarEvents.earnings.earningsDate : [];
           const anuncioDate = earnDates.map(toISODate).filter((d): d is string => !!d && d >= piso).sort()[0] ?? null;
-          if (exDate && exDate >= piso) eventos.push({ ticker, tipo: "ex", date: exDate, moeda, dividendRate: rate, dividendYield: yld });
-          if (payDate && payDate >= piso && payDate !== exDate) eventos.push({ ticker, tipo: "pagamento", date: payDate, moeda, dividendRate: rate, dividendYield: yld });
-          if (anuncioDate) eventos.push({ ticker, tipo: "anuncio", date: anuncioDate, moeda, dividendRate: rate, dividendYield: yld });
+          if (exDate && exDate >= piso) eventos.push({ ticker, ySym, tipo: "ex", date: exDate, moeda, dividendRate: rate, dividendYield: yld });
+          if (payDate && payDate >= piso && payDate !== exDate) eventos.push({ ticker, ySym, tipo: "pagamento", date: payDate, moeda, dividendRate: rate, dividendYield: yld });
+          if (anuncioDate) eventos.push({ ticker, ySym, tipo: "anuncio", date: anuncioDate, moeda, dividendRate: rate, dividendYield: yld });
         } catch {
           // ticker sem calendário/dividendo → ignora
         }
