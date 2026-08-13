@@ -6,6 +6,9 @@
 //      anomalo / regime_rompido / confirmado.
 //   2. AGENDA — /api/proventos/calendario: data-ex, pagamento e resultados
 //      dos ativos da carteira nos PRÓXIMOS 7 dias.
+//   3. MÁXIMA HISTÓRICA — /api/portfolio/ath: ações da carteira negociando
+//      no topo histórico (preço atual >= ATH até o mês passado). Chave por
+//      ticker+mês: avisa 1× por mês por papel, mesmo renovando o topo.
 // "Novo" = chave do episódio ainda não vista neste aparelho (localStorage;
 // abrir o painel marca tudo como visto). Painel via PORTAL no <body>
 // (ancestrais com transform quebram fixed).
@@ -13,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Bell, CalendarDays, Radar as RadarIcon } from "lucide-react";
+import { Bell, CalendarDays, Radar as RadarIcon, TrendingUp } from "lucide-react";
 import { fetchJsonCached } from "@/lib/client-cache";
 
 // ── Transmissão macro ──
@@ -41,6 +44,16 @@ interface EventoAgenda {
   dividendRate: number | null; dividendYield: number | null;
 }
 interface Calendario { eventos: EventoAgenda[]; error?: string }
+
+// ── Máxima histórica (ATH) ──
+interface ItemAth {
+  ticker: string; ySym: string; preco: number;
+  athPrevio: number; athAno: number | null; moeda: string;
+}
+interface PayloadAth { itens: ItemAth[]; error?: string }
+
+const fmtPreco = (v: number, moeda: string) =>
+  `${moeda === "USD" ? "US$ " : moeda === "BRL" ? "R$ " : moeda ? moeda + " " : ""}${v.toFixed(2).replace(".", ",")}`;
 
 const AGENDA_UI: Record<TipoAgenda, { rotulo: string; cor: string; bg: string }> = {
   ex: { rotulo: "DATA-EX", cor: "#E8A33D", bg: "rgba(232,163,61,0.14)" },
@@ -79,6 +92,7 @@ function quando(iso: string, hoje: string): string {
 export default function Sino() {
   const [rel, setRel] = useState<Relatorio | null>(null);
   const [cal, setCal] = useState<Calendario | null>(null);
+  const [ath, setAth] = useState<PayloadAth | null>(null);
   const [aberto, setAberto] = useState(false);
   const [vistos, setVistos] = useState<Set<string>>(new Set());
   const [hoje, setHoje] = useState("");
@@ -91,6 +105,9 @@ export default function Sino() {
       .catch(() => { /* sem rede — fonte fica quieta */ });
     fetchJsonCached<Calendario>("/api/proventos/calendario", 60 * 60_000)
       .then((c) => { if (!c.error) setCal(c); })
+      .catch(() => { /* idem */ });
+    fetchJsonCached<PayloadAth>("/api/portfolio/ath", 60 * 60_000)
+      .then((a) => { if (!a.error) setAth(a); })
       .catch(() => { /* idem */ });
   }, []);
 
@@ -112,9 +129,15 @@ export default function Sino() {
       .map((e) => ({ ...e, chave: `ag|${e.ticker}|${e.tipo}|${e.date}` }));
   }, [cal, hoje]);
 
-  const chaves = useMemo(() => [...evMacro, ...evAgenda].map((e) => e.chave), [evMacro, evAgenda]);
+  // ATH: 1 aviso por papel por mês (renovar o topo dentro do mês não re-acende).
+  const evAth = useMemo(() => {
+    const mes = hoje.slice(0, 7);
+    return (ath?.itens ?? []).map((e) => ({ ...e, chave: `ath|${e.ticker}|${mes}` }));
+  }, [ath, hoje]);
+
+  const chaves = useMemo(() => [...evMacro, ...evAgenda, ...evAth].map((e) => e.chave), [evMacro, evAgenda, evAth]);
   const naoVistos = chaves.filter((c) => !vistos.has(c)).length;
-  const carregado = rel !== null || cal !== null;
+  const carregado = rel !== null || cal !== null || ath !== null;
 
   const abrir = () => {
     const v = !aberto;
@@ -173,10 +196,39 @@ export default function Sino() {
           >
             <div className="max-h-[62vh] overflow-y-auto">
               {!carregado && <p className="px-3 py-6 text-center text-[11px] text-zinc-500">Carregando…</p>}
-              {carregado && evMacro.length === 0 && evAgenda.length === 0 && (
+              {carregado && evMacro.length === 0 && evAgenda.length === 0 && evAth.length === 0 && (
                 <p className="px-3 py-6 text-center text-[11px] text-zinc-500">
-                  Nada por agora — transmissão quieta e sem eventos de agenda nos próximos {JANELA_AGENDA_DIAS} dias.
+                  Nada por agora — transmissão quieta, sem eventos de agenda nos próximos {JANELA_AGENDA_DIAS} dias e nenhum papel em máxima histórica.
                 </p>
+              )}
+
+              {evAth.length > 0 && (
+                <>
+                  {cabecalho("Máxima histórica", "preço no topo de todos os tempos")}
+                  {evAth.map((e) => (
+                    <Link
+                      key={e.chave}
+                      href="/renda-variavel"
+                      onClick={() => setAberto(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-white/[0.05]"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                    >
+                      <span className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[8.5px] font-bold" style={{ background: "rgba(251,191,36,0.14)", color: "#fbbf24" }}>
+                        <TrendingUp size={9} className="mr-0.5 inline" style={{ verticalAlign: "-1px" }} />ATH
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-zinc-200">
+                        {e.ticker}
+                        <span className="ml-1.5 font-mono text-[9.5px] font-normal text-zinc-500">bateu a máxima histórica</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block font-mono text-[10px] font-bold" style={{ color: "#fbbf24" }}>{fmtPreco(e.preco, e.moeda)}</span>
+                        <span className="block font-mono text-[8.5px] text-zinc-600">
+                          topo antigo {fmtPreco(e.athPrevio, e.moeda)}{e.athAno != null ? ` (${e.athAno})` : ""}
+                        </span>
+                      </span>
+                    </Link>
+                  ))}
+                </>
               )}
 
               {evMacro.length > 0 && (
