@@ -10,55 +10,89 @@ export const maxDuration = 45;
 
 // ── Máximas históricas (ATH) da carteira ─────────────────────────────────────
 // Para cada ativo de RENDA VARIÁVEL detido, compara o preço ATUAL com o topo
-// histórico ANTERIOR (candles mensais do Yahoo desde 1970, EXCLUINDO o mês
-// corrente — senão o próprio preço de hoje entraria no topo e nunca haveria
-// "bateu"). Preço >= topo prévio ⇒ o ativo está negociando em máxima histórica.
-// Alimenta o sino de notificações. Só leitura de mercado — não toca no motor.
+// histórico até ONTEM: candles MENSAIS do Yahoo desde 1970 (sem o mês
+// corrente) + candles DIÁRIOS do mês corrente até ontem (dia de São Paulo).
+// Preço >= esse topo ⇒ o ativo está furando a máxima histórica HOJE — o item
+// só existe no dia do rompimento e some sozinho no dia seguinte (regra do
+// dono: o aviso do sino é só no dia). Alimenta o sino. Só leitura de mercado.
 
 interface ItemAth {
   ticker: string;   // grafia da carteira (sem .SA — como nas outras listas)
   ySym: string;     // símbolo Yahoo
   preco: number;    // preço atual (moeda nativa)
-  athPrevio: number;// topo histórico até o mês passado
+  athPrevio: number;// topo histórico até ontem
   athAno: number | null; // ano do topo prévio
   moeda: string;
 }
-interface PayloadAth { itens: ItemAth[]; geradoEm: string; avaliados: number }
+interface PayloadAth { itens: ItemAth[]; geradoEm: string; dia: string; avaliados: number }
 
-let cache: { at: number; payload: PayloadAth } | null = null;
+// "Hoje" no fuso do dono (São Paulo) — o dia do alerta é o dia dele, não UTC
+// (21h BRT já é outro dia UTC e o aviso sumiria no meio do pregão americano).
+const diaSP = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+const dataSP = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+let cache: { at: number; dia: string; payload: PayloadAth } | null = null;
 const CACHE_MS = 6 * 60 * 60 * 1000;
 
-// ATH prévio por símbolo: recalcula quando vira o mês (o "mês passado" muda).
-const athCache = new Map<string, { mes: string; athPrevio: number; ano: number | null } | null>();
-const mesAtualUTC = () => new Date().toISOString().slice(0, 7);
+// Topo MENSAL por símbolo (sem o mês corrente) — quase estático, cache por mês.
+const mensalCache = new Map<string, { mes: string; ath: number; ano: number | null } | null>();
+// Topo do mês corrente até ONTEM — muda todo dia, cache por dia.
+const diarioCache = new Map<string, { dia: string; ath: number }>();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchAthPrevio(yf: any, sym: string): Promise<{ athPrevio: number; ano: number | null } | null> {
-  const mes = mesAtualUTC();
-  const hit = athCache.get(sym);
-  if (hit !== undefined && hit?.mes === mes) return hit;
-  try {
-    const r = await yf.chart(sym, { period1: "1970-01-01", interval: "1mo" });
-    const quotes: Array<{ high?: number | null; close?: number | null; date?: Date }> = r?.quotes ?? [];
-    let ath = 0;
-    let ano: number | null = null;
-    for (const q of quotes) {
-      const qMes = q.date ? new Date(q.date).toISOString().slice(0, 7) : null;
-      if (qMes !== null && qMes >= mes) continue; // exclui o mês corrente
-      const v = (typeof q.high === "number" && isFinite(q.high) ? q.high : null) ?? (typeof q.close === "number" && isFinite(q.close) ? q.close : null);
-      if (v !== null && v > ath) { ath = v; ano = q.date ? new Date(q.date).getUTCFullYear() : null; }
+  const hoje = diaSP();
+  const mes = hoje.slice(0, 7);
+
+  let mensal = mensalCache.get(sym);
+  if (mensal === undefined || (mensal !== null && mensal.mes !== mes)) {
+    try {
+      const r = await yf.chart(sym, { period1: "1970-01-01", interval: "1mo" });
+      const quotes: Array<{ high?: number | null; close?: number | null; date?: Date }> = r?.quotes ?? [];
+      let ath = 0;
+      let ano: number | null = null;
+      for (const q of quotes) {
+        const qMes = q.date ? dataSP(new Date(q.date)).slice(0, 7) : null;
+        if (qMes !== null && qMes >= mes) continue; // exclui o mês corrente
+        const v = (typeof q.high === "number" && isFinite(q.high) ? q.high : null) ?? (typeof q.close === "number" && isFinite(q.close) ? q.close : null);
+        if (v !== null && v > ath) { ath = v; ano = q.date ? new Date(q.date).getUTCFullYear() : null; }
+      }
+      mensal = ath > 0 ? { mes, ath, ano } : null;
+      mensalCache.set(sym, mensal);
+    } catch {
+      return null; // falha não cacheia — re-tenta na próxima
     }
-    const info = ath > 0 ? { mes, athPrevio: Math.round(ath * 10000) / 10000, ano } : null;
-    athCache.set(sym, info);
-    return info;
-  } catch {
-    return null; // falha não cacheia — re-tenta na próxima
   }
+  if (!mensal) return null;
+
+  let diario = diarioCache.get(sym);
+  if (!diario || diario.dia !== hoje) {
+    try {
+      const r = await yf.chart(sym, { period1: `${mes}-01`, interval: "1d" });
+      const quotes: Array<{ high?: number | null; close?: number | null; date?: Date }> = r?.quotes ?? [];
+      let ath = 0;
+      for (const q of quotes) {
+        const qDia = q.date ? dataSP(new Date(q.date)) : null;
+        if (qDia === null || qDia >= hoje) continue; // só até ontem
+        const v = (typeof q.high === "number" && isFinite(q.high) ? q.high : null) ?? (typeof q.close === "number" && isFinite(q.close) ? q.close : null);
+        if (v !== null && v > ath) ath = v;
+      }
+      diario = { dia: hoje, ath };
+      diarioCache.set(sym, diario);
+    } catch {
+      return null; // sem o pedaço diário o veredito ficaria errado — pula
+    }
+  }
+
+  const anoAtual = Number(hoje.slice(0, 4));
+  const athPrevio = Math.max(mensal.ath, diario.ath);
+  return { athPrevio: Math.round(athPrevio * 10000) / 10000, ano: diario.ath > mensal.ath ? anoAtual : mensal.ano };
 }
 
 export async function GET(): Promise<NextResponse> {
   try {
-    if (cache && Date.now() - cache.at < CACHE_MS) {
+    // Cache só vale DENTRO do mesmo dia (SP) — virou o dia, a lista zera.
+    if (cache && cache.dia === diaSP() && Date.now() - cache.at < CACHE_MS) {
       return NextResponse.json(cache.payload, { headers: { "Cache-Control": "s-maxage=3600" } });
     }
 
@@ -115,8 +149,8 @@ export async function GET(): Promise<NextResponse> {
     }
 
     itens.sort((a, b) => a.ticker.localeCompare(b.ticker));
-    const payload: PayloadAth = { itens, geradoEm: new Date().toISOString(), avaliados: alvos.length };
-    cache = { at: Date.now(), payload };
+    const payload: PayloadAth = { itens, geradoEm: new Date().toISOString(), dia: diaSP(), avaliados: alvos.length };
+    cache = { at: Date.now(), dia: payload.dia, payload };
     return NextResponse.json(payload, { headers: { "Cache-Control": "s-maxage=3600" } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });

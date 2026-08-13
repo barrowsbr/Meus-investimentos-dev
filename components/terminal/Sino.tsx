@@ -6,9 +6,9 @@
 //      anomalo / regime_rompido / confirmado.
 //   2. AGENDA — /api/proventos/calendario: data-ex, pagamento e resultados
 //      dos ativos da carteira nos PRÓXIMOS 7 dias.
-//   3. MÁXIMA HISTÓRICA — /api/portfolio/ath: ações da carteira negociando
-//      no topo histórico (preço atual >= ATH até o mês passado). Chave por
-//      ticker+mês: avisa 1× por mês por papel, mesmo renovando o topo.
+//   3. MÁXIMA HISTÓRICA — /api/portfolio/ath: ações da carteira FURANDO o
+//      topo histórico HOJE (preço atual >= ATH até ontem). A rota só devolve
+//      o papel no dia do rompimento — o aviso aparece no dia e some sozinho.
 // "Novo" = chave do episódio ainda não vista neste aparelho (localStorage;
 // abrir o painel marca tudo como visto). Painel via PORTAL no <body>
 // (ancestrais com transform quebram fixed).
@@ -50,7 +50,7 @@ interface ItemAth {
   ticker: string; ySym: string; preco: number;
   athPrevio: number; athAno: number | null; moeda: string;
 }
-interface PayloadAth { itens: ItemAth[]; error?: string }
+interface PayloadAth { itens: ItemAth[]; dia?: string; error?: string }
 
 const fmtPreco = (v: number, moeda: string) =>
   `${moeda === "USD" ? "US$ " : moeda === "BRL" ? "R$ " : moeda ? moeda + " " : ""}${v.toFixed(2).replace(".", ",")}`;
@@ -129,10 +129,10 @@ export default function Sino() {
       .map((e) => ({ ...e, chave: `ag|${e.ticker}|${e.tipo}|${e.date}` }));
   }, [cal, hoje]);
 
-  // ATH: 1 aviso por papel por mês (renovar o topo dentro do mês não re-acende).
+  // ATH: a rota só devolve papéis furando o topo HOJE; chave por ticker+dia.
   const evAth = useMemo(() => {
-    const mes = hoje.slice(0, 7);
-    return (ath?.itens ?? []).map((e) => ({ ...e, chave: `ath|${e.ticker}|${mes}` }));
+    const dia = ath?.dia ?? hoje;
+    return (ath?.itens ?? []).map((e) => ({ ...e, chave: `ath|${e.ticker}|${dia}` }));
   }, [ath, hoje]);
 
   const chaves = useMemo(() => [...evMacro, ...evAgenda, ...evAth].map((e) => e.chave), [evMacro, evAgenda, evAth]);
@@ -204,7 +204,7 @@ export default function Sino() {
 
               {evAth.length > 0 && (
                 <>
-                  {cabecalho("Máxima histórica", "preço no topo de todos os tempos")}
+                  {cabecalho("Máxima histórica", "novo topo hoje")}
                   {evAth.map((e) => (
                     <Link
                       key={e.chave}
