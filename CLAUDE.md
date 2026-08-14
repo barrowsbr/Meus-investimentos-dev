@@ -95,7 +95,11 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
   "Planilha (gdados)". O workflow `.github/workflows/backup.yml` (diário, 6h30 BRT) chama
   `GET /api/config/planilha/backup?export=all` (Bearer `CRON_SECRET`) e **sobrescreve os
   CSVs de todas as abas na branch `backups`** do repositório (versões antigas ficam no
-  histórico de commits; deploy da branch desativado no `vercel.json`). Backup dentro da
+  histórico de commits). ⚠️ A branch `backups` (dados puros: CSVs, `dados/`, `fred/`)
+  tem **`vercel.json` PRÓPRIO** com `git.deploymentEnabled:false` — a Vercel lê o
+  `vercel.json` do COMMIT que vai deployar, então o `deploymentEnabled` da `main` NÃO
+  vale para pushes feitos lá; sem esse arquivo cada push de bot disparava um build que
+  falhava (`Couldn't find any pages or app directory`). Não apagar. Backup dentro da
   própria planilha NÃO vale como backup (decisão do dono). No card: download de CSV por
   aba, **Restaurar CSV** (upload → sobrescreve a aba, baixando antes o estado atual) e
   **teste de saúde** (`lib/planilha-saude.ts`: datas/números inválidos, células `#REF!`,

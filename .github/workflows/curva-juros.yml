@@ -104,10 +104,15 @@ jobs:
         run: |
           REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           mkdir repo && cd repo
-          git init -b backups -q
+          # init numa branch DESCARTÁVEL: `git fetch backups:backups` é RECUSADO
+          # quando backups é a branch atual — o erro morria no 2>/dev/null, o
+          # checkout falhava e o push virava root novo → rejeitado por
+          # non-fast-forward. Mesmo bug já corrigido em fred-series/backup.yml;
+          # aqui ele estava VIVO e a curva parou de atualizar em 09/08/2026.
+          git init -b _tmp -q
           git config user.name "curva-juros-bot"
           git config user.email "actions@github.com"
-          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || echo "branch backups ainda não existe — criando"
+          git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || { echo "branch backups ainda não existe — criando"; git checkout -q -b backups; }
           mkdir -p dados
           cp ../curva-tesouro.json dados/curva-tesouro.json
           git add -A
