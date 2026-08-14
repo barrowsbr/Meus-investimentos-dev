@@ -23,6 +23,7 @@ import {
 } from "recharts";
 import { ArrowLeftRight, ArrowRight, BarChart3, Layers, Scale, X, Zap } from "lucide-react";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
+import { fetchJsonCached } from "@/lib/client-cache";
 import { toNumber, brl, formatDate, compactBRL } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { getMoedaExposicao } from "@/lib/sectors";
@@ -60,6 +61,15 @@ export default function CambioPage() {
   const [stressCustom, setStressCustom] = useState<number>(0);
   const [moedaGrafico, setMoedaGrafico] = useState<string>("USD");
   const [popup, setPopup] = useState<Popup>(null);
+  // PTAX oficial na data de cada remessa (fase 2) — best-effort; sem ela os
+  // popups só não mostram a linha do spread.
+  const [ptaxRem, setPtaxRem] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    fetchJsonCached<{ porChave?: Record<string, number> }>("/api/cambio/ptax-remessas", 6 * 60 * 60_000)
+      .then((d) => setPtaxRem(d?.porChave ?? {}))
+      .catch(() => setPtaxRem({}));
+  }, []);
 
   // Esc fecha o popup.
   useEffect(() => {
@@ -87,6 +97,19 @@ export default function CambioPage() {
   const rowEnviado = (r: Record<string, unknown>) => fzGet(r, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado");
   const rowRecebido = (r: Record<string, unknown>) => fzGet(r, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido");
   const rowInstituicao = (r: Record<string, unknown>) => String(fzGet(r, "corretora", "corretora destino", "instituição", "instituicao") ?? "—");
+  const rowDataISO = (r: Record<string, unknown>) => {
+    const s = String(r["data"] ?? "").trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    return br ? `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}` : "";
+  };
+  // Spread da operação vs a PTAX oficial do dia (%; >0 = pagou acima da oficial).
+  const spreadDe = (r: Record<string, unknown>): number | null => {
+    if (!ptaxRem) return null;
+    const taxa = rowTaxa(r);
+    const oficial = ptaxRem[`${rowDataISO(r)}|${rowOrigem(r)}|${rowDestino(r)}`];
+    return taxa && oficial && oficial > 0 ? (taxa / oficial - 1) * 100 : null;
+  };
 
   const fmtVal = (val: unknown, moeda: string) => {
     const n = toNumber(val);
@@ -351,24 +374,47 @@ export default function CambioPage() {
             </>
           )}
 
-          {remessas.length > 0 && (
-            <>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Remessas que formaram o PM</p>
-              <ul className="flex max-h-44 flex-col gap-1 overflow-y-auto">
-                {remessas.map((r, i) => (
-                  <li key={i}>
-                    <button onClick={() => setPopup({ t: "remessa", row: r.row })}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
-                      style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <span className="text-zinc-400">{formatDate(r.data)}</span>
-                      <span className="font-mono text-zinc-300">{fmtVal(rowRecebido(r.row), m)}</span>
-                      <span className="font-mono" style={{ color }}>{r.taxa.toFixed(4)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          {remessas.length > 0 && (() => {
+            // Spread médio vs PTAX, ponderado pelo tamanho de cada remessa.
+            let somaPeso = 0, somaSpread = 0;
+            for (const r of remessas) {
+              const sp = spreadDe(r.row);
+              const peso = toNumber(rowRecebido(r.row)) ?? 0;
+              if (sp != null && peso > 0) { somaPeso += peso; somaSpread += sp * peso; }
+            }
+            const spreadMedio = somaPeso > 0 ? somaSpread / somaPeso : null;
+            return (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+                  <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500">Remessas que formaram o PM</p>
+                  {spreadMedio != null && (
+                    <span className={`text-[10px] font-semibold ${spreadMedio <= 0.05 ? "text-emerald-400" : "text-amber-400"}`}>
+                      custo médio vs PTAX: {sign(spreadMedio)}{spreadMedio.toFixed(1).replace(".", ",")}% (spread + IOF)
+                    </span>
+                  )}
+                </div>
+                <ul className="flex max-h-44 flex-col gap-1 overflow-y-auto">
+                  {remessas.map((r, i) => {
+                    const sp = spreadDe(r.row);
+                    return (
+                      <li key={i}>
+                        <button onClick={() => setPopup({ t: "remessa", row: r.row })}
+                          className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
+                          style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+                          <span className="text-zinc-400">{formatDate(r.data)}</span>
+                          <span className="font-mono text-zinc-300">{fmtVal(rowRecebido(r.row), m)}</span>
+                          <span className="font-mono" style={{ color }}>{r.taxa.toFixed(4)}</span>
+                          {sp != null && (
+                            <span className={`w-14 shrink-0 text-right font-mono text-[10px] ${sp <= 0.05 ? "text-emerald-400" : "text-amber-400"}`}>{sign(sp)}{sp.toFixed(1).replace(".", ",")}%</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            );
+          })()}
         </div>
       );
     }
@@ -382,10 +428,11 @@ export default function CambioPage() {
       const r = popup.row;
       const orig = rowOrigem(r), dest = rowDestino(r);
       const taxa = rowTaxa(r);
-      // Contexto vs o PM da moeda: essa remessa foi mais cara ou mais barata
-      // que a sua média? (Comparação com a PTAX do dia entra na fase 2.)
+      // Dois contextos: vs o SEU PM da moeda e vs a PTAX OFICIAL do dia.
       const pmRef = dest === "USD" ? cambio.pmDolar : cambio.fx2.find(c => c.moeda === dest)?.pmUSD ?? 0;
       const deltaPm = taxa && pmRef > 0 ? (taxa / pmRef - 1) * 100 : null;
+      const oficial = ptaxRem?.[`${rowDataISO(r)}|${orig}|${dest}`] ?? null;
+      const spread = taxa && oficial && oficial > 0 ? (taxa / oficial - 1) * 100 : null;
       titulo = `Remessa ${formatDate(String(r["data"] ?? ""))}`;
       corpo = (
         <div className="text-[12px]">
@@ -403,6 +450,20 @@ export default function CambioPage() {
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between"><span className="text-zinc-500">Taxa/VET</span><span className="font-mono font-bold text-zinc-200">{taxa ? `${(CCY_SYMBOL[orig] || orig)} ${taxa.toFixed(4)}/${dest}` : "—"}</span></div>
             <div className="flex justify-between"><span className="text-zinc-500">Instituição</span><span className="text-zinc-300">{rowInstituicao(r)}</span></div>
+            {oficial != null && (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">PTAX oficial no dia</span>
+                <span className="font-mono text-zinc-300">{oficial.toFixed(4)}</span>
+              </div>
+            )}
+            {spread != null && (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Custo da operação</span>
+                <span className={`font-mono font-semibold ${spread <= 0.05 ? "text-emerald-400" : "text-amber-400"}`}>
+                  {spread <= 0 ? `${Math.abs(spread).toFixed(2).replace(".", ",")}% ABAIXO da taxa oficial` : `${spread.toFixed(2).replace(".", ",")}% acima da oficial (spread + IOF)`}
+                </span>
+              </div>
+            )}
             {deltaPm != null && (
               <div className="flex justify-between">
                 <span className="text-zinc-500">vs seu PM de {dest}</span>
