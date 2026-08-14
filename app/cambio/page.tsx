@@ -1,59 +1,75 @@
 "use client";
 
-import { useMemo, useState } from "react";
+// Câmbio — reformulação total (ago/2026, pedido do dono): página única, sem
+// abas, detalhe em POPUP (padrão das construções recentes: frase em português
+// por número, chips, portal no body, bottom-sheet no celular).
+//   1. Hero "a história do seu dólar" — PM real das remessas → spot → ganho;
+//      popups: ledger da cadeia de conversão e PM × Spot × PTAX.
+//   2. Cards por moeda (USD + 2ª camada) — clique abre o dossiê da moeda:
+//      PM/cotação, remessas e as posições da carteira expostas a ela (com a
+//      decomposição ativo × FX × cruzado por posição).
+//   3. Exposição & risco — exposição por moeda no patrimônio, decomposição
+//      de três fatores e UM teste de estresse (frase-resposta + slider).
+//   4. Linha do tempo das remessas — VET por moeda (chips), linha do PM;
+//      clique no ponto abre a remessa; tabela completa em popup.
+// ZERO mudança de cálculo: tudo continua vindo do snapshot canônico
+// (portfolio.cambio de lib/cambio.ts, exposicaoCambial, ganho*BRL por posição).
+
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
 } from "recharts";
-import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap, ShieldAlert, BarChart3 } from "lucide-react";
-import { usePortfolio } from "@/lib/hooks";
-import type { PortfolioResponse } from "@/lib/hooks";
-import { useSheetData } from "@/lib/hooks";
+import { ArrowLeftRight, ArrowRight, BarChart3, Layers, Scale, X, Zap } from "lucide-react";
+import { usePortfolio, useSheetData } from "@/lib/hooks";
 import { toNumber, brl, formatDate, compactBRL } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { getMoedaExposicao } from "@/lib/sectors";
-import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
 const TOOLTIP_STYLE = {
-  background: "#18181b",
-  border: "1px solid #27272a",
-  borderRadius: 12,
-  color: "var(--text)",
-  fontSize: 12,
-  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+  background: "#18181b", border: "1px solid #27272a", borderRadius: 12,
+  color: "var(--text)", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
 };
 
 const FX_COLORS: Record<string, string> = {
   USD: "#3b82f6", EUR: "#8b5cf6", CAD: "#f59e0b", GBP: "#10b981", CHF: "#06b6d4",
 };
+const FLAGS: Record<string, string> = { USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", CAD: "🇨🇦", CHF: "🇨🇭" };
+const CCY_SYMBOL: Record<string, string> = { BRL: "R$", USD: "US$", EUR: "€", CAD: "C$", GBP: "£" };
 
-type Tab = "operacoes" | "exposicao";
+const sign = (v: number) => (v >= 0 ? "+" : "");
+const pct1 = (v: number) => `${sign(v)}${v.toFixed(1).replace(".", ",")}%`;
+
+// Popup ativo (um por vez).
+type Popup =
+  | { t: "ledger" }
+  | { t: "taxas" }
+  | { t: "moeda"; m: string }
+  | { t: "operacoes" }
+  | { t: "remessa"; row: Record<string, unknown> }
+  | null;
 
 export default function CambioPage() {
   const { data: portfolio, loading: portLoading } = usePortfolio();
   const { data: rawData, loading: sheetLoading, error } = useSheetData("cambio");
   const [stressCustom, setStressCustom] = useState<number>(0);
-  const [tab, setTab] = useState<Tab>("operacoes");
+  const [moedaGrafico, setMoedaGrafico] = useState<string>("USD");
+  const [popup, setPopup] = useState<Popup>(null);
 
-  const loading = portLoading || sheetLoading;
+  // Esc fecha o popup.
+  useEffect(() => {
+    if (!popup) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPopup(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [popup]);
 
-  const fxHistory = useMemo(() => {
-    if (!rawData || rawData.length === 0) return [];
-    return rawData
-      .map((r) => {
-        const data = String(r["data"] ?? "");
-        const taxa = toNumber(r["taxa"] || r["vet"]) ?? 0;
-        const moedaDest = String(r["moeda_destino"] || r["moeda destino"] || "USD").toUpperCase();
-        if (moedaDest !== "USD" || taxa === 0) return null;
-        return { data, taxa };
-      })
-      .filter(Boolean) as { data: string; taxa: number }[];
-  }, [rawData]);
-
+  // ── Leitura difusa das colunas da aba cambio (formatos variados) ──
   const fzGet = (row: Record<string, unknown>, ...keys: string[]): unknown => {
     for (const k of keys) if (row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
     const rKeys = Object.keys(row);
@@ -65,8 +81,13 @@ export default function CambioPage() {
     }
     return null;
   };
+  const rowOrigem = (r: Record<string, unknown>) => String(fzGet(r, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase();
+  const rowDestino = (r: Record<string, unknown>) => String(fzGet(r, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase();
+  const rowTaxa = (r: Record<string, unknown>) => toNumber(fzGet(r, "taxa", "vet", "câmbio", "cambio", "rate"));
+  const rowEnviado = (r: Record<string, unknown>) => fzGet(r, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado");
+  const rowRecebido = (r: Record<string, unknown>) => fzGet(r, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido");
+  const rowInstituicao = (r: Record<string, unknown>) => String(fzGet(r, "corretora", "corretora destino", "instituição", "instituicao") ?? "—");
 
-  const CCY_SYMBOL: Record<string, string> = { BRL: "R$", USD: "US$", EUR: "€", CAD: "C$", GBP: "£" };
   const fmtVal = (val: unknown, moeda: string) => {
     const n = toNumber(val);
     if (n === null) return "—";
@@ -76,557 +97,66 @@ export default function CambioPage() {
 
   const columns = [
     { key: "data", label: "Data", render: (v: unknown) => formatDate(v) },
+    { key: "moeda_origem", label: "De", render: (_v: unknown, row: Record<string, unknown>) => rowOrigem(row) },
+    { key: "moeda_destino", label: "Para", render: (_v: unknown, row: Record<string, unknown>) => rowDestino(row) },
+    { key: "valor_origem", label: "Enviado", align: "right" as const, render: (_v: unknown, row: Record<string, unknown>) => fmtVal(rowEnviado(row), rowOrigem(row)) },
+    { key: "valor_destino", label: "Recebido", align: "right" as const, render: (_v: unknown, row: Record<string, unknown>) => fmtVal(rowRecebido(row), rowDestino(row)) },
     {
-      key: "moeda_origem",
-      label: "De",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        String(fzGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "—"),
-    },
-    {
-      key: "moeda_destino",
-      label: "Para",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        String(fzGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "—"),
-    },
-    {
-      key: "valor_origem",
-      label: "Enviado",
-      align: "right" as const,
+      key: "taxa", label: "Taxa/VET", align: "right" as const,
       render: (_v: unknown, row: Record<string, unknown>) => {
-        const moeda = String(fzGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase();
-        const val = fzGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado");
-        return fmtVal(val, moeda);
-      },
-    },
-    {
-      key: "valor_destino",
-      label: "Recebido",
-      align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) => {
-        const moeda = String(fzGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase();
-        const val = fzGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido");
-        return fmtVal(val, moeda);
-      },
-    },
-    {
-      key: "taxa",
-      label: "Taxa/VET",
-      align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) => {
-        const t = toNumber(fzGet(row, "taxa", "vet", "câmbio", "cambio", "rate"));
+        const t = rowTaxa(row);
         if (!t) return "—";
-        const orig = String(fzGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase();
-        const dest = String(fzGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase();
-        const sym = CCY_SYMBOL[orig] || orig;
-        return `${sym} ${t.toFixed(4)} /${dest}`;
+        const sym = CCY_SYMBOL[rowOrigem(row)] || rowOrigem(row);
+        return `${sym} ${t.toFixed(4)}/${rowDestino(row)}`;
       },
     },
-    {
-      key: "corretora",
-      label: "Instituição",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        String(fzGet(row, "corretora", "corretora destino", "instituição", "instituicao") ?? "—"),
-    },
+    { key: "corretora", label: "Instituição", render: (_v: unknown, row: Record<string, unknown>) => rowInstituicao(row) },
   ];
 
-  if (loading) return <LoadingSpinner />;
-  if (error) return <ErrorAlert message={error} tab="cambio" />;
+  // ── Série VET por moeda de destino (linha do tempo) ──
+  const fxSeries = useMemo(() => {
+    const porMoeda = new Map<string, Array<{ data: string; taxa: number; row: Record<string, unknown> }>>();
+    for (const r of rawData ?? []) {
+      const dest = rowDestino(r);
+      const taxa = rowTaxa(r) ?? 0;
+      const data = String(r["data"] ?? "");
+      if (dest === "BRL" || taxa <= 0 || !data) continue;
+      const arr = porMoeda.get(dest) ?? [];
+      arr.push({ data, taxa, row: r });
+      porMoeda.set(dest, arr);
+    }
+    for (const arr of porMoeda.values()) arr.sort((a, b) => a.data.localeCompare(b.data));
+    return porMoeda;
+  }, [rawData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cambio = portfolio?.cambio;
-  const ptax = portfolio?.ptax;
-  const spot = portfolio?.usdbrl ?? 0;
-
-  return (
-    <>
-      <PageHeader
-        title="Câmbio"
-        description="Preço médio do dólar, PTAX e análise cambial"
-      />
-
-      {/* ── Tab selector ── */}
-      <div className="flex mb-6" style={{ borderBottom: "1px solid var(--line)" }}>
-        {([
-          { id: "operacoes" as Tab, label: "Operações", icon: ArrowLeftRight },
-          { id: "exposicao" as Tab, label: "Exposição Cambial", icon: ShieldAlert },
-        ]).map(t => {
-          const active = tab === t.id;
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="flex items-center gap-2 font-mono uppercase whitespace-nowrap"
-              style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`, color: active ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
-            >
-              <Icon size={14} />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Tab: Exposição Cambial ── */}
-      {tab === "exposicao" && portfolio && (
-        <ExposicaoCambialTab portfolio={portfolio} />
-      )}
-
-      {/* ── Tab: Operações (conteúdo original) ── */}
-      {tab === "operacoes" && cambio && (
-        <>
-          {/* ── Hero: Total em Reais ── */}
-          <div className="glass-card p-6 mb-6 animate-fade-in">
-            <div className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-1">
-              Total em Reais (moeda de consumo)
-            </div>
-            <div className={`text-3xl font-extrabold mb-4 ${cambio.ganhoTotal_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {brl(cambio.totalValBRL)}
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <span className="stat-label block mb-1">BRL Investido</span>
-                <span className="text-sm font-bold text-zinc-300">{brl(cambio.totalCustoBRL)}</span>
-              </div>
-              <div>
-                <span className="stat-label block mb-1">Ganho Cambial</span>
-                <span className={`text-sm font-bold ${cambio.ganhoTotal_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {cambio.ganhoTotal_BRL >= 0 ? "+" : ""}{brl(cambio.ganhoTotal_BRL)}
-                </span>
-                <span className={`text-xs ml-1 ${cambio.ganhoTotalPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {cambio.ganhoTotalPct >= 0 ? "+" : ""}{cambio.ganhoTotalPct.toFixed(1)}%
-                </span>
-              </div>
-              <div>
-                <span className="stat-label block mb-1">Saldo USD</span>
-                <span className="text-sm font-bold text-zinc-300">US$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                {cambio.usdVendido > 0 && (
-                  <span className="text-[10px] text-zinc-600 block">−US$ {cambio.usdVendido.toLocaleString("en-US", { maximumFractionDigits: 0 })} convertidos</span>
-                )}
-              </div>
-              <div>
-                <span className="stat-label block mb-1">Moedas</span>
-                <span className="text-sm font-bold text-zinc-300">{cambio.numMoedas}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Cadeia de Conversão ── */}
-          <div className="mb-6">
-            <h2 className="section-title mb-1"><Layers size={15} />Cadeia de Conversão</h2>
-            <p className="text-[10px] text-zinc-600 mb-4">USD é a moeda intermediária: recebe de BRL e distribui para outras moedas. Saldo USD = comprado − convertido.</p>
-
-            {/* USD Card (Layer 1) */}
-            <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: "rgba(59,130,246,0.15)" }}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🇺🇸</span>
-                  <div>
-                    <div className="text-sm font-bold text-zinc-100">USD</div>
-                    <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Conta intermediária · recebe BRL · distribui</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Ganho cambial (BRL)</div>
-                  <div className={`text-xl font-extrabold ${cambio.ganhoUsdBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {cambio.ganhoUsdBRL >= 0 ? "+" : ""}R$ {Math.abs(cambio.ganhoUsdBRL).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
-                  </div>
-                  <div className={`text-xs ${cambio.ganhoUsdPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {cambio.ganhoUsdPct >= 0 ? "+" : ""}{cambio.ganhoUsdPct.toFixed(1)}%
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">PM compra (R$/USD)</div>
-                  <div className="text-sm font-bold text-zinc-400">R$ {cambio.pmDolar.toFixed(4)}</div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Cotação hoje</div>
-                  <div className="text-sm font-bold text-zinc-100">R$ {spot.toFixed(4)}</div>
-                  <div className={`text-[10px] font-semibold ${cambio.deltaPmUsd >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {cambio.deltaPmUsd >= 0 ? "+" : ""}{cambio.deltaPmUsd.toFixed(1)}% vs PM
-                  </div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Valor em BRL</div>
-                  <div className="text-sm font-bold text-zinc-100">R$ {cambio.valorUsdHoje.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
-                  <div className="text-[10px] text-zinc-600">custo R$ {cambio.brlCustoUsdNet.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
-                </div>
-              </div>
-
-              {/* Ledger: USD balance */}
-              <div className="rounded-xl p-4 mb-3" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Saldo USD — conta intermediária</div>
-                <div className="flex items-center justify-between py-1.5 border-b border-white/5">
-                  <span className="text-xs text-zinc-500">＋ Comprado com BRL</span>
-                  <span className="text-sm font-bold text-emerald-400">US$ {cambio.usdComprado.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                {cambio.fx2.map(c => (
-                  <div key={c.moeda} className="flex items-center justify-between py-1.5 border-b border-white/5">
-                    <span className="text-xs text-zinc-500">− Convertido → {c.moeda}</span>
-                    <span className="text-sm font-bold text-red-400">US$ {c.usdGasto.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs font-bold text-zinc-100">= Saldo disponível</span>
-                  <span className="text-base font-extrabold text-zinc-100">US$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-
-              {/* PM vs Spot bar */}
-              <div className="flex justify-between mb-1">
-                <span className="text-[10px] text-zinc-700">PM R$ {cambio.pmDolar.toFixed(4)} → Cotação R$ {spot.toFixed(4)}</span>
-                <span className={`text-[10px] font-semibold ${cambio.deltaPmUsd >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {cambio.deltaPmUsd >= 0 ? "+" : ""}{cambio.deltaPmUsd.toFixed(2)}%
-                </span>
-              </div>
-              <div className="h-1 rounded-full relative overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                <div
-                  className="absolute top-0 left-0 h-full rounded-full opacity-80"
-                  style={{
-                    width: `${Math.min(Math.max((cambio.deltaPmUsd / 20 + 0.5) * 100, 2), 98)}%`,
-                    backgroundColor: cambio.deltaPmUsd >= 0 ? "#34d399" : "#f87171",
-                  }}
-                />
-                <div className="absolute top-0 left-1/2 h-full w-px" style={{ background: "rgba(255,255,255,0.2)" }} />
-              </div>
-            </div>
-
-            {/* Layer 2 cards: USD → other currencies */}
-            {cambio.fx2.length > 0 && (
-              <div className={`grid grid-cols-1 gap-4 mb-4 ${cambio.fx2.length === 1 ? "md:grid-cols-1" : cambio.fx2.length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
-                {cambio.fx2.map(c => {
-                  const color = FX_COLORS[c.moeda] ?? "#64748b";
-                  const vc = c.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400";
-                  const dc = c.deltaUSD >= 0 ? "text-emerald-400" : "text-red-400";
-                  const fillPct = Math.min(Math.max((c.deltaUSD / 20 + 0.5) * 100, 2), 98);
-                  return (
-                    <div key={c.moeda} className="glass-card p-5 animate-fade-in" style={{ borderColor: `${color}20` }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{c.moeda === "EUR" ? "🇪🇺" : c.moeda === "GBP" ? "🇬🇧" : c.moeda === "CAD" ? "🇨🇦" : "🌐"}</span>
-                          <div>
-                            <div className="text-sm font-bold" style={{ color }}>{c.moeda}</div>
-                            <div className="text-[9px] text-zinc-600 uppercase tracking-wider">via USD</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-base font-bold ${vc}`}>{c.ganhoBRL >= 0 ? "+" : ""}R$ {Math.abs(c.ganhoBRL).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
-                          <div className={`text-xs ${vc}`}>{c.ganhoPct >= 0 ? "+" : ""}{c.ganhoPct.toFixed(1)}%</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-                          <div className="text-[9px] text-zinc-600">PM (USD/{c.moeda})</div>
-                          <div className="text-xs font-bold text-zinc-400">{c.pmUSD.toFixed(4)}</div>
-                        </div>
-                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-                          <div className="text-[9px] text-zinc-600">Cotação (USD/{c.moeda})</div>
-                          <div className="text-xs font-bold text-zinc-100">{c.cotUSD.toFixed(4)}</div>
-                          <div className={`text-[9px] font-semibold ${dc}`}>{c.deltaUSD >= 0 ? "+" : ""}{c.deltaUSD.toFixed(1)}%</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-                          <div className="text-[9px] text-zinc-600">PM (R$/{c.moeda})</div>
-                          <div className="text-xs font-bold text-zinc-400">R$ {c.pmBRL.toFixed(4)}</div>
-                        </div>
-                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-                          <div className="text-[9px] text-zinc-600">Posição</div>
-                          <div className="text-xs font-bold text-zinc-100">{c.moeda === "EUR" ? "€" : c.moeda === "GBP" ? "£" : "C$"} {c.qtd.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-                        </div>
-                      </div>
-                      {/* Progress bar */}
-                      <div className="flex justify-between mb-1">
-                        <span className="text-[9px] text-zinc-700">PM → Spot</span>
-                        <span className={`text-[9px] font-semibold ${dc}`}>{c.deltaUSD >= 0 ? "+" : ""}{c.deltaUSD.toFixed(2)}%</span>
-                      </div>
-                      <div className="h-1 rounded-full relative overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                        <div className="absolute top-0 left-0 h-full rounded-full opacity-80" style={{ width: `${fillPct}%`, backgroundColor: c.deltaUSD >= 0 ? "#34d399" : "#f87171" }} />
-                        <div className="absolute top-0 left-1/2 h-full w-px" style={{ background: "rgba(255,255,255,0.2)" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Metric Cards ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-            <div className="animate-fade-in">
-              <MetricCard
-                label="PM Dólar"
-                value={`R$ ${cambio.pmDolar.toFixed(4)}`}
-                sub={`Spot R$ ${spot.toFixed(4)} · ${cambio.deltaPmUsd >= 0 ? "+" : ""}${cambio.deltaPmUsd.toFixed(1)}%`}
-                icon={<DollarSign size={18} />}
-                glowColor="#E8A33D"
-              />
-            </div>
-            <div className="animate-fade-in animate-delay-1">
-              <MetricCard
-                label="Ganho Total Câmbio"
-                value={brl(cambio.ganhoTotal_BRL)}
-                sub={`${cambio.operacoes} operações`}
-                icon={cambio.ganhoTotal_BRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
-                trend={cambio.ganhoTotal_BRL >= 0 ? "up" : "down"}
-                glowColor={cambio.ganhoTotal_BRL >= 0 ? "#4ade80" : "#f87171"}
-              />
-            </div>
-            <div className="animate-fade-in animate-delay-2">
-              <MetricCard
-                label="Ganho USD (net)"
-                value={brl(cambio.ganhoUsdBRL)}
-                sub={`$ ${cambio.usdNet.toLocaleString("en-US", { maximumFractionDigits: 0 })} net · PM R$ ${cambio.pmDolar.toFixed(2)}`}
-                icon={<ArrowLeftRight size={18} />}
-                trend={cambio.ganhoUsdBRL >= 0 ? "up" : "down"}
-                glowColor="#3b82f6"
-                compact
-              />
-            </div>
-            <div className="animate-fade-in animate-delay-3">
-              <MetricCard
-                label={ptax ? `PTAX (${ptax.data.substring(5)})` : "PTAX"}
-                value={ptax ? `R$ ${ptax.USDBRL.toFixed(4)}` : "—"}
-                sub={ptax ? `Diferença: R$ ${(spot - ptax.USDBRL).toFixed(4)}` : "Sem dados PTAX"}
-                icon={<Scale size={18} />}
-                glowColor="#8b5cf6"
-              />
-            </div>
-          </div>
-
-          {/* ── Comparison Bars ── */}
-          <div className="glass-card p-5 mb-6 animate-fade-in">
-            <h2 className="section-title mb-5">Comparativo de Taxas</h2>
-            <div className="grid grid-cols-3 gap-6">
-              {[
-                { label: "PM Dólar", value: cambio.pmDolar, color: "#E8A33D" },
-                { label: "Spot", value: spot, color: "#3b82f6" },
-                { label: "PTAX", value: ptax?.USDBRL ?? 0, color: "#8b5cf6" },
-              ].map((item) => {
-                const maxVal = Math.max(cambio.pmDolar, spot, ptax?.USDBRL ?? 0);
-                const pctWidth = maxVal > 0 ? (item.value / maxVal) * 100 : 0;
-                return (
-                  <div key={item.label} className="text-center">
-                    <span className="stat-label block mb-2">{item.label}</span>
-                    <div className="h-2 rounded-full mb-3" style={{ backgroundColor: `${item.color}20` }}>
-                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(pctWidth, 100)}%`, backgroundColor: item.color }} />
-                    </div>
-                    <span className="text-xl font-bold" style={{ color: item.color }}>
-                      {item.value > 0 ? `R$ ${item.value.toFixed(2)}` : "—"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── FX History Chart ── */}
-          {fxHistory.length > 1 && (
-            <div className="glass-card p-5 mb-6 animate-fade-in">
-              <h2 className="section-title mb-4">Histórico de Taxas (VET)</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={fxHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
-                  <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatDate(v).substring(0, 5)} />
-                  <YAxis domain={["auto", "auto"]} tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [`R$ ${v.toFixed(4)}`, "VET"]} labelFormatter={(l) => formatDate(l)} />
-                  <ReferenceLine y={cambio.pmDolar} stroke="#E8A33D" strokeDasharray="5 5" label={{ value: `PM ${cambio.pmDolar.toFixed(2)}`, fill: "#E8A33D", fontSize: 10, position: "right" }} />
-                  <Line type="monotone" dataKey="taxa" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#3b82f6" }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* ── Stress Test ── */}
-          {(() => {
-            const totalForeignBRL = cambio.totalValBRL;
-            const custoBRL = cambio.totalCustoBRL;
-            const scenarios = [
-              { label: "-20%", pct: -20 },
-              { label: "-10%", pct: -10 },
-              { label: "-5%", pct: -5 },
-              { label: "Atual", pct: 0 },
-              { label: "+5%", pct: 5 },
-              { label: "+10%", pct: 10 },
-              { label: "+20%", pct: 20 },
-              ...(stressCustom !== 0 ? [{ label: `${stressCustom > 0 ? "+" : ""}${stressCustom}%`, pct: stressCustom }] : []),
-            ].sort((a, b) => a.pct - b.pct);
-
-            const stressData = scenarios.map(s => {
-              const newVal = totalForeignBRL * (1 + s.pct / 100);
-              const impactBRL = newVal - totalForeignBRL;
-              const newUSD = spot * (1 + s.pct / 100);
-              return {
-                label: s.label,
-                pct: s.pct,
-                newVal,
-                impactBRL,
-                impactPct: totalForeignBRL > 0 ? (impactBRL / totalForeignBRL) * 100 : 0,
-                newUSD,
-                ganhoPct: custoBRL > 0 ? ((newVal - custoBRL) / custoBRL) * 100 : 0,
-              };
-            });
-
-            return (
-              <div className="glass-card p-5 mb-6 animate-fade-in">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="section-title"><Zap size={15} />Teste de Estresse Cambial</h2>
-                  <span className="text-[10px] text-zinc-600">
-                    Base: {compactBRL(totalForeignBRL)} em moeda estrangeira
-                  </span>
-                </div>
-                <p className="text-[10px] text-zinc-600 mb-4">
-                  Impacto de variações cambiais sobre <strong className="text-zinc-400">todo o patrimônio em moeda estrangeira</strong> (não só remessas).
-                </p>
-
-                <div className="mb-5">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={stressData} barCategoryGap="18%">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                        tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip contentStyle={{
-                        background: "#18181b", border: "1px solid #27272a",
-                        borderRadius: 12, color: "var(--text)", fontSize: 12,
-                      }}
-                        itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-                        formatter={(v: number, name: string) => [
-                          name === "impactBRL" ? brl(v) : `${v.toFixed(2)}%`,
-                          name === "impactBRL" ? "Impacto BRL" : "Ganho vs Custo",
-                        ]}
-                        labelFormatter={l => `Cenário: ${l}`} />
-                      <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-                      <Bar dataKey="impactBRL" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                        {stressData.map((entry, i) => (
-                          <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.impactBRL >= 0 ? "#34d399" : "#f87171"} fillOpacity={entry.pct === 0 ? 0.9 : 0.75} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="overflow-x-auto mb-4">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-800">
-                        {["Cenário", "USD/BRL", "Patrimônio", "Impacto", "vs Custo"].map(h => (
-                          <th key={h} className="px-3 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider text-right first:text-left">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stressData.map((s, i) => (
-                        <tr key={i} className={`border-b border-zinc-900 ${s.pct === 0 ? "bg-indigo-500/5" : "hover:bg-white/[0.02]"}`}>
-                          <td className={`px-3 py-2 font-semibold ${s.pct === 0 ? "text-indigo-400" : "text-zinc-400"}`}>{s.label}</td>
-                          <td className="px-3 py-2 text-right text-zinc-300 font-mono">R$ {s.newUSD.toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-zinc-200 font-mono">{compactBRL(s.newVal)}</td>
-                          <td className={`px-3 py-2 text-right font-mono font-semibold ${s.impactBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {s.pct === 0 ? "—" : `${s.impactBRL >= 0 ? "+" : ""}${compactBRL(s.impactBRL)}`}
-                          </td>
-                          <td className={`px-3 py-2 text-right font-mono ${s.ganhoPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {s.ganhoPct >= 0 ? "+" : ""}{s.ganhoPct.toFixed(1)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-zinc-500">Cenário customizado:</span>
-                  <input
-                    type="range"
-                    min={-50} max={50} step={5}
-                    value={stressCustom}
-                    onChange={e => setStressCustom(Number(e.target.value))}
-                    className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
-                    style={{ background: `linear-gradient(to right, #f87171, #3f3f46 50%, #34d399)` }}
-                  />
-                  <span className={`text-xs font-bold w-12 text-right ${stressCustom >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {stressCustom > 0 ? "+" : ""}{stressCustom}%
-                  </span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── Summary ── */}
-          <div className="glass-card p-5 mb-6 animate-fade-in">
-            <h2 className="section-title mb-4">Resumo</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-              <div>
-                <span className="stat-label block mb-1">Total Enviado (BRL)</span>
-                <span className="stat-value">{compactBRL(cambio.totalEnviadoBRL)}</span>
-              </div>
-              <div>
-                <span className="stat-label block mb-1">Total Comprado (USD)</span>
-                <span className="stat-value">$ {cambio.usdComprado.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div>
-                <span className="stat-label block mb-1">USD Disponível (net)</span>
-                <span className="stat-value">$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div>
-                <span className="stat-label block mb-1">Valor USD Hoje</span>
-                <span className="stat-value">{brl(cambio.valorUsdHoje)}</span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {tab === "operacoes" && (
-        <>
-          <h2 className="section-title mb-3">Histórico de Operações</h2>
-          <DataTable data={rawData} columns={columns} />
-        </>
-      )}
-    </>
-  );
-}
-
-// ── Exposição Cambial Tab ────────────────────────────────────────────────────
-
-function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
-  const [stressCustom, setStressCustom] = useState(0);
-
-  const spot = portfolio.usdbrl ?? 0;
-  const positions = portfolio.positions ?? [];
-
+  // ── Exposição + 3 fatores (mesma conta canônica da antiga aba Exposição) ──
   const analysis = useMemo(() => {
-    // Canônico: exposicaoCambial do snapshot (inclui posições + caixa fixa_aberta,
-    // usando getMoedaExposicao → cripto vai pra "Cripto", não "USD")
+    if (!portfolio) return null;
+    const positions = portfolio.positions ?? [];
     const expo = portfolio.exposicaoCambial ?? {};
     const totalExpostoAtualBRL = Object.entries(expo)
       .filter(([k]) => k !== "BRL" && k !== "Cripto")
       .reduce((s, [, v]) => s + v, 0);
 
-    // Posições FX (exclui BRL e Cripto) — para decomposição ativo × câmbio
     const foreignPositions = positions.filter(p => {
       const me = getMoedaExposicao(p.setor, p.moeda);
       return me !== "BRL" && me !== "Cripto" && p.valorAtualBRL > 0;
     });
 
     type PosArray = typeof foreignPositions;
-    const byMoeda: Record<string, { valorAtualBRL: number; custoTotalBRL: number; valorAtualNativo: number; positions: PosArray }> = {};
+    const byMoeda: Record<string, { valorAtualBRL: number; custoTotalBRL: number; positions: PosArray }> = {};
     for (const p of foreignPositions) {
       const m = getMoedaExposicao(p.setor, p.moeda);
-      if (!byMoeda[m]) byMoeda[m] = { valorAtualBRL: 0, custoTotalBRL: 0, valorAtualNativo: 0, positions: [] };
+      if (!byMoeda[m]) byMoeda[m] = { valorAtualBRL: 0, custoTotalBRL: 0, positions: [] };
       byMoeda[m].valorAtualBRL += p.valorAtualBRL;
       byMoeda[m].custoTotalBRL += p.custoTotalBRL;
-      byMoeda[m].valorAtualNativo += p.valorAtual ?? 0;
       byMoeda[m].positions.push(p);
     }
-
-    // Inclui caixa FX (fixa_aberta) no byMoeda — diferença entre canônico e posições
     for (const [moeda, valCanonical] of Object.entries(expo)) {
       if (moeda === "BRL" || moeda === "Cripto") continue;
       const posVal = byMoeda[moeda]?.valorAtualBRL ?? 0;
-      const caixa = valCanonical - posVal;
-      if (caixa >= 1) {
-        if (!byMoeda[moeda]) byMoeda[moeda] = { valorAtualBRL: 0, custoTotalBRL: 0, valorAtualNativo: 0, positions: [] };
+      if (valCanonical - posVal >= 1) {
+        if (!byMoeda[moeda]) byMoeda[moeda] = { valorAtualBRL: 0, custoTotalBRL: 0, positions: [] };
         byMoeda[moeda].valorAtualBRL = valCanonical;
       }
     }
@@ -636,411 +166,497 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
     const ganhoAtivoPuro = foreignPositions.reduce((s, p) => s + (p.ganhoAtivoPuroBRL ?? 0), 0);
     const ganhoFXPrincipal = foreignPositions.reduce((s, p) => s + (p.ganhoFXPrincipalBRL ?? 0), 0);
     const ganhoCruzado = foreignPositions.reduce((s, p) => s + (p.ganhoCruzadoBRL ?? 0), 0);
-    const ganhoAtivo = ganhoAtivoPuro + ganhoCruzado;
-    const ganhoCambio = ganhoFXPrincipal;
     const lucroTotal = positionsOnlyBRL - totalCustoBRL;
     const caixaFxBRL = totalExpostoAtualBRL - positionsOnlyBRL;
 
-    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivoPuro, ganhoFXPrincipal, ganhoCruzado, ganhoAtivo, ganhoCambio, lucroTotal, caixaFxBRL };
-  }, [positions, portfolio.exposicaoCambial]);
+    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivoPuro, ganhoFXPrincipal, ganhoCruzado, lucroTotal, caixaFxBRL };
+  }, [portfolio]);
 
-  const stressScenarios = useMemo(() => {
-    const scenarios = [
-      { label: "-30%", pct: -30 },
-      { label: "-20%", pct: -20 },
-      { label: "-10%", pct: -10 },
-      { label: "-5%", pct: -5 },
-      { label: "Atual", pct: 0 },
-      { label: "+5%", pct: 5 },
-      { label: "+10%", pct: 10 },
-      { label: "+20%", pct: 20 },
-      { label: "+30%", pct: 30 },
-      ...(stressCustom !== 0 ? [{ label: `${stressCustom > 0 ? "+" : ""}${stressCustom}%`, pct: stressCustom }] : []),
-    ].sort((a, b) => a.pct - b.pct);
+  if (portLoading || sheetLoading) return <LoadingSpinner />;
+  if (error) return <ErrorAlert message={error} tab="cambio" />;
 
-    return scenarios.map(s => {
-      const fxFactor = 1 + s.pct / 100;
-      const newSpot = spot * fxFactor;
-      const novoValorAtual = analysis.totalExpostoAtualBRL * fxFactor;
-      const impactoAtual = novoValorAtual - analysis.totalExpostoAtualBRL;
-      return { label: s.label, pct: s.pct, newSpot, novoValorAtual, impactoAtual };
-    });
-  }, [spot, analysis, stressCustom]);
+  const cambio = portfolio?.cambio;
+  const ptax = portfolio?.ptax;
+  const spot = portfolio?.usdbrl ?? 0;
+  if (!cambio || !analysis || !portfolio) return <LoadingSpinner />;
 
   const patrimonioBRL = portfolio.totalPatrimonioBRL ?? 0;
   const pctExpostoFx = patrimonioBRL > 0 ? (analysis.totalExpostoAtualBRL / patrimonioBRL) * 100 : 0;
 
-  // Split proporcional entre os três fatores (por contribuição absoluta)
+  // Teste de estresse ÚNICO (sobre a exposição cambial total do patrimônio).
+  const stressScenarios = [
+    { label: "-30%", pctS: -30 }, { label: "-20%", pctS: -20 }, { label: "-10%", pctS: -10 },
+    { label: "-5%", pctS: -5 }, { label: "Atual", pctS: 0 }, { label: "+5%", pctS: 5 },
+    { label: "+10%", pctS: 10 }, { label: "+20%", pctS: 20 }, { label: "+30%", pctS: 30 },
+    ...(stressCustom !== 0 ? [{ label: `${sign(stressCustom)}${stressCustom}%`, pctS: stressCustom }] : []),
+  ]
+    .sort((a, b) => a.pctS - b.pctS)
+    .map(s => {
+      const impacto = analysis.totalExpostoAtualBRL * (s.pctS / 100);
+      return { ...s, newSpot: spot * (1 + s.pctS / 100), impacto, impactoPatrimonioPct: patrimonioBRL > 0 ? (impacto / patrimonioBRL) * 100 : 0 };
+    });
+  const cenarioFrase = stressScenarios.find(s => s.pctS === (stressCustom !== 0 ? stressCustom : -20));
+
+  // Moedas do gráfico da linha do tempo (só as que têm remessa).
+  const moedasGrafico = [...fxSeries.keys()].sort((a, b) => (a === "USD" ? -1 : b === "USD" ? 1 : a.localeCompare(b)));
+  const serieAtiva = fxSeries.get(moedaGrafico) ?? [];
+  const pmDaMoeda = moedaGrafico === "USD" ? cambio.pmDolar : cambio.fx2.find(c => c.moeda === moedaGrafico)?.pmUSD ?? 0;
+  const spotDaMoeda = moedaGrafico === "USD" ? spot : cambio.fx2.find(c => c.moeda === moedaGrafico)?.cotUSD ?? 0;
+  const unidade = moedaGrafico === "USD" ? "R$/USD" : `USD/${moedaGrafico}`;
+
+  // Fatores em % para a barra de proporção.
   const absPuro = Math.abs(analysis.ganhoAtivoPuro);
-  const absPrincipal = Math.abs(analysis.ganhoFXPrincipal);
-  const absCruzado = Math.abs(analysis.ganhoCruzado);
-  const absSoma = absPuro + absPrincipal + absCruzado;
-  const pctFatorPuro = absSoma > 0 ? (absPuro / absSoma) * 100 : 33;
-  const pctFatorPrincipal = absSoma > 0 ? (absPrincipal / absSoma) * 100 : 34;
-  const pctFatorCruzado = 100 - pctFatorPuro - pctFatorPrincipal;
-  const sign = (v: number) => (v >= 0 ? "+" : "");
+  const absFx = Math.abs(analysis.ganhoFXPrincipal);
+  const absCz = Math.abs(analysis.ganhoCruzado);
+  const absSoma = absPuro + absFx + absCz;
+  const pctPuro = absSoma > 0 ? (absPuro / absSoma) * 100 : 33;
+  const pctFx = absSoma > 0 ? (absFx / absSoma) * 100 : 34;
+  const pctCz = 100 - pctPuro - pctFx;
 
-  return (
-    <div className="animate-fade-in">
-      {/* ── Hero: Exposição Total ── */}
-      <div className="glass-card p-6 mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <ShieldAlert size={16} className="text-amber-400" />
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Exposição a Moeda Estrangeira</span>
-        </div>
-        <div className="text-3xl font-extrabold text-zinc-100 mb-1">
-          {compactBRL(analysis.totalExpostoAtualBRL)}
-        </div>
-        <div className="text-xs text-zinc-500 mb-5">
-          {pctExpostoFx.toFixed(1)}% do patrimônio total ({compactBRL(patrimonioBRL)}) está exposto a variação cambial
-        </div>
+  // Card de moeda (USD + fx2) — dados uniformes.
+  const cardsMoeda = [
+    {
+      moeda: "USD", pm: cambio.pmDolar, cot: spot, delta: cambio.deltaPmUsd,
+      posNativa: cambio.usdNet, ganhoBRL: cambio.ganhoUsdBRL, ganhoPct: cambio.ganhoUsdPct,
+      unidade: "R$/USD", destaque: true,
+    },
+    ...cambio.fx2.map(c => ({
+      moeda: c.moeda, pm: c.pmUSD, cot: c.cotUSD, delta: c.deltaUSD,
+      posNativa: c.qtd, ganhoBRL: c.ganhoBRL, ganhoPct: c.ganhoPct,
+      unidade: `USD/${c.moeda}`, destaque: false,
+    })),
+  ];
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div>
-            <span className="stat-label block mb-1">Custo Posições</span>
-            <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
-          </div>
-          <div>
-            <span className="stat-label block mb-1">Ativo Puro</span>
-            <span className={`text-sm font-bold ${analysis.ganhoAtivoPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}
-            </span>
-          </div>
-          <div>
-            <span className="stat-label block mb-1">FX Principal</span>
-            <span className={`text-sm font-bold ${analysis.ganhoFXPrincipal >= 0 ? "text-amber-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoFXPrincipal)}{compactBRL(analysis.ganhoFXPrincipal)}
-            </span>
-          </div>
-          <div>
-            <span className="stat-label block mb-1">Cruzado</span>
-            <span className={`text-sm font-bold ${analysis.ganhoCruzado >= 0 ? "text-purple-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoCruzado)}{compactBRL(analysis.ganhoCruzado)}
-            </span>
-          </div>
-          {analysis.caixaFxBRL > 0 && (
-            <div>
-              <span className="stat-label block mb-1">Caixa FX</span>
-              <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.caixaFxBRL)}</span>
+  // ── Popups (conteúdo) ──
+  const renderPopup = () => {
+    if (!popup) return null;
+    let titulo = ""; let corpo: React.ReactNode = null;
+
+    if (popup.t === "ledger") {
+      titulo = "De onde vem o seu PM";
+      corpo = (
+        <div className="text-[12px]">
+          <p className="text-zinc-500 mb-3 leading-relaxed">
+            O USD é a conta intermediária: recebe os reais e distribui para as outras moedas. O PM de R$ {cambio.pmDolar.toFixed(4)} é o custo médio REAL de todas as remessas — é ele que o app usa como câmbio de custo (não a PTAX da data da compra).
+          </p>
+          <div className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+              <span className="text-zinc-500">BRL enviado nas remessas</span>
+              <span className="font-mono font-bold text-zinc-200">{brl(cambio.totalEnviadoBRL)}</span>
             </div>
-          )}
-          <div>
-            <span className="stat-label block mb-1">Spot USD/BRL</span>
-            <span className="text-sm font-bold text-zinc-100">R$ {spot.toFixed(4)}</span>
+            <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+              <span className="text-zinc-500">＋ USD comprado</span>
+              <span className="font-mono font-bold text-emerald-400">US$ {cambio.usdComprado.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+            </div>
+            {cambio.fx2.map(c => (
+              <div key={c.moeda} className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-zinc-500">− Convertido → {c.moeda}</span>
+                <span className="font-mono font-bold text-red-400">US$ {c.usdGasto.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-2">
+              <span className="font-bold text-zinc-100">= Saldo USD disponível</span>
+              <span className="font-mono text-[14px] font-extrabold text-zinc-100">US$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+          <p className="text-[10.5px] text-zinc-600 mt-3">
+            Custo do saldo: {brl(cambio.brlCustoUsdNet)} · valor hoje: {brl(cambio.valorUsdHoje)} · {cambio.operacoes} operações em {cambio.numMoedas} moedas.
+          </p>
+        </div>
+      );
+    }
+
+    if (popup.t === "taxas") {
+      titulo = "PM × Spot × PTAX";
+      const linhas = [
+        { label: "Seu PM (custo real)", value: cambio.pmDolar, color: "#E8A33D" },
+        { label: "Cotação agora", value: spot, color: "#3b82f6" },
+        { label: `PTAX${ptax ? ` (${formatDate(ptax.data)})` : ""}`, value: ptax?.USDBRL ?? 0, color: "#8b5cf6" },
+      ];
+      const maxVal = Math.max(...linhas.map(l => l.value), 0.0001);
+      corpo = (
+        <div className="text-[12px]">
+          <p className="text-zinc-500 mb-4 leading-relaxed">
+            {cambio.deltaPmUsd >= 0
+              ? <>Seu dólar médio custou <b className="text-amber-400">{cambio.deltaPmUsd.toFixed(1).replace(".", ",")}% menos</b> do que ele vale hoje — esse é o seu colchão cambial.</>
+              : <>Seu dólar médio custou <b className="text-red-400">{Math.abs(cambio.deltaPmUsd).toFixed(1).replace(".", ",")}% mais</b> do que ele vale hoje.</>}
+            {" "}A PTAX é a taxa oficial do BC usada na declaração de IR.
+          </p>
+          <div className="flex flex-col gap-3">
+            {linhas.map(l => (
+              <div key={l.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-zinc-500">{l.label}</span>
+                  <span className="font-mono font-bold" style={{ color: l.color }}>{l.value > 0 ? `R$ ${l.value.toFixed(4)}` : "—"}</span>
+                </div>
+                <div className="h-1.5 rounded-full" style={{ background: `${l.color}20` }}>
+                  <div className="h-full rounded-full" style={{ width: `${(l.value / maxVal) * 100}%`, background: l.color }} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      );
+    }
 
-      {/* ── Decomposição de Três Fatores (centro da aba) ── */}
-      <div className="glass-card p-6 mb-6">
-        <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição de Três Fatores</h2>
-        <p className="text-[11px] text-zinc-500 mb-5 max-w-2xl leading-relaxed">
-          O resultado em BRL das suas posições no exterior se separa em <strong className="text-blue-400">três fatores</strong>:
-          quanto o <strong>ativo puro</strong> rendeu (ao câmbio de custo), quanto a <strong className="text-amber-400">variação do câmbio</strong> impactou
-          sobre o capital aportado, e o <strong className="text-purple-400">efeito cruzado</strong> (câmbio aplicado sobre o lucro do ativo).
-        </p>
-
-        {/* Custo → Valor atual (posições — caixa FX não tem decomposição) */}
-        <div className="flex items-center justify-between gap-4 mb-5">
-          <div>
-            <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Custo BRL</div>
-            <div className="text-lg font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</div>
+    if (popup.t === "moeda") {
+      const m = popup.m;
+      const card = cardsMoeda.find(c => c.moeda === m);
+      const info = analysis.byMoeda[m];
+      const remessas = (fxSeries.get(m) ?? []).slice().reverse();
+      const color = FX_COLORS[m] ?? "#64748b";
+      titulo = `${FLAGS[m] ?? "🌐"} ${m} — dossiê`;
+      corpo = card && (
+        <div className="text-[12px]">
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="text-[9.5px] text-zinc-600 uppercase tracking-wider mb-0.5">PM ({card.unidade})</div>
+              <div className="font-mono font-bold text-zinc-300">{card.pm.toFixed(4)}</div>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="text-[9.5px] text-zinc-600 uppercase tracking-wider mb-0.5">Cotação</div>
+              <div className="font-mono font-bold text-zinc-100">{card.cot.toFixed(4)}</div>
+              <div className={`text-[10px] font-semibold ${card.delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pct1(card.delta)} vs PM</div>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="text-[9.5px] text-zinc-600 uppercase tracking-wider mb-0.5">Ganho cambial</div>
+              <div className={`font-mono font-bold ${card.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{sign(card.ganhoBRL)}{compactBRL(card.ganhoBRL)}</div>
+              <div className={`text-[10px] ${card.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pct1(card.ganhoPct)}</div>
+            </div>
           </div>
-          <ArrowLeftRight size={16} className="text-zinc-700 shrink-0" />
-          <div className="text-right">
-            <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Valor Atual BRL</div>
-            <div className="text-lg font-bold text-zinc-100">{compactBRL(analysis.totalExpostoAtualBRL)}</div>
-            {analysis.caixaFxBRL > 0 && (
-              <div className="text-[9px] text-zinc-600">inclui {compactBRL(analysis.caixaFxBRL)} em caixa FX</div>
+
+          {info && info.positions.length > 0 && (
+            <>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Posições expostas a {m}</p>
+              <p className="text-[10.5px] text-zinc-600 mb-2">Ativo (azul) × câmbio (dourado) × cruzado (roxo) — a parte do resultado de cada papel que veio da moeda.</p>
+              <div className="mb-4">
+                <ResponsiveContainer width="100%" height={Math.max(120, Math.min(info.positions.length, 8) * 30 + 30)}>
+                  <BarChart
+                    data={info.positions.slice().sort((a, b) => b.valorAtualBRL - a.valorAtualBRL).slice(0, 8).map(p => ({
+                      ticker: p.ticker.replace(/\.SA$/, ""),
+                      ativo: p.ganhoAtivoPuroBRL ?? 0, fx: p.ganhoFXPrincipalBRL ?? 0, cruzado: p.ganhoCruzadoBRL ?? 0,
+                    }))}
+                    layout="vertical" barCategoryGap="24%">
+                    <XAxis type="number" tick={{ fill: "#52525b", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
+                    <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={64} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
+                      formatter={(v: number, name: string) => [compactBRL(v), name === "ativo" ? "Ativo puro" : name === "fx" ? "Câmbio" : "Cruzado"]} />
+                    <ReferenceLine x={0} stroke="#3f3f46" />
+                    <Bar dataKey="ativo" stackId="a" fill="#3b82f6" maxBarSize={14} isAnimationActive={false} />
+                    <Bar dataKey="fx" stackId="a" fill="#E8A33D" maxBarSize={14} isAnimationActive={false} />
+                    <Bar dataKey="cruzado" stackId="a" fill="#a855f7" maxBarSize={14} radius={[0, 3, 3, 0]} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
+
+          {remessas.length > 0 && (
+            <>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Remessas que formaram o PM</p>
+              <ul className="flex max-h-44 flex-col gap-1 overflow-y-auto">
+                {remessas.map((r, i) => (
+                  <li key={i}>
+                    <button onClick={() => setPopup({ t: "remessa", row: r.row })}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
+                      style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <span className="text-zinc-400">{formatDate(r.data)}</span>
+                      <span className="font-mono text-zinc-300">{fmtVal(rowRecebido(r.row), m)}</span>
+                      <span className="font-mono" style={{ color }}>{r.taxa.toFixed(4)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    if (popup.t === "operacoes") {
+      titulo = `Todas as operações (${(rawData ?? []).length})`;
+      corpo = <DataTable data={rawData} columns={columns} />;
+    }
+
+    if (popup.t === "remessa") {
+      const r = popup.row;
+      const orig = rowOrigem(r), dest = rowDestino(r);
+      const taxa = rowTaxa(r);
+      // Contexto vs o PM da moeda: essa remessa foi mais cara ou mais barata
+      // que a sua média? (Comparação com a PTAX do dia entra na fase 2.)
+      const pmRef = dest === "USD" ? cambio.pmDolar : cambio.fx2.find(c => c.moeda === dest)?.pmUSD ?? 0;
+      const deltaPm = taxa && pmRef > 0 ? (taxa / pmRef - 1) * 100 : null;
+      titulo = `Remessa ${formatDate(String(r["data"] ?? ""))}`;
+      corpo = (
+        <div className="text-[12px]">
+          <div className="mb-4 flex items-center justify-center gap-3 rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="text-center">
+              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">{orig}</div>
+              <div className="font-mono text-[15px] font-bold text-zinc-200">{fmtVal(rowEnviado(r), orig)}</div>
+            </div>
+            <ArrowRight size={16} className="shrink-0 text-zinc-600" />
+            <div className="text-center">
+              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">{dest}</div>
+              <div className="font-mono text-[15px] font-bold" style={{ color: FX_COLORS[dest] ?? "#e4e4e7" }}>{fmtVal(rowRecebido(r), dest)}</div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between"><span className="text-zinc-500">Taxa/VET</span><span className="font-mono font-bold text-zinc-200">{taxa ? `${(CCY_SYMBOL[orig] || orig)} ${taxa.toFixed(4)}/${dest}` : "—"}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-500">Instituição</span><span className="text-zinc-300">{rowInstituicao(r)}</span></div>
+            {deltaPm != null && (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">vs seu PM de {dest}</span>
+                <span className={`font-mono font-semibold ${deltaPm <= 0 ? "text-emerald-400" : "text-amber-400"}`}>
+                  {deltaPm <= 0 ? `${Math.abs(deltaPm).toFixed(1).replace(".", ",")}% mais barata que a sua média` : `${deltaPm.toFixed(1).replace(".", ",")}% mais cara que a sua média`}
+                </span>
+              </div>
             )}
           </div>
         </div>
+      );
+    }
 
-        {/* Os três fatores */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div className="rounded-xl p-4" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-              <span className="text-xs font-bold text-zinc-200">Ativo Puro</span>
-            </div>
-            <div className={`text-2xl font-extrabold ${analysis.ganhoAtivoPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}
-            </div>
-            <p className="text-[10px] text-zinc-500 mt-1">(V1−V0) × P0 — rendimento do ativo convertido ao câmbio de custo.</p>
+    return createPortal(
+      <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4 animate-fade-in"
+        style={{ background: "rgba(0,0,0,0.62)", backdropFilter: "blur(4px)" }} onClick={() => setPopup(null)}>
+        <div className="flex w-full flex-col overflow-hidden shadow-2xl sm:max-w-lg"
+          style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, maxHeight: "88vh", paddingBottom: "env(safe-area-inset-bottom)" }}
+          onClick={ev => ev.stopPropagation()}>
+          <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: "1px solid var(--line)" }}>
+            <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{titulo}</span>
+            <button onClick={() => setPopup(null)} aria-label="Fechar" className="rounded-md p-1 opacity-70 transition-opacity hover:opacity-100" style={{ color: "var(--muted)" }}><X size={16} /></button>
           </div>
-          <div className="rounded-xl p-4" style={{ background: "rgba(232,163,61,0.05)", border: "1px solid rgba(232,163,61,0.15)" }}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span className="text-xs font-bold text-zinc-200">FX Principal</span>
-            </div>
-            <div className={`text-2xl font-extrabold ${analysis.ganhoFXPrincipal >= 0 ? "text-amber-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoFXPrincipal)}{compactBRL(analysis.ganhoFXPrincipal)}
-            </div>
-            <p className="text-[10px] text-zinc-500 mt-1">V0 × (P1−P0) — impacto do dólar sobre o capital aportado.</p>
-          </div>
-          <div className="rounded-xl p-4" style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.15)" }}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-400" />
-              <span className="text-xs font-bold text-zinc-200">Cruzado</span>
-            </div>
-            <div className={`text-2xl font-extrabold ${analysis.ganhoCruzado >= 0 ? "text-purple-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoCruzado)}{compactBRL(analysis.ganhoCruzado)}
-            </div>
-            <p className="text-[10px] text-zinc-500 mt-1">(V1−V0) × (P1−P0) — efeito do câmbio sobre o lucro do ativo.</p>
-          </div>
+          <div className="overflow-y-auto px-5 py-4">{corpo}</div>
         </div>
-
-        {/* Barra de proporção entre os fatores */}
-        <div className="h-2.5 w-full rounded-full overflow-hidden flex mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-          <div style={{ width: `${pctFatorPuro}%`, background: "#3b82f6" }} />
-          <div style={{ width: `${pctFatorPrincipal}%`, background: "#E8A33D" }} />
-          <div style={{ width: `${pctFatorCruzado}%`, background: "#a855f7" }} />
-        </div>
-        <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-4">
-          <span>Ativo {pctFatorPuro.toFixed(0)}%</span>
-          <span>FX {pctFatorPrincipal.toFixed(0)}%</span>
-          <span>Cruzado {pctFatorCruzado.toFixed(0)}%</span>
-        </div>
-
-        {/* Identidade: soma dos fatores = lucro total */}
-        <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-          <span className="text-xs text-zinc-400">
-            Ativo <span className="text-blue-400 font-semibold">{sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}</span>
-            {" + "}FX <span className="text-amber-400 font-semibold">{sign(analysis.ganhoFXPrincipal)}{compactBRL(analysis.ganhoFXPrincipal)}</span>
-            {" + "}Cruzado <span className="text-purple-400 font-semibold">{sign(analysis.ganhoCruzado)}{compactBRL(analysis.ganhoCruzado)}</span>
-          </span>
-          <span className="text-right">
-            <span className="text-[9px] text-zinc-600 uppercase block">Resultado total</span>
-            <span className={`text-base font-extrabold ${analysis.lucroTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {sign(analysis.lucroTotal)}{compactBRL(analysis.lucroTotal)}
-            </span>
-          </span>
-        </div>
-      </div>
-
-      {/* ── Decomposição por ativo ── */}
-      <FxDecomposition positions={analysis.foreignPositions} />
-
-      {/* ── Exposição por moeda ── */}
-      {Object.keys(analysis.byMoeda).length > 0 && (
-        <div className="glass-card p-5 mb-6">
-          <h2 className="section-title mb-4"><Layers size={15} />Exposição por Moeda</h2>
-          <div className={`grid gap-4 ${Object.keys(analysis.byMoeda).length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}>
-            {Object.entries(analysis.byMoeda)
-              .sort((a, b) => b[1].valorAtualBRL - a[1].valorAtualBRL)
-              .map(([moeda, info]) => {
-                const color = FX_COLORS[moeda] ?? "#64748b";
-                const posVal = info.positions.reduce((s, p) => s + p.valorAtualBRL, 0);
-                const caixa = info.valorAtualBRL - posVal;
-                const pctPortfolio = patrimonioBRL > 0 ? (info.valorAtualBRL / patrimonioBRL) * 100 : 0;
-                const nAtivos = info.positions.length;
-                const descParts = [nAtivos > 0 ? `${nAtivos} ativos` : null, caixa >= 1 ? "caixa" : null].filter(Boolean).join(" + ");
-                return (
-                  <div key={moeda} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}20` }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{moeda === "USD" ? "🇺🇸" : moeda === "EUR" ? "🇪🇺" : moeda === "GBP" ? "🇬🇧" : moeda === "CAD" ? "🇨🇦" : "🌐"}</span>
-                        <div>
-                          <span className="text-sm font-bold" style={{ color }}>{moeda}</span>
-                          <span className="text-[10px] text-zinc-600 ml-2">{descParts} · {pctPortfolio.toFixed(1)}% do portfólio</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-zinc-100">{compactBRL(info.valorAtualBRL)}</div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {info.positions
-                        .sort((a, b) => b.valorAtualBRL - a.valorAtualBRL)
-                        .slice(0, 10)
-                        .map(p => (
-                          <span key={p.ticker} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: `${color}15`, color: `${color}cc`, border: `1px solid ${color}25` }}>
-                            {p.ticker.replace(/\.SA$/, "")} {compactBRL(p.valorAtualBRL)}
-                          </span>
-                        ))}
-                      {caixa >= 1 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                          Caixa {compactBRL(caixa)}
-                        </span>
-                      )}
-                      {info.positions.length > 10 && (
-                        <span className="text-[10px] px-2 py-0.5 text-zinc-600">+{info.positions.length - 10}</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Stress Test — sensibilidade da exposição ao câmbio ── */}
-      <div className="glass-card p-5 mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="section-title"><Zap size={15} />Teste de Estresse — Sensibilidade ao Câmbio</h2>
-          <span className="text-[10px] text-zinc-600">
-            Spot: R$ {spot.toFixed(2)} · Exposição: {compactBRL(analysis.totalExpostoAtualBRL)}
-          </span>
-        </div>
-        <p className="text-[10px] text-zinc-500 mb-5">
-          Quanto a sua <strong className="text-blue-400">exposição atual</strong> ({compactBRL(analysis.totalExpostoAtualBRL)})
-          varia em BRL para cada movimento do dólar.
-        </p>
-
-        {/* Chart */}
-        <div className="mb-5">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={stressScenarios} barCategoryGap="18%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-                formatter={(v: number) => [compactBRL(v), "Impacto no valor atual"]}
-                labelFormatter={l => `Cenário: ${l}`} />
-              <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-              <Bar dataKey="impactoAtual" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                {stressScenarios.map((entry, i) => (
-                  <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.impactoAtual >= 0 ? "#3b82f6" : "#60a5fa"} fillOpacity={entry.pct === 0 ? 0.4 : 0.75} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto mb-4">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                {["Cenário", "USD/BRL", "Valor Atual", "Δ Valor"].map(h => (
-                  <th key={h} className="px-3 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider text-right first:text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {stressScenarios.map((s, i) => (
-                <tr key={i} className={`border-b border-zinc-900 ${s.pct === 0 ? "bg-indigo-500/5" : "hover:bg-white/[0.02]"}`}>
-                  <td className={`px-3 py-2 font-semibold ${s.pct === 0 ? "text-indigo-400" : "text-zinc-400"}`}>{s.label}</td>
-                  <td className="px-3 py-2 text-right text-zinc-300 font-mono">R$ {s.newSpot.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right text-zinc-200 font-mono">{compactBRL(s.novoValorAtual)}</td>
-                  <td className={`px-3 py-2 text-right font-mono font-semibold ${s.impactoAtual >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {s.pct === 0 ? "—" : `${s.impactoAtual >= 0 ? "+" : ""}${compactBRL(s.impactoAtual)}`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Custom slider */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-zinc-500">Cenário customizado:</span>
-          <input
-            type="range"
-            min={-50} max={50} step={5}
-            value={stressCustom}
-            onChange={e => setStressCustom(Number(e.target.value))}
-            className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
-            style={{ background: "linear-gradient(to right, #f87171, #3f3f46 50%, #34d399)" }}
-          />
-          <span className={`text-xs font-bold w-12 text-right ${stressCustom >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {stressCustom > 0 ? "+" : ""}{stressCustom}%
-          </span>
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
-// ── Decomposição Ativo vs FX por posição ─────────────────────────────────────
-
-function FxDecomposition({ positions }: {
-  positions: { ticker: string; valorAtualBRL: number; ganhoAtivoPuroBRL: number | null; ganhoFXPrincipalBRL: number | null; ganhoCruzadoBRL: number | null }[];
-}) {
-  const sorted = useMemo(() =>
-    [...positions]
-      .filter(p => p.valorAtualBRL > 0)
-      .sort((a, b) => b.valorAtualBRL - a.valorAtualBRL)
-      .slice(0, 12),
-    [positions]
-  );
-
-  if (sorted.length === 0) return null;
-
-  const chartData = sorted.map(p => ({
-    ticker: p.ticker.replace(/\.SA$/, "").replace(/-USD$/, ""),
-    ativo: p.ganhoAtivoPuroBRL ?? 0,
-    fx: p.ganhoFXPrincipalBRL ?? 0,
-    cruzado: p.ganhoCruzadoBRL ?? 0,
-    total: (p.ganhoAtivoPuroBRL ?? 0) + (p.ganhoFXPrincipalBRL ?? 0) + (p.ganhoCruzadoBRL ?? 0),
-  }));
-
-  const totalPuro = positions.reduce((s, p) => s + (p.ganhoAtivoPuroBRL ?? 0), 0);
-  const totalFX = positions.reduce((s, p) => s + (p.ganhoFXPrincipalBRL ?? 0), 0);
-  const totalCruzado = positions.reduce((s, p) => s + (p.ganhoCruzadoBRL ?? 0), 0);
-  const totalGeral = totalPuro + totalFX + totalCruzado;
+      </div>,
+      document.body,
+    );
+  };
 
   return (
-    <div className="glass-card p-5 mb-6">
-      <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição por Ativo</h2>
-      <p className="text-[10px] text-zinc-500 mb-4">
-        Os mesmos três fatores, abertos por posição: ativo puro (azul), FX principal (dourado) e cruzado (roxo).
-      </p>
+    <>
+      <PageHeader title="Câmbio" description="Remessas, preço médio do dólar e exposição cambial" />
 
-      {/* Summary bar */}
-      <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-400" />
-            <span className="text-[10px] text-zinc-500">Ativo puro</span>
-            <span className={`text-xs font-bold ml-auto ${totalPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>
-              {totalPuro >= 0 ? "+" : ""}{compactBRL(totalPuro)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span className="text-[10px] text-zinc-500">FX principal</span>
-            <span className={`text-xs font-bold ml-auto ${totalFX >= 0 ? "text-amber-400" : "text-red-400"}`}>
-              {totalFX >= 0 ? "+" : ""}{compactBRL(totalFX)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-400" />
-            <span className="text-[10px] text-zinc-500">Cruzado</span>
-            <span className={`text-xs font-bold ml-auto ${totalCruzado >= 0 ? "text-purple-400" : "text-red-400"}`}>
-              {totalCruzado >= 0 ? "+" : ""}{compactBRL(totalCruzado)}
-            </span>
-          </div>
+      {/* ══ 1. Hero — a história do seu dólar ══ */}
+      <div className="glass-card p-6 mb-5 animate-fade-in" style={{ borderColor: "rgba(59,130,246,0.12)" }}>
+        <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-3">A história do seu dólar</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-4">
+          <span className="text-xl sm:text-2xl font-extrabold text-amber-400 font-mono">R$ {cambio.pmDolar.toFixed(2).replace(".", ",")}</span>
+          <span className="text-zinc-600 text-sm">custo médio real</span>
+          <ArrowRight size={18} className="text-zinc-600" />
+          <span className="text-xl sm:text-2xl font-extrabold text-zinc-100 font-mono">R$ {spot.toFixed(2).replace(".", ",")}</span>
+          <span className="text-zinc-600 text-sm">hoje</span>
+          <span className={`text-xl sm:text-2xl font-extrabold font-mono ${cambio.deltaPmUsd >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pct1(cambio.deltaPmUsd)}</span>
         </div>
-        <div className="text-right border-l border-white/5 pl-3">
-          <div className="text-[9px] text-zinc-600 uppercase">Total</div>
-          <div className={`text-sm font-bold ${totalGeral >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {totalGeral >= 0 ? "+" : ""}{compactBRL(totalGeral)}
-          </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <button onClick={() => setPopup({ t: "ledger" })} className="rounded-xl p-3 text-left transition-colors hover:bg-white/[0.05]" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--line)" }}>
+            <span className="stat-label block mb-1">Enviado em remessas</span>
+            <span className="text-sm font-bold text-zinc-200">{compactBRL(cambio.totalEnviadoBRL)}</span>
+            <span className="block text-[10px] text-zinc-600 mt-0.5">{cambio.operacoes} operações · ver cadeia ›</span>
+          </button>
+          <button onClick={() => setPopup({ t: "ledger" })} className="rounded-xl p-3 text-left transition-colors hover:bg-white/[0.05]" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--line)" }}>
+            <span className="stat-label block mb-1">Ganho cambial total</span>
+            <span className={`text-sm font-bold ${cambio.ganhoTotal_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{sign(cambio.ganhoTotal_BRL)}{compactBRL(cambio.ganhoTotal_BRL)}</span>
+            <span className="block text-[10px] text-zinc-600 mt-0.5">{pct1(cambio.ganhoTotalPct)} sobre o enviado ›</span>
+          </button>
+          <button onClick={() => setPopup({ t: "ledger" })} className="rounded-xl p-3 text-left transition-colors hover:bg-white/[0.05]" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--line)" }}>
+            <span className="stat-label block mb-1">Saldo USD</span>
+            <span className="text-sm font-bold text-zinc-200">US$ {cambio.usdNet.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+            <span className="block text-[10px] text-zinc-600 mt-0.5">comprado − convertido ›</span>
+          </button>
+          <button onClick={() => setPopup({ t: "taxas" })} className="rounded-xl p-3 text-left transition-colors hover:bg-white/[0.05]" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.2)" }}>
+            <span className="stat-label block mb-1 flex items-center gap-1"><Scale size={11} /> PTAX{ptax ? ` (${formatDate(ptax.data).slice(0, 5)})` : ""}</span>
+            <span className="text-sm font-bold text-purple-300">{ptax ? `R$ ${ptax.USDBRL.toFixed(4).replace(".", ",")}` : "—"}</span>
+            <span className="block text-[10px] text-zinc-600 mt-0.5">PM × Spot × PTAX ›</span>
+          </button>
         </div>
       </div>
 
-      {/* Stacked bar chart */}
-      <ResponsiveContainer width="100%" height={Math.max(200, sorted.length * 28 + 40)}>
-        <BarChart data={chartData} layout="vertical" barCategoryGap="20%">
-          <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
-          <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-            tickFormatter={v => compactBRL(v)} />
-          <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-            formatter={(v: number, name: string) => [
-              compactBRL(v),
-              name === "ativo" ? "Ativo puro" : name === "fx" ? "FX principal" : "Cruzado",
-            ]} />
-          <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
-          <Bar dataKey="ativo" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} maxBarSize={18} />
-          <Bar dataKey="fx" stackId="a" fill="#E8A33D" radius={[0, 0, 0, 0]} maxBarSize={18} />
-          <Bar dataKey="cruzado" stackId="a" fill="#a855f7" radius={[0, 4, 4, 0]} maxBarSize={18} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+      {/* ══ 2. Cards por moeda ══ */}
+      <div className="mb-5">
+        <h2 className="section-title mb-1"><Layers size={15} />Suas moedas</h2>
+        <p className="text-[10.5px] text-zinc-600 mb-3">Toque numa moeda para o dossiê: remessas, PM e as posições da carteira expostas a ela.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {cardsMoeda.map(c => {
+            const color = FX_COLORS[c.moeda] ?? "#64748b";
+            const fillPct = Math.min(Math.max((c.delta / 20 + 0.5) * 100, 2), 98);
+            return (
+              <button key={c.moeda} onClick={() => setPopup({ t: "moeda", m: c.moeda })}
+                className={`glass-card p-4 text-left transition-transform hover:-translate-y-0.5 ${c.destaque ? "lg:col-span-2" : ""}`}
+                style={{ borderColor: `${color}25` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{FLAGS[c.moeda] ?? "🌐"}</span>
+                    <div>
+                      <span className="text-sm font-bold" style={{ color }}>{c.moeda}</span>
+                      <span className="block text-[9.5px] text-zinc-600">{c.destaque ? "conta intermediária" : "via USD"}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`block text-sm font-bold font-mono ${c.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{sign(c.ganhoBRL)}{compactBRL(c.ganhoBRL)}</span>
+                    <span className={`text-[10px] ${c.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pct1(c.ganhoPct)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10.5px] text-zinc-500 mb-1">
+                  <span>PM {c.pm.toFixed(4)} → {c.cot.toFixed(4)} ({c.unidade})</span>
+                  <span className={`font-semibold ${c.delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pct1(c.delta)}</span>
+                </div>
+                <div className="h-1 rounded-full relative overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <div className="absolute top-0 left-0 h-full rounded-full opacity-80" style={{ width: `${fillPct}%`, backgroundColor: c.delta >= 0 ? "#34d399" : "#f87171" }} />
+                  <div className="absolute top-0 left-1/2 h-full w-px" style={{ background: "rgba(255,255,255,0.2)" }} />
+                </div>
+                <div className="mt-2 text-[10px] text-zinc-600">
+                  Posição: <span className="font-mono text-zinc-400">{(CCY_SYMBOL[c.moeda] || c.moeda)} {c.posNativa.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+                  {analysis.byMoeda[c.moeda]?.positions.length ? ` · ${analysis.byMoeda[c.moeda].positions.length} ativos ›` : " ›"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ══ 3. Exposição & risco ══ */}
+      <div className="glass-card p-5 mb-5">
+        <h2 className="section-title mb-1"><BarChart3 size={15} />Exposição & risco</h2>
+        <p className="text-[11px] text-zinc-500 mb-4">
+          <b className="text-zinc-300">{compactBRL(analysis.totalExpostoAtualBRL)}</b> — {pctExpostoFx.toFixed(1).replace(".", ",")}% do seu patrimônio ({compactBRL(patrimonioBRL)}) — está exposto a variação cambial{analysis.caixaFxBRL > 0 ? `, incluindo ${compactBRL(analysis.caixaFxBRL)} em caixa` : ""}.
+        </p>
+
+        {/* Barra de exposição por moeda */}
+        {(() => {
+          const entries = Object.entries(analysis.byMoeda).sort((a, b) => b[1].valorAtualBRL - a[1].valorAtualBRL);
+          const totalFx = entries.reduce((s, [, v]) => s + v.valorAtualBRL, 0);
+          const brlLivre = Math.max(patrimonioBRL - totalFx, 0);
+          return (
+            <div className="mb-5">
+              <div className="flex h-3 w-full overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.04)" }}>
+                {entries.map(([m, v]) => (
+                  <button key={m} onClick={() => setPopup({ t: "moeda", m })} title={`${m}: ${compactBRL(v.valorAtualBRL)}`}
+                    style={{ width: `${patrimonioBRL > 0 ? (v.valorAtualBRL / patrimonioBRL) * 100 : 0}%`, background: FX_COLORS[m] ?? "#64748b" }} />
+                ))}
+                <div style={{ width: `${patrimonioBRL > 0 ? (brlLivre / patrimonioBRL) * 100 : 0}%`, background: "rgba(255,255,255,0.09)" }} />
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px] text-zinc-500">
+                {entries.map(([m, v]) => (
+                  <span key={m} className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: FX_COLORS[m] ?? "#64748b" }} />
+                    {m} {patrimonioBRL > 0 ? ((v.valorAtualBRL / patrimonioBRL) * 100).toFixed(1).replace(".", ",") : 0}%
+                  </span>
+                ))}
+                <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.25)" }} />BRL {patrimonioBRL > 0 ? ((brlLivre / patrimonioBRL) * 100).toFixed(1).replace(".", ",") : 0}%</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Três fatores */}
+        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">De onde veio o resultado no exterior</p>
+        <p className="text-[10.5px] text-zinc-600 mb-3">O lucro em reais se separa em três: o que o <b className="text-blue-400">ativo</b> rendeu (no câmbio de custo), o que o <b className="text-amber-400">câmbio</b> fez sobre o capital, e o <b className="text-purple-400">cruzado</b> (câmbio sobre o lucro do ativo).</p>
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          {[
+            { label: "Ativo", v: analysis.ganhoAtivoPuro, cor: "#3b82f6" },
+            { label: "Câmbio", v: analysis.ganhoFXPrincipal, cor: "#E8A33D" },
+            { label: "Cruzado", v: analysis.ganhoCruzado, cor: "#a855f7" },
+          ].map(f => (
+            <div key={f.label} className="rounded-xl p-3" style={{ background: `color-mix(in srgb, ${f.cor} 5%, transparent)`, border: `1px solid color-mix(in srgb, ${f.cor} 18%, transparent)` }}>
+              <span className="flex items-center gap-1.5 text-[10px] text-zinc-500 mb-0.5"><span className="h-2 w-2 rounded-full" style={{ background: f.cor }} />{f.label}</span>
+              <span className="font-mono text-base font-extrabold" style={{ color: f.v >= 0 ? f.cor : "#f87171" }}>{sign(f.v)}{compactBRL(f.v)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full flex mb-1.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div style={{ width: `${pctPuro}%`, background: "#3b82f6" }} />
+          <div style={{ width: `${pctFx}%`, background: "#E8A33D" }} />
+          <div style={{ width: `${pctCz}%`, background: "#a855f7" }} />
+        </div>
+        <p className="text-[10.5px] text-zinc-500 mb-5">
+          Somando: <b className={analysis.lucroTotal >= 0 ? "text-emerald-400" : "text-red-400"}>{sign(analysis.lucroTotal)}{compactBRL(analysis.lucroTotal)}</b> de resultado nas posições no exterior (custo {compactBRL(analysis.totalCustoBRL)}).
+        </p>
+
+        {/* Estresse único */}
+        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 flex items-center gap-1.5"><Zap size={11} />E se o dólar mexer?</p>
+        {cenarioFrase && (
+          <p className="text-[11px] text-zinc-500 mb-3">
+            Dólar a <b className="text-zinc-200">R$ {cenarioFrase.newSpot.toFixed(2).replace(".", ",")}</b> ({cenarioFrase.label}): seu patrimônio {cenarioFrase.impacto >= 0 ? "sobe" : "cai"} <b className={cenarioFrase.impacto >= 0 ? "text-emerald-400" : "text-red-400"}>{compactBRL(Math.abs(cenarioFrase.impacto))} ({Math.abs(cenarioFrase.impactoPatrimonioPct).toFixed(1).replace(".", ",")}% do total)</b>.
+          </p>
+        )}
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={stressScenarios} barCategoryGap="18%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
+              formatter={(v: number) => [compactBRL(v), "Impacto no patrimônio"]} labelFormatter={l => `Cenário ${l}`} />
+            <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
+            <Bar dataKey="impacto" radius={[4, 4, 0, 0]} maxBarSize={30}>
+              {stressScenarios.map((entry, i) => (
+                <Cell key={i} fill={entry.pctS === 0 ? "#6366f1" : entry.impacto >= 0 ? "#34d399" : "#f87171"} fillOpacity={entry.pctS === 0 ? 0.4 : 0.75} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-[10px] text-zinc-500 shrink-0">Cenário custom:</span>
+          <input type="range" min={-50} max={50} step={5} value={stressCustom} onChange={e => setStressCustom(Number(e.target.value))}
+            className="h-1 flex-1 cursor-pointer appearance-none rounded-full"
+            style={{ background: "linear-gradient(to right, #f87171, #3f3f46 50%, #34d399)" }} />
+          <span className={`w-12 shrink-0 text-right text-xs font-bold ${stressCustom >= 0 ? "text-emerald-400" : "text-red-400"}`}>{sign(stressCustom)}{stressCustom}%</span>
+        </div>
+      </div>
+
+      {/* ══ 4. Linha do tempo das remessas ══ */}
+      <div className="glass-card p-5 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h2 className="section-title"><ArrowLeftRight size={15} />Linha do tempo das remessas</h2>
+          <div className="flex items-center gap-1.5">
+            {moedasGrafico.map(m => (
+              <button key={m} onClick={() => setMoedaGrafico(m)}
+                className="rounded-full px-2.5 py-1 font-mono text-[10px] font-semibold transition-colors"
+                style={{
+                  border: `1px solid ${moedaGrafico === m ? (FX_COLORS[m] ?? "#64748b") : "var(--line)"}`,
+                  color: moedaGrafico === m ? "var(--text)" : "var(--muted)",
+                  background: moedaGrafico === m ? `color-mix(in srgb, ${FX_COLORS[m] ?? "#64748b"} 14%, transparent)` : "transparent",
+                }}>
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-[10.5px] text-zinc-600 mb-3">Cada ponto é uma remessa ({unidade}); a linha dourada é o seu PM. Toque num ponto para os detalhes da operação.</p>
+        {serieAtiva.length > 1 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={serieAtiva} onClick={(st) => {
+              const idx = (st as { activeTooltipIndex?: number })?.activeTooltipIndex;
+              if (idx != null && serieAtiva[idx]) setPopup({ t: "remessa", row: serieAtiva[idx].row });
+            }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
+              <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatDate(v).substring(0, 5)} />
+              <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                domain={[
+                  (dataMin: number) => Math.min(dataMin, pmDaMoeda > 0 ? pmDaMoeda : dataMin, spotDaMoeda > 0 ? spotDaMoeda : dataMin) * 0.995,
+                  (dataMax: number) => Math.max(dataMax, pmDaMoeda, spotDaMoeda) * 1.005,
+                ]} tickFormatter={(v: number) => v.toFixed(2)} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
+                formatter={(v: number) => [`${v.toFixed(4)} (${unidade})`, "VET"]} labelFormatter={l => `${formatDate(l)} — toque p/ detalhes`} />
+              {pmDaMoeda > 0 && <ReferenceLine y={pmDaMoeda} stroke="#E8A33D" strokeDasharray="5 5" label={{ value: `PM ${pmDaMoeda.toFixed(2)}`, fill: "#E8A33D", fontSize: 10, position: "right" }} />}
+              {spotDaMoeda > 0 && <ReferenceLine y={spotDaMoeda} stroke="#34d399" strokeDasharray="2 4" label={{ value: `hoje ${spotDaMoeda.toFixed(2)}`, fill: "#34d399", fontSize: 10, position: "insideTopRight" }} />}
+              <Line type="monotone" dataKey="taxa" stroke={FX_COLORS[moedaGrafico] ?? "#64748b"} strokeWidth={2}
+                dot={{ r: 4, fill: FX_COLORS[moedaGrafico] ?? "#64748b", strokeWidth: 0, cursor: "pointer" }}
+                activeDot={{ r: 6, fill: FX_COLORS[moedaGrafico] ?? "#64748b", cursor: "pointer" }} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="py-8 text-center text-[12px] text-zinc-600">Poucas remessas em {moedaGrafico} para desenhar a linha.</p>
+        )}
+        <div className="mt-3 border-t pt-3 text-right" style={{ borderColor: "var(--line)" }}>
+          <button onClick={() => setPopup({ t: "operacoes" })} className="font-mono text-[11px] font-semibold uppercase tracking-wide text-zinc-400 transition-colors hover:text-zinc-200">
+            Ver todas as operações ({(rawData ?? []).length}) ›
+          </button>
+        </div>
+      </div>
+
+      {renderPopup()}
+    </>
   );
 }
-
