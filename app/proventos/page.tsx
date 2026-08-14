@@ -18,6 +18,7 @@ import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import DividendCalendarModal from "@/components/DividendCalendarModal";
+import ProjecaoRenda from "@/components/proventos/ProjecaoRenda";
 
 const TOOLTIP_STYLE = {
   background: "#09090b",
@@ -618,6 +619,13 @@ export default function ProventosPage() {
         )}
       </div>
 
+      {/* ── Renda projetada (12 meses à frente) ── */}
+      <ProjecaoRenda
+        positions={(portfolio?.positions ?? []).map(p => ({ ticker: p.ticker, setor: p.setor, quantidade: p.quantidade, valorAtualBRL: p.valorAtualBRL }))}
+        historico={rawData}
+        fx={fx as unknown as Record<string, number>}
+      />
+
       {/* ── Evolução Mensal ── */}
       <div className="glass-card overflow-hidden mb-5 animate-fade-in" style={{ borderColor: "rgba(52,211,153,0.08)" }}>
         <div className="px-5 pt-5 pb-3 flex items-center justify-between">
@@ -712,8 +720,9 @@ export default function ProventosPage() {
               <thead>
                 <tr>
                   <th className="text-[10px] text-zinc-600 font-medium text-left py-1 pr-2 w-12" />
-                  {MONTH_LABELS_SHORT.map(m => (
-                    <th key={m} className="text-[10px] text-zinc-600 font-medium text-center py-1 px-0.5">{m}</th>
+                  {MONTH_LABELS_SHORT.map((m, i) => (
+                    // key por índice: as iniciais repetem (M de mar/mai, J de jan/jun/jul)
+                    <th key={i} className="text-[10px] text-zinc-600 font-medium text-center py-1 px-0.5">{m}</th>
                   ))}
                   <th className="text-[10px] text-zinc-600 font-medium text-right py-1 pl-2">Total</th>
                 </tr>
