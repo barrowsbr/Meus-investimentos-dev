@@ -54,7 +54,7 @@ const WINDOWS = [
 type Tab = "overview" | "drawdown" | "monthly" | "previsoes" | "rentabilidade";
 const TAB_LABELS: Record<Tab, string> = {
   overview: "Retorno",
-  drawdown: "Drawdown",
+  drawdown: "Risco",
   monthly: "Mensal",
   previsoes: "Previsões",
   rentabilidade: "Rentab.",
@@ -840,6 +840,7 @@ export default function PerformancePage() {
           drawdownData={drawdownData}
           volData={volData}
           volStats={volStats}
+          serie={activeChart}
         />
       )}
 
