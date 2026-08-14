@@ -787,6 +787,13 @@ export async function GET(request: Request) {
       contrib_pct: c.contrib * 100,
       nav_medio: c.navMedio,
     }));
+    // Papel a papel (seção "quem te fez ganhar do índice" — só visão BRL).
+    const attributionTickers = twr.contribuicoesTicker.map(c => ({
+      ticker: c.ticker,
+      setor: c.setor,
+      contrib_pct: c.contrib * 100,
+      nav_medio: c.navMedio,
+    }));
 
     // Flow ledger
     const flowLedger = buildFlowLedger(twr.points);
@@ -1293,6 +1300,7 @@ export async function GET(request: Request) {
       monthlyMTM,
       flowLedger,
       attribution,
+      attributionTickers,
       fxDecomposition: fxDecomp,
       diagnostics: twr.diagnostics,
       errors: (() => {

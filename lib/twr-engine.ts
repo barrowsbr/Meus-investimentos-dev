@@ -624,6 +624,9 @@ export interface TwrResult {
   // (Σ contrib = twrTotal, identidade telescópica). Substitui a antiga
   // "atribuição" por peso de custo, que não continha performance nenhuma.
   contribuicoes: Array<{ setor: string; contrib: number; navMedio: number }>;
+  // Mesma contribuição exata, papel a papel (Σ = twrTotal; RF entra como
+  // pseudo-ticker "Renda Fixa"; resíduos de NAV healing em "Ajustes").
+  contribuicoesTicker: Array<{ ticker: string; setor: string; contrib: number; navMedio: number }>;
   diagnostics: {
     forceZeroDays: number;
     incomeTotal: number;
@@ -763,6 +766,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ganhoDecomposicao: { navFinal: 0, navInicial: 0, flowsFromFirst: 0, firstMeaningfulFlow: 0, incomeFromFirst: 0, forceZeroDays: 0 },
     mwr: null,
     contribuicoes: [],
+    contribuicoesTicker: [],
     diagnostics: { forceZeroDays: 0, incomeTotal: 0, tickersAtCost: [], fxFallbackDays: 0, stalePrices: [] },
   };
 
@@ -881,10 +885,12 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const RF_SECTOR = "Renda Fixa";
 
   const points: TwrDayPoint[] = [];
-  // Ganhos econômicos do dia por setor (gain = Δvalor − flow + income) e NAV
-  // por setor — insumos da contribuição exata calculada no pós-processamento.
-  const sectorGainsByDay: Array<Map<string, number>> = [];
-  const sectorNavByDay: Array<Map<string, number>> = [];
+  // Ganhos econômicos do dia por TICKER (gain = Δvalor − flow + income) e NAV
+  // por ticker — insumos da contribuição exata calculada no pós-processamento
+  // (por papel; a contribuição por setor é a agregação disso). A RF entra como
+  // pseudo-ticker RF_SECTOR (não há custódia por título no motor de RF).
+  const tickerGainsByDay: Array<Map<string, number>> = [];
+  const tickerNavByDay: Array<Map<string, number>> = [];
   let prevVals = new Map<string, number>();
   let prevNavRF = 0;
   let prevNav = 0;
@@ -1033,22 +1039,15 @@ export function calcularTWR(input: TwrInput): TwrResult {
     for (const t of gainTickers) {
       const g = (curVals.get(t) ?? 0) - (prevVals.get(t) ?? 0)
         - (dayFlowByTicker.get(t) ?? 0) + (dayIncByTicker.get(t) ?? 0);
-      if (g !== 0) {
-        const s = setorOf(t);
-        dayGains.set(s, (dayGains.get(s) ?? 0) + g);
-      }
+      if (g !== 0) dayGains.set(t, (dayGains.get(t) ?? 0) + g);
     }
     const rfGain = navRF - prevNavRF - rfFlow;
     if (rfGain !== 0) dayGains.set(RF_SECTOR, (dayGains.get(RF_SECTOR) ?? 0) + rfGain);
-    sectorGainsByDay.push(dayGains);
+    tickerGainsByDay.push(dayGains);
 
-    const dayNavs = new Map<string, number>();
-    for (const [t, v] of curVals) {
-      const s = setorOf(t);
-      dayNavs.set(s, (dayNavs.get(s) ?? 0) + v);
-    }
+    const dayNavs = new Map<string, number>(curVals);
     if (navRF > 0) dayNavs.set(RF_SECTOR, (dayNavs.get(RF_SECTOR) ?? 0) + navRF);
-    sectorNavByDay.push(dayNavs);
+    tickerNavByDay.push(dayNavs);
 
     // ── Captura da composição nesta data (read-only) ──
     if (captureSet?.has(date)) {
@@ -1105,10 +1104,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
   const twrTotal = cleanCum - 1;
 
-  // ── Contribuição exata por setor ────────────────────────────────────────────
+  // ── Contribuição exata por papel (e por setor, agregando) ──────────────────
   // Identidade telescópica: Π(1+ret_i) − 1 = Σ_i ret_i × Π_{k<i}(1+ret_k).
-  // Com ret_i = Σ_s gain_{s,i}/base_i, a contribuição de cada setor é
-  // Σ_i (gain_{s,i}/base_i) × linkFactor_i e a soma de TODOS os setores é
+  // Com ret_i = Σ_t gain_{t,i}/base_i, a contribuição de cada papel é
+  // Σ_i (gain_{t,i}/base_i) × linkFactor_i e a soma de TODOS os papéis é
   // exatamente twrTotal. Dias com NAV healing geram resíduo → bucket "Ajustes".
   const contribAcc = new Map<string, number>();
   {
@@ -1119,10 +1118,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
         const base = points[i - 1].nav + p.flow;
         if (base > 0) {
           let sum = 0;
-          for (const [s, g] of sectorGainsByDay[i]) {
+          for (const [t, g] of tickerGainsByDay[i]) {
             const c = g / base;
             sum += c;
-            contribAcc.set(s, (contribAcc.get(s) ?? 0) + c * linkFactor);
+            contribAcc.set(t, (contribAcc.get(t) ?? 0) + c * linkFactor);
           }
           const resid = p.ret - sum;
           if (Math.abs(resid) > 1e-12) {
@@ -1133,19 +1132,32 @@ export function calcularTWR(input: TwrInput): TwrResult {
       if (!p.forceZero) linkFactor *= 1 + p.ret;
     }
   }
-  const sectorNavSum = new Map<string, number>();
+  const tickerNavSum = new Map<string, number>();
   const navDaysCount = points.length - firstIdx;
   for (let i = firstIdx; i < points.length; i++) {
-    for (const [s, v] of sectorNavByDay[i]) {
-      sectorNavSum.set(s, (sectorNavSum.get(s) ?? 0) + v);
+    for (const [t, v] of tickerNavByDay[i]) {
+      tickerNavSum.set(t, (tickerNavSum.get(t) ?? 0) + v);
     }
   }
-  const contribuicoes = [...contribAcc.entries()]
-    .map(([setor, contrib]) => ({
-      setor,
+  const setorDoBucket = (chave: string): string =>
+    chave === RF_SECTOR || chave === "Ajustes" ? chave : setorOf(chave);
+  const contribuicoesTicker = [...contribAcc.entries()]
+    .map(([ticker, contrib]) => ({
+      ticker,
+      setor: setorDoBucket(ticker),
       contrib,
-      navMedio: navDaysCount > 0 ? (sectorNavSum.get(setor) ?? 0) / navDaysCount : 0,
+      navMedio: navDaysCount > 0 ? (tickerNavSum.get(ticker) ?? 0) / navDaysCount : 0,
     }))
+    .sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib));
+  const porSetor = new Map<string, { contrib: number; navMedio: number }>();
+  for (const c of contribuicoesTicker) {
+    const s = porSetor.get(c.setor) ?? { contrib: 0, navMedio: 0 };
+    s.contrib += c.contrib;
+    s.navMedio += c.navMedio;
+    porSetor.set(c.setor, s);
+  }
+  const contribuicoes = [...porSetor.entries()]
+    .map(([setor, v]) => ({ setor, contrib: v.contrib, navMedio: v.navMedio }))
     .sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib));
 
   // Annualize using calendar days / 365 (matching Streamlit calculator.py line 401)
@@ -1253,6 +1265,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     },
     mwr,
     contribuicoes,
+    contribuicoesTicker,
     diagnostics: {
       forceZeroDays,
       incomeTotal: Math.round(incomeTotal),

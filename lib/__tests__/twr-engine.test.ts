@@ -321,6 +321,37 @@ describe("contribuições por setor", () => {
     const br = twr.contribuicoes.find(c => c.setor === "Ações Brasil");
     expect(br!.contrib).toBeCloseTo(twr.twrTotal, 8);
   });
+
+  it("contribuicoesTicker: soma = twrTotal e agregação por setor bate", () => {
+    const dates = businessDays("2025-06-02", "2025-07-31");
+    const n = dates.length;
+    const transacoes = [
+      compra("PETR4", 100, 10, "2025-06-02"),
+      compra("VALE3", 50, 20, "2025-06-02"),
+      compra("VOO", 10, 100, "2025-06-02", "USD"),
+    ];
+    const proventos = [provento("PETR4", 35, "2025-07-01")];
+    const prices: PriceMatrix = {
+      PETR4: dates.map((_, i) => 10 * (1 + 0.08 * i / (n - 1))),
+      VALE3: dates.map((_, i) => 20 * (1 - 0.05 * i / (n - 1))),
+      VOO: dates.map((_, i) => 100 * (1 + 0.02 * i / (n - 1))),
+    };
+    const twr = calcularTWR({ transacoes, proventos, dates, prices, fxHistory: fxHist(dates) });
+
+    // Identidade: a soma papel a papel fecha exatamente no TWR total.
+    const soma = twr.contribuicoesTicker.reduce((s, c) => s + c.contrib, 0);
+    expect(soma).toBeCloseTo(twr.twrTotal, 8);
+
+    // Sinais individuais: PETR4 (sobe + dividendo) > 0, VALE3 (cai) < 0.
+    const porTicker = new Map(twr.contribuicoesTicker.map(c => [c.ticker, c.contrib]));
+    expect(porTicker.get("PETR4")!).toBeGreaterThan(0);
+    expect(porTicker.get("VALE3")!).toBeLessThan(0);
+
+    // Agregar os papéis por setor reproduz contribuicoes (mesma conta).
+    const agg = new Map<string, number>();
+    for (const c of twr.contribuicoesTicker) agg.set(c.setor, (agg.get(c.setor) ?? 0) + c.contrib);
+    for (const c of twr.contribuicoes) expect(agg.get(c.setor)!).toBeCloseTo(c.contrib, 10);
+  });
 });
 
 // ── navFx: parcela estrangeira do NAV (decomposição cambial ponderada) ───────
