@@ -13,6 +13,7 @@ import DrawdownTab from "@/components/performance/DrawdownTab";
 import PrevisoesTab from "@/components/performance/PrevisoesTab";
 import MonthlyTab from "@/components/performance/MonthlyTab";
 import RentabilidadeTab from "@/components/performance/RentabilidadeTab";
+import GanhoDoIndice from "@/components/performance/GanhoDoIndice";
 import { PRED_API, PRED_METHODS, type PredResult } from "@/components/performance/PredicaoCharts";
 import {
   formatDate, formatDateShort, formatDuracao,
@@ -826,6 +827,11 @@ export default function PerformancePage() {
           {/* Currency decomposition (BRL only) — popup */}
           {perfPopup === "moeda" && !isUsd && decomp && decomp.buckets.length > 1 && (
             <MoedaPopup decomp={decomp} onClose={() => setPerfPopup(null)} />
+          )}
+
+          {/* Quem te fez ganhar do índice — atribuição ativa por papel (BRL) */}
+          {!isUsd && (data?.attributionTickers?.length ?? 0) > 0 && (
+            <GanhoDoIndice itens={data!.attributionTickers!} s={s} />
           )}
         </div>
       )}
