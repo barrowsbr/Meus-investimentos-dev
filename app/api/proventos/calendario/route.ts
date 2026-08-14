@@ -26,7 +26,11 @@ interface EventoDividendo {
   dividendYield: number | null;  // % (ex.: 3.2 = 3,2%)
 }
 
-interface CalendarioPayload { eventos: EventoDividendo[]; geradoEm: string; tickers: number }
+// Taxa anual de dividendo POR TICKER (mesmo sem evento futuro no calendário) —
+// alimenta a projeção de renda 12 meses da página Proventos.
+interface TaxaDividendo { rate: number; yield: number | null; moeda: string; ySym: string }
+
+interface CalendarioPayload { eventos: EventoDividendo[]; taxas: Record<string, TaxaDividendo>; geradoEm: string; tickers: number }
 
 let cache: { at: number; payload: CalendarioPayload } | null = null;
 const CACHE_MS = 6 * 60 * 60 * 1000;
@@ -91,6 +95,7 @@ export async function GET(): Promise<NextResponse> {
     const piso = new Date(hoje.getTime() - 2 * 86400000).toISOString().slice(0, 10);
 
     const eventos: EventoDividendo[] = [];
+    const taxas: Record<string, TaxaDividendo> = {};
     const BATCH = 6;
     for (let i = 0; i < yahooSymbols.length; i += BATCH) {
       const batch = yahooSymbols.slice(i, i + BATCH);
@@ -106,6 +111,7 @@ export async function GET(): Promise<NextResponse> {
           // (às vezes um intervalo estimado) — pegamos a 1ª data futura.
           const earnDates: unknown[] = Array.isArray(s?.calendarEvents?.earnings?.earningsDate) ? s.calendarEvents.earnings.earningsDate : [];
           const anuncioDate = earnDates.map(toISODate).filter((d): d is string => !!d && d >= piso).sort()[0] ?? null;
+          if (rate != null && rate > 0) taxas[ticker] = { rate, yield: yld, moeda, ySym };
           if (exDate && exDate >= piso) eventos.push({ ticker, ySym, tipo: "ex", date: exDate, moeda, dividendRate: rate, dividendYield: yld });
           if (payDate && payDate >= piso && payDate !== exDate) eventos.push({ ticker, ySym, tipo: "pagamento", date: payDate, moeda, dividendRate: rate, dividendYield: yld });
           if (anuncioDate) eventos.push({ ticker, ySym, tipo: "anuncio", date: anuncioDate, moeda, dividendRate: rate, dividendYield: yld });
@@ -116,7 +122,7 @@ export async function GET(): Promise<NextResponse> {
     }
 
     eventos.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.ticker.localeCompare(b.ticker)));
-    const payload: CalendarioPayload = { eventos, geradoEm: new Date().toISOString(), tickers: yahooSymbols.length };
+    const payload: CalendarioPayload = { eventos, taxas, geradoEm: new Date().toISOString(), tickers: yahooSymbols.length };
     cache = { at: Date.now(), payload };
     return NextResponse.json(payload, { headers: { "Cache-Control": "s-maxage=3600" } });
   } catch (e) {
