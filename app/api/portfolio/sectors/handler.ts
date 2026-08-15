@@ -257,11 +257,17 @@ export async function GET(request: Request) {
           }
         }
 
-        // Add ETF-derived positions from canonical combined output
+        // Add ETF-derived positions from canonical combined output.
+        // O bucket OUTROS.* (rabo do ETF além dos top holdings) NÃO pode ser
+        // descartado: ele é dinheiro real — descartá-lo encolhia o patrimônio
+        // do card (ex.: R$ 20k sumindo e alocação somando 111%, bug 15/08).
+        // Vira a posição "Outros (ETF)", setor econômico "Diversificado".
         for (const entry of lt.combined) {
-          if (entry.ticker.startsWith("OUTROS.")) continue;
-          const cleanTicker = entry.ticker.replace(/\.SA$/, "").replace(/\.(L|DE|TO|AS)$/, "");
-          const se = getSetorEconomico(cleanTicker, "Ações Internacional");
+          const isOutros = entry.ticker.startsWith("OUTROS.");
+          const cleanTicker = isOutros
+            ? `Outros (${entry.ticker.slice("OUTROS.".length).replace(/\.SA$/, "")})`
+            : entry.ticker.replace(/\.SA$/, "").replace(/\.(L|DE|TO|AS)$/, "");
+          const se = isOutros ? "Diversificado" : getSetorEconomico(cleanTicker, "Ações Internacional");
 
           const existing = positions.find(p => p.ticker === cleanTicker && p.tipo === "RV");
           if (existing) {
