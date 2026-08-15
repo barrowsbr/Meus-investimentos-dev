@@ -532,6 +532,7 @@ export default function ResumoPage() {
           {/* Sunburst + Sidebar */}
           {sunburstData && sunburstData.level1.length > 0 && (
             <MapaCarteiraCard
+              positions={data?.positions ?? []}
               sunburstData={sunburstData}
               nestedMiddle={nestedMiddle}
               nestedOuter={nestedOuter}
