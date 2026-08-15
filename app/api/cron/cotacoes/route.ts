@@ -26,6 +26,15 @@ export async function GET(request: Request) {
 
   try {
     const report = await runCotacoesSync("update");
+
+    // PTAX → aba p_tax (best-effort): antes só salvava quando o dono abria a
+    // página Impostos e a aba ficava para trás em silêncio. Pendurar no cron
+    // diário garante a auditoria fiscal em dia; falha aqui não derruba o cron.
+    const { salvarPtaxNaPlanilha } = await import("@/lib/ptax-store");
+    const ptax = await salvarPtaxNaPlanilha().catch((e) => ({
+      ok: false as const, newRows: 0, error: e instanceof Error ? e.message : "Erro",
+    }));
+
     return NextResponse.json({
       ok: true,
       ranAt: new Date().toISOString(),
@@ -35,6 +44,7 @@ export async function GET(request: Request) {
       written: report.written,
       anomalyCount: report.anomalyCount,
       tickerErrors: report.tickerErrors,
+      ptax,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

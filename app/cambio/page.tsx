@@ -370,6 +370,15 @@ export default function CambioPage() {
                     <Bar dataKey="cruzado" stackId="a" fill="#a855f7" maxBarSize={14} radius={[0, 3, 3, 0]} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
+                {(() => {
+                  const fxTotal = info.positions.reduce((s2, p) => s2 + (p.ganhoFXPrincipalBRL ?? 0) + (p.ganhoCruzadoBRL ?? 0), 0);
+                  const ativoTotal = info.positions.reduce((s2, p) => s2 + (p.ganhoAtivoPuroBRL ?? 0), 0);
+                  return (
+                    <p className="mt-1 text-[10.5px] text-zinc-500">
+                      Somatório nesta moeda: efeito câmbio total (câmbio + cruzado) <b className={fxTotal >= 0 ? "text-amber-300" : "text-red-400"}>{sign(fxTotal)}{compactBRL(fxTotal)}</b> · efeito ativo <b className={ativoTotal >= 0 ? "text-blue-400" : "text-red-400"}>{sign(ativoTotal)}{compactBRL(ativoTotal)}</b>
+                    </p>
+                  );
+                })()}
               </div>
             </>
           )}
@@ -626,14 +635,35 @@ export default function CambioPage() {
             </div>
           ))}
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full flex mb-1.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+        <div className="h-2 w-full overflow-hidden rounded-full flex mb-3" style={{ background: "rgba(255,255,255,0.04)" }}>
           <div style={{ width: `${pctPuro}%`, background: "#3b82f6" }} />
           <div style={{ width: `${pctFx}%`, background: "#E8A33D" }} />
           <div style={{ width: `${pctCz}%`, background: "#a855f7" }} />
         </div>
-        <p className="text-[10.5px] text-zinc-500 mb-5">
-          Somando: <b className={analysis.lucroTotal >= 0 ? "text-emerald-400" : "text-red-400"}>{sign(analysis.lucroTotal)}{compactBRL(analysis.lucroTotal)}</b> de resultado nas posições no exterior (custo {compactBRL(analysis.totalCustoBRL)}).
-        </p>
+
+        {/* Somatório: efeito CÂMBIO TOTAL (câmbio + cruzado) × efeito ativo */}
+        {(() => {
+          const cambioTotal = analysis.ganhoFXPrincipal + analysis.ganhoCruzado;
+          return (
+            <div className="mb-5 flex flex-col sm:flex-row items-stretch gap-3">
+              <div className="flex-1 rounded-xl p-3" style={{ background: "linear-gradient(135deg, rgba(232,163,61,0.08), rgba(168,85,247,0.08))", border: "1px solid rgba(232,163,61,0.25)" }}>
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-0.5">Efeito câmbio TOTAL (câmbio + cruzado)</span>
+                <span className={`font-mono text-lg font-extrabold ${cambioTotal >= 0 ? "text-amber-300" : "text-red-400"}`}>{sign(cambioTotal)}{compactBRL(cambioTotal)}</span>
+                <span className="block text-[10px] text-zinc-600 mt-0.5">tudo o que a variação do dólar/moedas colocou (ou tirou) do resultado</span>
+              </div>
+              <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.18)" }}>
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-0.5">Efeito ativo</span>
+                <span className={`font-mono text-lg font-extrabold ${analysis.ganhoAtivoPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>{sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}</span>
+                <span className="block text-[10px] text-zinc-600 mt-0.5">o que os papéis renderam, sem o câmbio</span>
+              </div>
+              <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.18)" }}>
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-0.5">= Resultado no exterior</span>
+                <span className={`font-mono text-lg font-extrabold ${analysis.lucroTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>{sign(analysis.lucroTotal)}{compactBRL(analysis.lucroTotal)}</span>
+                <span className="block text-[10px] text-zinc-600 mt-0.5">sobre custo de {compactBRL(analysis.totalCustoBRL)}</span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Estresse único */}
         <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 flex items-center gap-1.5"><Zap size={11} />E se o dólar mexer?</p>
