@@ -393,6 +393,11 @@ vence a categorização automática (`lib/financas/categorias.ts`). Assinaturas
   costuma esconder os **Error** — é lá que aparece a falha de cron.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
 - **"Investido"** = custo FIFO das posições atuais (não soma bruta de todas as compras).
+- **UI enxuta (regra do dono, 15/08/2026)**: NÃO escrever parágrafos didáticos explicando
+  cada métrica — o dono entende os indicadores. Mostrar números, tags curtas
+  ("mais agressiva que o índice") e metas de qualidade de dado ("141 pregões em comum");
+  frase só quando a semântica é contraintuitiva (ex.: ESG = nota de RISCO, menor é
+  melhor) ou o número sozinho é ambíguo.
 
 ## Fila de tarefas via página Anotações (anotacoes.md)
 

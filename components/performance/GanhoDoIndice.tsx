@@ -76,8 +76,7 @@ export default function GanhoDoIndice({ itens, s }: { itens: AttributionTickerEn
         </div>
       </div>
       <p className="text-xs text-zinc-600 mb-4">
-        Você fez {pct(s.twrTotal * 100)} e o {bench.rotulo} fez {pct(calc.benchPct)} no período — diferença de <b style={{ color: ganhou ? "#34d399" : "#f87171" }}>{pp(calc.soma)}</b>.
-        Cada barra é quanto um papel contribuiu para essa diferença: o que ele rendeu de verdade menos o que o mesmo dinheiro teria feito parado no índice. Papel pesado rendendo igual ao índice fica perto de zero.
+        Você {pct(s.twrTotal * 100)} × {bench.rotulo} {pct(calc.benchPct)} → <b style={{ color: ganhou ? "#34d399" : "#f87171" }}>{pp(calc.soma)}</b>
       </p>
 
       <div className="flex flex-col gap-1">
@@ -101,9 +100,6 @@ export default function GanhoDoIndice({ itens, s }: { itens: AttributionTickerEn
         })}
       </div>
 
-      <p className="text-[10px] text-zinc-600 mt-3">
-        A soma das barras fecha exatamente na diferença ({pp(calc.soma)}). Aproximação com peso médio do período — mesma família de conta da atribuição do PortfolioAnalyst, mas por papel em vez de por setor.
-      </p>
     </div>
   );
 }
