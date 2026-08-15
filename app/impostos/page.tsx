@@ -970,9 +970,11 @@ export default function ImpostosPage() {
       setLoading(true); setError(null);
       try {
         const ptaxRes = await fetch("/api/ptax/update", { method: "POST" }).catch(() => null);
-        if (!cancelled && ptaxRes?.ok) {
+        if (!cancelled && ptaxRes) {
           const ptaxJson = await ptaxRes.json().catch(() => null);
-          if (ptaxJson?.newRows > 0) setPtaxStatus(`PTAX atualizado (+${ptaxJson.newRows} dias até ${ptaxJson.latestDate})`);
+          if (ptaxRes.ok && ptaxJson?.newRows > 0) setPtaxStatus(`PTAX atualizado (+${ptaxJson.newRows} dias até ${ptaxJson.latestDate})`);
+          // Falha NÃO pode ser silenciosa — a aba p_tax é a auditoria fiscal.
+          else if (!ptaxRes.ok) setPtaxStatus(`⚠️ PTAX não salvou: ${ptaxJson?.error ?? `HTTP ${ptaxRes.status}`}`);
         }
       } catch { /* non-blocking */ }
       try {
