@@ -14,12 +14,14 @@
 // O cartão vive em cartao_transacoes via /api/financas/cartao.
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Wallet, CreditCard, CalendarDays, AlertCircle } from "lucide-react";
+import { Wallet, CreditCard, CalendarDays, AlertCircle, Scale } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import GastosTab from "@/components/financas/GastosTab";
 import CustosTab from "@/components/financas/CustosTab";
 import MesesTab from "@/components/financas/MesesTab";
+import AcertoTab from "@/components/financas/AcertoTab";
+import { useCartao } from "@/components/financas/useCartao";
 import { SaveIndicator, type SaveStatus } from "@/components/financas/ui";
 import {
   parseMensalRows, parseAssinaturas, parseParcelamentos, parseMeses,
@@ -33,8 +35,9 @@ export default function FinancasPage() {
   const [meses, setMeses] = useState<MesRegistro[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"gastos" | "custos" | "meses">("gastos");
+  const [activeTab, setActiveTab] = useState<"acerto" | "gastos" | "custos" | "meses">("acerto");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const { cartao } = useCartao(); // aba Acerto (cache de módulo — Gastos reusa)
 
   const initialLoaded = useRef(false);
   // O próprio load seta os 3 estados, o que dispararia o autosave e regravaria
@@ -97,6 +100,7 @@ export default function FinancasPage() {
   if (loading) return <LoadingSpinner />;
 
   const tabs = [
+    { id: "acerto", label: "Acerto", icon: <Scale size={14} /> },
     { id: "gastos", label: "Gastos", icon: <CreditCard size={14} /> },
     { id: "custos", label: "Custos", icon: <Wallet size={14} /> },
     { id: "meses", label: "Meses", icon: <CalendarDays size={14} /> },
@@ -133,6 +137,18 @@ export default function FinancasPage() {
       </div>
 
       <div className="animate-fade-in">
+        {activeTab === "acerto" && (
+          <AcertoTab
+            mensalRows={mensalRows}
+            meses={meses}
+            cartao={cartao}
+            tetoCartao={(() => {
+              const ym = new Date().toISOString().slice(0, 7);
+              return meses.find(m => m.mes === ym)?.tetoCartao ?? 0;
+            })()}
+          />
+        )}
+
         {activeTab === "gastos" && (
           <GastosTab
             assinaturas={assinaturas}
