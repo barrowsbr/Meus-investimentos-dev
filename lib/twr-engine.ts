@@ -627,6 +627,9 @@ export interface TwrResult {
   // Mesma contribuição exata, papel a papel (Σ = twrTotal; RF entra como
   // pseudo-ticker "Renda Fixa"; resíduos de NAV healing em "Ajustes").
   contribuicoesTicker: Array<{ ticker: string; setor: string; contrib: number; navMedio: number }>;
+  // Alocação no FIM de cada mês (último pregão): setor → NAV BRL. Alimenta o
+  // gráfico "como sua alocação mudou" (área empilhada 100%) na Performance.
+  alocacaoMensal: Array<{ mes: string; porSetor: Record<string, number> }>;
   diagnostics: {
     forceZeroDays: number;
     incomeTotal: number;
@@ -767,6 +770,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     mwr: null,
     contribuicoes: [],
     contribuicoesTicker: [],
+    alocacaoMensal: [],
     diagnostics: { forceZeroDays: 0, incomeTotal: 0, tickersAtCost: [], fxFallbackDays: 0, stalePrices: [] },
   };
 
@@ -1160,6 +1164,21 @@ export function calcularTWR(input: TwrInput): TwrResult {
     .map(([setor, v]) => ({ setor, contrib: v.contrib, navMedio: v.navMedio }))
     .sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib));
 
+  // ── Alocação no fim de cada mês (último pregão com NAV > 0) ────────────────
+  const alocacaoMensal: Array<{ mes: string; porSetor: Record<string, number> }> = [];
+  for (let i = firstIdx; i < points.length; i++) {
+    const mes = dates[i].slice(0, 7);
+    const proxMes = i + 1 < points.length ? dates[i + 1].slice(0, 7) : null;
+    if (mes === proxMes) continue; // só o último pregão de cada mês
+    const porSetorMes: Record<string, number> = {};
+    for (const [t, v] of tickerNavByDay[i]) {
+      if (v <= 0) continue;
+      const st = t === RF_SECTOR ? RF_SECTOR : setorOf(t);
+      porSetorMes[st] = (porSetorMes[st] ?? 0) + v;
+    }
+    if (Object.keys(porSetorMes).length > 0) alocacaoMensal.push({ mes, porSetor: porSetorMes });
+  }
+
   // Annualize using calendar days / 365 (matching Streamlit calculator.py line 401)
   const startD = new Date(firstMeaningful.date + "T12:00:00Z");
   const endD = new Date(last.date + "T12:00:00Z");
@@ -1266,6 +1285,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     mwr,
     contribuicoes,
     contribuicoesTicker,
+    alocacaoMensal,
     diagnostics: {
       forceZeroDays,
       incomeTotal: Math.round(incomeTotal),

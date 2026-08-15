@@ -352,6 +352,24 @@ describe("contribuições por setor", () => {
     for (const c of twr.contribuicoesTicker) agg.set(c.setor, (agg.get(c.setor) ?? 0) + c.contrib);
     for (const c of twr.contribuicoes) expect(agg.get(c.setor)!).toBeCloseTo(c.contrib, 10);
   });
+
+  it("alocacaoMensal: 1 entrada por mês, no último pregão, somando o NAV RV", () => {
+    const dates = businessDays("2025-06-02", "2025-07-31");
+    const transacoes = [
+      compra("PETR4", 100, 10, "2025-06-02"),
+      compra("VOO", 10, 100, "2025-06-02", "USD"),
+    ];
+    const prices = flatPrices(dates, { PETR4: 10, VOO: 100 });
+    const twr = calcularTWR({ transacoes, proventos: [], dates, prices, fxHistory: fxHist(dates) });
+
+    expect(twr.alocacaoMensal.map(a => a.mes)).toEqual(["2025-06", "2025-07"]);
+    for (const a of twr.alocacaoMensal) {
+      const soma = Object.values(a.porSetor).reduce((s2, v) => s2 + v, 0);
+      // PETR4 1000 BRL + VOO 1000 USD × 5 (fxHist) = 6000 BRL
+      expect(soma).toBeCloseTo(6000, 6);
+      expect(Object.keys(a.porSetor).length).toBeGreaterThanOrEqual(2);
+    }
+  });
 });
 
 // ── navFx: parcela estrangeira do NAV (decomposição cambial ponderada) ───────
