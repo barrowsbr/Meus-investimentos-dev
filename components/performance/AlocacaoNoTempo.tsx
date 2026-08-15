@@ -66,12 +66,11 @@ export default function AlocacaoNoTempo({ serie, isLight }: { serie: AlocacaoMes
   return (
     <div className="glass-card p-5 mb-4">
       <h2 className="section-title mb-1"><Layers size={15} />Como sua alocação mudou</h2>
-      <p className="text-xs text-zinc-600 mb-4">
-        A fatia de cada setor no seu patrimônio ao fim de cada mês, no período filtrado.
-        {calc.maiorMudanca && Math.abs(calc.maiorMudanca.para - calc.maiorMudanca.de) >= 3 && (
-          <> Maior migração: <b style={{ color: "var(--text)" }}>{calc.maiorMudanca.setor}</b> foi de {pt(calc.maiorMudanca.de)}% para {pt(calc.maiorMudanca.para)}%.</>
-        )}
-      </p>
+      {calc.maiorMudanca && Math.abs(calc.maiorMudanca.para - calc.maiorMudanca.de) >= 3 ? (
+        <p className="text-xs text-zinc-600 mb-4">
+          Maior migração: <b style={{ color: "var(--text)" }}>{calc.maiorMudanca.setor}</b> {pt(calc.maiorMudanca.de)}% → {pt(calc.maiorMudanca.para)}%
+        </p>
+      ) : <div className="mb-3" />}
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={calc.rows} stackOffset="expand">
           <CartesianGrid strokeDasharray="3 3" stroke={isLight ? "rgba(0,0,0,0.06)" : "#1E2028"} vertical={false} />

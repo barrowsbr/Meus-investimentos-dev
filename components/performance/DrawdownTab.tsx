@@ -54,12 +54,7 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
     [serie, s.peakDate, s.troughDate],
   );
 
-  // Frases em português — o número sem a frase não entra no app (regra do dono).
-  const fraseBeta = vm
-    ? vm.beta >= 0
-      ? `Quando o ${bench!.rotulo} cai 1%, sua carteira tende a cair ${Math.abs(vm.beta).toFixed(2).replace(".", ",")}%`
-      : `Quando o ${bench!.rotulo} cai 1%, sua carteira tende a SUBIR ${Math.abs(vm.beta).toFixed(2).replace(".", ",")}%`
-    : null;
+  // UI enxuta (regra do dono 15/08): números + tags curtas, sem frases didáticas.
   const tagBeta = vm ? (vm.beta > 1.05 ? "mais agressiva que o índice" : vm.beta < 0.95 ? "mais defensiva que o índice" : "anda colada no índice") : "";
   const corBeta = vm ? (vm.beta > 1.05 ? "text-amber-400" : vm.beta < 0.95 ? "text-emerald-400" : "text-zinc-300") : "text-zinc-500";
   const corAlfa = vm ? (vm.alfaAA >= 0 ? "text-emerald-400" : "text-red-400") : "text-zinc-500";
@@ -87,9 +82,6 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
             </div>
           )}
         </div>
-        <p className="text-xs text-zinc-600 mb-4">
-          Como a carteira se move em relação ao índice — mesma metodologia do relatório da IBKR (CAPM sobre retornos diários; alfa anualizado; taxa livre de risco = CDI).
-        </p>
         {vm && bench ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -97,14 +89,10 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
                 <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Beta vs {bench.rotulo}</p>
                 <p className={`text-2xl font-bold font-mono ${corBeta}`}>{vm.beta.toFixed(2).replace(".", ",")}</p>
                 <p className={`text-[11px] font-semibold mt-0.5 ${corBeta}`}>{tagBeta}</p>
-                <p className="text-xs text-zinc-600 mt-1.5 leading-snug">{fraseBeta}</p>
               </div>
               <div className="glass-card p-4">
                 <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Alfa (anualizado)</p>
                 <p className={`text-2xl font-bold font-mono ${corAlfa}`}>{vm.alfaAA >= 0 ? "+" : ""}{(vm.alfaAA * 100).toFixed(1).replace(".", ",")}% a.a.</p>
-                <p className="text-xs text-zinc-600 mt-1.5 leading-snug">
-                  {vm.alfaAA >= 0 ? "Retorno ALÉM do que a exposição ao mercado explica — o que suas escolhas adicionaram." : "Retorno ABAIXO do que a exposição ao mercado explica."}
-                </p>
               </div>
               <div className="glass-card p-4">
                 <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Correlação</p>
@@ -112,12 +100,10 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
                 <div className="mt-2 h-1 w-full rounded-full" style={{ background: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)" }}>
                   <div className="h-1 rounded-full" style={{ width: `${Math.max(0, corrPct ?? 0)}%`, background: "#60a5fa" }} />
                 </div>
-                <p className="text-xs text-zinc-600 mt-1.5 leading-snug">
-                  {(corrPct ?? 0) >= 0 ? `${corrPct}% dos seus movimentos acompanham o ${bench.rotulo}.` : `Seus movimentos vão na direção OPOSTA ao ${bench.rotulo}.`}
-                </p>
+
               </div>
             </div>
-            <p className="text-[10px] text-zinc-600 mt-3">Calculado sobre {vm.pregoes} pregões em comum com o índice, no período filtrado.</p>
+            <p className="text-[10px] text-zinc-600 mt-3">{vm.pregoes} pregões em comum</p>
           </>
         ) : (
           <p className="text-xs text-zinc-500 py-4">
@@ -131,7 +117,6 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
           <h2 className="section-title"><AlertTriangle size={15} />Drawdown — Recuo do Pico</h2>
           <span className="text-xs text-red-400 font-semibold">Máx: {s.maxDrawdown.toFixed(2)}%</span>
         </div>
-        <p className="text-xs text-zinc-600 mb-4">Mostra quanto o portfólio caiu em relação ao seu valor máximo histórico a cada ponto no tempo.</p>
         <ResponsiveContainer width="100%" height={280}>
           <AreaChart data={drawdownData}>
             <defs>
@@ -180,9 +165,6 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
               {Math.round((hist.positivos / hist.total) * 100)}% dos pregões positivos ({hist.positivos} de {hist.total})
             </span>
           </div>
-          <p className="text-xs text-zinc-600 mb-4">
-            Quantos pregões a carteira fechou em cada faixa de retorno diário, no período filtrado. Barras concentradas no centro = carteira comportada; caudas gordas = dias extremos frequentes.
-          </p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={hist.faixas} barCategoryGap="18%">
               <CartesianGrid strokeDasharray="3 3" stroke={isLight ? "rgba(0,0,0,0.06)" : "#1E2028"} vertical={false} />
@@ -209,7 +191,6 @@ export default function DrawdownTab({ s, isLight, drawdownData, volData, volStat
             <h2 className="section-title"><Activity size={15} />Volatilidade — Janela de 30 pregões (anualizada)</h2>
             <span className="text-xs text-amber-400 font-semibold">Agora: {volStats.atual.toFixed(1)}% a.a.</span>
           </div>
-          <p className="text-xs text-zinc-600 mb-4">Desvio-padrão dos retornos diários do portfólio nos últimos 30 pregões, anualizado (√252). Mede o quão nervosa a carteira anda — sobe em crises, cai em mares calmos.</p>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={volData}>
               <defs>
