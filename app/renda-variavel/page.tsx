@@ -11,6 +11,7 @@ import { brl, compactBRL, pct } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
+import EsgTemas from "@/components/rv/EsgTemas";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import NotesModal from "@/components/NotesModal";
@@ -512,6 +513,9 @@ export default function RendaVariavelPage() {
           onClose={closeAssetModal}
         />
       )}
+
+      {/* ESG + Temas da carteira (vitrine do PortfolioAnalyst — best-effort) */}
+      <EsgTemas />
 
       {notesTicker && (
         <NotesModal
