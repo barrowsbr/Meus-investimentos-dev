@@ -71,6 +71,23 @@ export default function CambioPage() {
       .catch(() => setPtaxRem({}));
   }, []);
 
+  // Rotina (pedido do dono 15/08): entrar na página Câmbio atualiza a PTAX na
+  // planilha. Guarda de 1 dia por aparelho (a PTAX é uma por dia); o endpoint
+  // já é idempotente (append só do que falta) e o cron diário segue cobrindo.
+  // Só marca o dia quando o POST deu certo — falha re-tenta na próxima visita.
+  useEffect(() => {
+    try {
+      const hoje = new Date().toISOString().slice(0, 10);
+      if (localStorage.getItem("cambio_ptax_dia") === hoje) return;
+      // Marca ANTES do fetch (evita disparo duplo por remount/StrictMode);
+      // falhou → desmarca, para re-tentar na próxima visita.
+      localStorage.setItem("cambio_ptax_dia", hoje);
+      fetch("/api/ptax/update", { method: "POST" })
+        .then((r) => { if (!r.ok) localStorage.removeItem("cambio_ptax_dia"); })
+        .catch(() => localStorage.removeItem("cambio_ptax_dia"));
+    } catch { /* sem storage */ }
+  }, []);
+
   // Esc fecha o popup.
   useEffect(() => {
     if (!popup) return;
