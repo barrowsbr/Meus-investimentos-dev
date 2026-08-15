@@ -14,6 +14,7 @@ import PrevisoesTab from "@/components/performance/PrevisoesTab";
 import MonthlyTab from "@/components/performance/MonthlyTab";
 import RentabilidadeTab from "@/components/performance/RentabilidadeTab";
 import GanhoDoIndice from "@/components/performance/GanhoDoIndice";
+import AlocacaoNoTempo from "@/components/performance/AlocacaoNoTempo";
 import { PRED_API, PRED_METHODS, type PredResult } from "@/components/performance/PredicaoCharts";
 import {
   formatDate, formatDateShort, formatDuracao,
@@ -832,6 +833,11 @@ export default function PerformancePage() {
           {/* Quem te fez ganhar do índice — atribuição ativa por papel (BRL) */}
           {!isUsd && (data?.attributionTickers?.length ?? 0) > 0 && (
             <GanhoDoIndice itens={data!.attributionTickers!} s={s} />
+          )}
+
+          {/* Como a alocação mudou ao longo do tempo (BRL) */}
+          {!isUsd && (data?.allocationSeries?.length ?? 0) >= 3 && (
+            <AlocacaoNoTempo serie={data!.allocationSeries!} isLight={isLight} />
           )}
         </div>
       )}

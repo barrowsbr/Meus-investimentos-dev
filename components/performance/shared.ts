@@ -56,6 +56,7 @@ export interface MonthlyMTM { month: string; gain: number; gainPct: number; navE
 export interface FlowEntry { date: string; flow: number; nav: number; nav_before: number; daily_return: number; cumulative_twr: number }
 export interface AttributionEntry { setor: string; macro: string; contrib_pct: number; nav_medio: number }
 export interface AttributionTickerEntry { ticker: string; setor: string; contrib_pct: number; nav_medio: number }
+export interface AlocacaoMes { mes: string; porSetor: Record<string, number> }
 
 export interface UsdView {
   summary: Summary;
@@ -79,6 +80,7 @@ export interface PerformanceResponse {
   flowLedger: FlowEntry[];
   attribution: AttributionEntry[];
   attributionTickers?: AttributionTickerEntry[];
+  allocationSeries?: AlocacaoMes[];
   fxDecomposition: { r_total: number; r_ativo: number; r_fx: number; r_combinado: number };
   usdView: UsdView | null;
   errors: string[];

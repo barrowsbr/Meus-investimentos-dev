@@ -787,6 +787,8 @@ export async function GET(request: Request) {
       contrib_pct: c.contrib * 100,
       nav_medio: c.navMedio,
     }));
+    // Alocação por setor no fim de cada mês (seção "como sua alocação mudou").
+    const allocationSeries = twr.alocacaoMensal;
     // Papel a papel (seção "quem te fez ganhar do índice" — só visão BRL).
     const attributionTickers = twr.contribuicoesTicker.map(c => ({
       ticker: c.ticker,
@@ -1301,6 +1303,7 @@ export async function GET(request: Request) {
       flowLedger,
       attribution,
       attributionTickers,
+      allocationSeries,
       fxDecomposition: fxDecomp,
       diagnostics: twr.diagnostics,
       errors: (() => {
