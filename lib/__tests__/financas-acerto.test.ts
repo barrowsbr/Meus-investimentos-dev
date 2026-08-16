@@ -27,8 +27,8 @@ describe("calcularAcerto — entradas − fixas − faturas", () => {
     { categoria: "cartao", nome: "AMEX", valor: 800 },
   ];
   const trans = [
-    t("2026-07-05", 2000), t("2026-07-20", 1800), // ciclo de julho → pago em agosto
-    t("2026-08-02", 999),                          // ciclo de agosto → setembro (fora)
+    t("2026-07-05", -2000), t("2026-07-20", -1800), // ciclo de julho → pago em agosto (negativo = gasto)
+    t("2026-08-02", -999),                         // ciclo de agosto → setembro (fora)
   ];
 
   it("usa o OFX como golden source do Nubank e soma os outros cartões manuais", () => {
@@ -46,18 +46,18 @@ describe("calcularAcerto — entradas − fixas − faturas", () => {
     expect(a.faturaNubank).toBe(4100);
   });
 
-  it("estorno (valor negativo) não infla a fatura", () => {
-    const comEstorno = [...trans, t("2026-07-22", -500)];
-    expect(faturaPagaEm(comEstorno, "2026-08", 28)).toBe(3800);
+  it("crédito/estorno/pagamento (valor POSITIVO) não conta como gasto", () => {
+    const comCredito = [...trans, t("2026-07-22", 500), t("2026-07-25", 3800)];
+    expect(faturaPagaEm(comCredito, "2026-08", 28)).toBe(3800);
   });
 });
 
 describe("construirProximaFatura — o ciclo em andamento", () => {
   const trans = [
-    t("2026-08-01", 300),                                    // variável
-    t("2026-08-05", 200, { assinatura: true }),              // assinatura já cobrada
-    t("2026-08-10", 400, { parcela: { n: 3, total: 10 } }),  // parcela lançada
-    t("2026-07-15", 9999),                                   // ciclo passado — fora
+    t("2026-08-01", -300),                                    // variável
+    t("2026-08-05", -200, { assinatura: true }),              // assinatura já cobrada
+    t("2026-08-10", -400, { parcela: { n: 3, total: 10 } }),  // parcela lançada
+    t("2026-07-15", -9999),                                   // ciclo passado — fora
   ];
 
   it("separa variável | parcelado | assinaturas e projeta pelo ritmo", () => {
@@ -88,7 +88,7 @@ describe("construirProximaFatura — o ciclo em andamento", () => {
 
   it("sem parcela lançada no ciclo, as séries vivas entram como 'vem aí'", () => {
     const p = construirProximaFatura({
-      trans: [t("2026-08-01", 100)], hoje: "2026-08-14", diaFechamento: 28,
+      trans: [t("2026-08-01", -100)], hoje: "2026-08-14", diaFechamento: 28,
       assinaturasMensais: 0,
       parcelasRestantes: [{ valorParcela: 250, restantes: 4 }, { valorParcela: 90, restantes: 0 }],
     });
