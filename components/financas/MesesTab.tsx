@@ -17,6 +17,7 @@ import {
 } from "@/lib/financas/tipos";
 import { mesclarAssinaturas, mesclarParcelamentos } from "@/lib/financas/mesclar";
 import { useCartao } from "@/components/financas/useCartao";
+import { calcularAcerto, type TransacaoAcerto } from "@/lib/financas/acerto";
 
 const MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const rotuloMes = (ym: string) => { const [y, m] = ym.split("-").map(Number); return `${MESES_PT[m - 1]} ${y}`; };
@@ -64,6 +65,13 @@ export default function MesesTab({
     return { entradas, fixas, compromissos: ass + parc };
   }, [mensalRows, assinaturas, parcelamentos, cartao]);
 
+  // A MESMA conta da aba Acerto (fatura PAGA no mês = consumo do ciclo
+  // anterior via OFX + outros cartões manuais) — uma régua só na página toda.
+  const acertoDoMes = useMemo(() => {
+    const trans: TransacaoAcerto[] = (cartao?.transacoes ?? []).map(t => ({ data: t.data, valor: t.valor, parcela: t.parcela }));
+    return calcularAcerto({ mensal: mensalRows, trans, ymAtual: ym, diaFechamento: cartao?.fechamentoDia ?? 28 });
+  }, [cartao, mensalRows, ym]);
+
   const reg = meses.find(m => m.mes === ym) ?? mesVazio(ym);
   const proxYm = ymAdd(ym, 1);
   const regProx = meses.find(m => m.mes === proxYm) ?? mesVazio(proxYm);
@@ -77,11 +85,11 @@ export default function MesesTab({
     });
   };
 
-  const cartaoReal = reg.fechado ? reg.cartao : (cartaoPorMes.tot.get(ym) ?? 0);
+  const cartaoReal = reg.fechado ? reg.cartao : (acertoDoMes.faturaNubank + acertoDoMes.faturasOutras);
   const ent = reg.fechado ? reg.entradas : atuais.entradas;
   const fix = reg.fechado ? reg.fixas : atuais.fixas;
   const comp = reg.fechado ? reg.compromissos : atuais.compromissos;
-  const sobra = ent - fix - comp - cartaoReal;
+  const sobra = ent - fix - cartaoReal; // compromissos estão DENTRO da fatura
   const emAndamento = ym === hoje && !reg.fechado;
   const topCats = [...(cartaoPorMes.porCat.get(ym) ?? new Map<string, number>()).entries()]
     .filter(([c]) => c !== "Pagamento").sort((a, b) => b[1] - a[1]).slice(0, 4);
@@ -92,7 +100,8 @@ export default function MesesTab({
       entradas: atuais.entradas,
       fixas: atuais.fixas,
       compromissos: atuais.compromissos,
-      cartao: cartaoPorMes.tot.get(ym) ?? 0,
+      // Fatura paga no mês (mesma régua do Acerto) — não o gasto-competência.
+      cartao: acertoDoMes.faturaNubank + acertoDoMes.faturasOutras,
     });
   };
 
@@ -127,8 +136,8 @@ export default function MesesTab({
           {[
             { label: "Entradas", val: ent, color: "text-emerald-400" },
             { label: "Fixas", val: fix, color: "text-red-400" },
-            { label: "Compromissos", val: comp, color: "text-amber-400" },
-            { label: "Cartão", val: cartaoReal, color: "text-sky-400" },
+            { label: "Compromissos (na fatura)", val: comp, color: "text-amber-400" },
+            { label: "Faturas do mês", val: cartaoReal, color: "text-sky-400" },
           ].map(i => (
             <div key={i.label} className="text-center">
               <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{i.label}</div>
@@ -183,7 +192,7 @@ export default function MesesTab({
         />
         <div className="flex items-center justify-between mt-3">
           <p className="text-[10.5px] text-zinc-600 max-w-[60%]">
-            Fechar congela entradas/fixas/compromissos de hoje e o gasto real do cartão como o retrato definitivo do mês.
+            Fechar congela entradas/fixas de hoje e as FATURAS pagas no mês (a mesma conta da aba Acerto) como o retrato definitivo.
           </p>
           {reg.fechado ? (
             <button onClick={() => patch(ym, { fechado: false })}
@@ -243,7 +252,7 @@ export default function MesesTab({
       {historico.length > 0 && (
         <Section icon={<CalendarDays size={15} />} title="Meses fechados" defaultOpen>
           {historico.map(m => {
-            const s = m.entradas - m.fixas - m.compromissos - m.cartao;
+            const s = m.entradas - m.fixas - m.cartao; // mesma régua do Acerto
             const estourou = m.tetoCartao > 0 && m.cartao > m.tetoCartao;
             return (
               <button key={m.mes} onClick={() => setYm(m.mes)}

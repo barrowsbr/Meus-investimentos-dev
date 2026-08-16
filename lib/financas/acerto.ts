@@ -8,10 +8,16 @@
 
 export interface TransacaoAcerto {
   data: string;   // YYYY-MM-DD
-  valor: number;  // >0 = gasto (padrão da aba cartao_transacoes)
+  // Convenção da aba cartao_transacoes (lib/financas/ofx.ts): NEGATIVO = gasto,
+  // positivo = crédito/estorno/pagamento de fatura. Créditos ficam FORA das
+  // somas (mesma régua do MesesTab) — pagamento de fatura zeraria tudo.
+  valor: number;
   parcela: { n: number; total: number } | null;
   assinatura?: boolean; // marcada pela detecção (nomesCasam com a lista)
 }
+
+/** Gasto da transação (0 para créditos/estornos/pagamentos). */
+const gastoDe = (t: TransacaoAcerto): number => (t.valor < 0 ? -t.valor : 0);
 
 // ── Ciclo da fatura ──────────────────────────────────────────────────────────
 // Compra até o dia de fechamento (inclusive) entra na fatura que fecha naquele
@@ -33,7 +39,7 @@ export function mesPagamento(dataISO: string, diaFechamento: number): string {
 
 /** Total do cartão pago no mês `ym` (= consumo do ciclo anterior). */
 export function faturaPagaEm(trans: TransacaoAcerto[], ym: string, diaFechamento: number): number {
-  return trans.reduce((s, t) => s + (t.valor > 0 && mesPagamento(t.data, diaFechamento) === ym ? t.valor : 0), 0);
+  return trans.reduce((s, t) => s + (mesPagamento(t.data, diaFechamento) === ym ? gastoDe(t) : 0), 0);
 }
 
 // ── Bloco 1: o acerto do mês vigente ─────────────────────────────────────────
@@ -108,11 +114,12 @@ export function construirProximaFatura(args: {
 
   let variavel = 0, parcelado = 0, assinaturas = 0;
   for (const t of trans) {
-    if (t.valor <= 0) continue;
+    const g = gastoDe(t);
+    if (g <= 0) continue;
     if (t.data <= inicioCiclo || t.data > hoje) continue;
-    if (t.parcela) parcelado += t.valor;
-    else if (t.assinatura) assinaturas += t.valor;
-    else variavel += t.valor;
+    if (t.parcela) parcelado += g;
+    else if (t.assinatura) assinaturas += g;
+    else variavel += g;
   }
 
   const diasPassados = Math.max(diasEntre(inicioCiclo, hoje), 1);
