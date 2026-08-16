@@ -91,7 +91,7 @@ export default function AcertoTab({ mensalRows, meses, cartao, tetoCartao }: {
         </div>
         {fatGasto + fatParc + fatAss > 0 && (
           <p className="mb-3 font-mono text-[11px] text-zinc-500">
-            dentro da fatura Nubank: <b className="text-blue-400">meu gasto {compactBRL(fatGasto)}</b> · parcelas {compactBRL(fatParc)} · assinaturas {compactBRL(fatAss)}
+            <b className="text-blue-400">meu gasto {compactBRL(fatGasto)}</b> · parcelas {compactBRL(fatParc)} · assinaturas {compactBRL(fatAss)}
           </p>
         )}
         <div className="flex items-baseline gap-3">
@@ -117,9 +117,8 @@ export default function AcertoTab({ mensalRows, meses, cartao, tetoCartao }: {
         </div>
         <p className="mb-3 font-mono text-[12px]">
           <b className="text-blue-400">MEU GASTO: {brl(prox.variavel)}</b>
-          <span className="text-zinc-500"> · no ritmo, fecha em </span>
+          <span className="text-zinc-500"> · ritmo: </span>
           <b className="text-blue-300">{compactBRL(prox.projecaoVariavel)}</b>
-          <span className="text-zinc-600"> (parcelas e assinaturas fora — já contratadas)</span>
         </p>
         {(() => {
           const partes = [
