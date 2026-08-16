@@ -65,7 +65,9 @@ export default function AcertoTab({ mensalRows, meses, cartao, tetoCartao }: {
       {/* ── 1. O acerto do mês ── */}
       <div className="glass-card p-5" style={{ borderColor: positiva ? "rgba(52,211,153,0.15)" : "rgba(248,113,113,0.15)" }}>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h2 className="section-title"><Scale size={15} />O acerto de {rotYm(ymAtual)}</h2>
+          <h2 className="section-title"><Scale size={15} />O acerto de {rotYm(ymAtual)}
+            <span className="ml-2 rounded-full px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-wide" style={{ background: "rgba(52,211,153,0.12)", color: "#34d399" }}>definido desde o dia 1º</span>
+          </h2>
           <span className="font-mono text-[10px] text-zinc-600">fatura fecha dia {diaFechamento}{fechamentoAprendido ? "" : " (estimado)"}</span>
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[13px] mb-3">
