@@ -123,7 +123,7 @@ export default function MesesTab({
         <div className="text-center">
           <div className="text-base font-bold" style={{ color: "var(--text)" }}>{rotuloMes(ym)}</div>
           <div className="text-[10px] font-mono uppercase tracking-widest mt-0.5" style={{ color: reg.fechado ? "var(--pos)" : "var(--muted)" }}>
-            {reg.fechado ? "✓ mês fechado" : emAndamento ? "em andamento" : ym < hoje ? "não fechado" : "futuro"}
+            {reg.fechado ? "✓ mês fechado" : emAndamento ? "já definido — pode fechar" : ym < hoje ? "não fechado" : "em construção"}
           </div>
         </div>
         <button onClick={() => setYm(m => ymAdd(m, 1))} aria-label="Próximo mês"
@@ -146,7 +146,7 @@ export default function MesesTab({
           ))}
         </div>
         <div className="border-t border-white/[0.05] mt-3 pt-3 text-center">
-          <div className="text-[10px] text-zinc-600 uppercase tracking-widest">Sobra do mês {reg.fechado ? "" : "(estimada)"}</div>
+          <div className="text-[10px] text-zinc-600 uppercase tracking-widest">Sobra do mês</div>
           <div className={`text-3xl font-black tracking-tight mt-1 ${sobra >= 0 ? "text-emerald-400" : "text-red-400"}`}>{brl(sobra)}</div>
           {tetoDoMes > 0 && (
             <div className="flex items-center justify-center gap-2 mt-2 text-xs">
