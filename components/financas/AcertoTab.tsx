@@ -14,7 +14,7 @@ import { brl, compactBRL } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { nomesCasam } from "@/lib/financas/mesclar";
 import {
-  calcularAcerto, construirProximaFatura, caudaComprometida, serieSobras,
+  calcularAcerto, construirProximaFatura, caudaComprometida, serieSobras, mesPagamento,
   type TransacaoAcerto,
 } from "@/lib/financas/acerto";
 import type { RowMensal, MesRegistro } from "@/lib/financas/tipos";
@@ -48,15 +48,24 @@ export default function AcertoTab({ mensalRows, meses, cartao, tetoCartao }: {
     const assinaturasMensais = assinaturasDet.reduce((s, a) => s + a.valorMensal, 0);
 
     const acerto = calcularAcerto({ mensal: mensalRows, trans, ymAtual, diaFechamento });
+    // A fatura paga neste mês, aberta: MEU GASTO (livre) × parcelas × assinaturas.
+    let fatGasto = 0, fatParc = 0, fatAss = 0;
+    for (const t of trans) {
+      const g = t.valor < 0 ? -t.valor : 0;
+      if (g <= 0 || mesPagamento(t.data, diaFechamento) !== ymAtual) continue;
+      if (t.parcela) fatParc += g;
+      else if (t.assinatura) fatAss += g;
+      else fatGasto += g;
+    }
     const prox = construirProximaFatura({ trans, hoje: hojeISO, diaFechamento, assinaturasMensais, parcelasRestantes });
     const cauda = caudaComprometida({ parcelasRestantes, assinaturasMensais, ymAtual });
     const sobras = serieSobras(meses.map(m => ({ mes: m.mes, entradas: m.entradas, fixas: m.fixas, cartao: m.cartao, fechado: m.fechado })));
     // Sobra prevista do mês de pagamento da fatura em construção (entradas/fixas atuais como proxy).
     const sobraPrevista = acerto.entradas - acerto.fixas - prox.totalPrevisto - acerto.faturasOutras;
-    return { acerto, prox, cauda, sobras, sobraPrevista };
+    return { acerto, prox, cauda, sobras, sobraPrevista, fatGasto, fatParc, fatAss };
   }, [mensalRows, meses, cartao, ymAtual, hojeISO, diaFechamento]);
 
-  const { acerto, prox, cauda, sobras, sobraPrevista } = calc;
+  const { acerto, prox, cauda, sobras, sobraPrevista, fatGasto, fatParc, fatAss } = calc;
   const positiva = acerto.sobra >= 0;
   const divergencia = acerto.faturaNubankManual > 0 && Math.abs(acerto.faturaNubank - acerto.faturaNubankManual) > 1;
 
@@ -80,6 +89,11 @@ export default function AcertoTab({ mensalRows, meses, cartao, tetoCartao }: {
           <span className="text-zinc-300 font-bold">{compactBRL(acerto.faturasOutras)}</span>
           <span className="text-zinc-600">outros cartões =</span>
         </div>
+        {fatGasto + fatParc + fatAss > 0 && (
+          <p className="mb-3 font-mono text-[11px] text-zinc-500">
+            dentro da fatura Nubank: <b className="text-blue-400">meu gasto {compactBRL(fatGasto)}</b> · parcelas {compactBRL(fatParc)} · assinaturas {compactBRL(fatAss)}
+          </p>
+        )}
         <div className="flex items-baseline gap-3">
           <span className={`font-mono text-3xl font-extrabold ${positiva ? "text-emerald-400" : "text-red-400"}`}>
             {sinal(acerto.sobra)}{brl(Math.abs(acerto.sobra))}
@@ -97,14 +111,20 @@ export default function AcertoTab({ mensalRows, meses, cartao, tetoCartao }: {
 
       {/* ── 2. A próxima fatura em construção ── */}
       <div className="glass-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <h2 className="section-title"><Zap size={15} />Fatura de {rotYm(prox.ymPagamento)} em construção</h2>
           <span className="font-mono text-[10px] text-zinc-600">{prox.diasRestantes} dias até fechar</span>
         </div>
+        <p className="mb-3 font-mono text-[12px]">
+          <b className="text-blue-400">MEU GASTO: {brl(prox.variavel)}</b>
+          <span className="text-zinc-500"> · no ritmo, fecha em </span>
+          <b className="text-blue-300">{compactBRL(prox.projecaoVariavel)}</b>
+          <span className="text-zinc-600"> (parcelas e assinaturas fora — já contratadas)</span>
+        </p>
         {(() => {
           const partes = [
-            { rot: "variável", v: prox.variavel, cor: "#3b82f6" },
-            { rot: "projeção", v: Math.max(prox.projecaoVariavel - prox.variavel, 0), cor: "rgba(59,130,246,0.35)" },
+            { rot: "meu gasto", v: prox.variavel, cor: "#3b82f6" },
+            { rot: "meu gasto (ritmo)", v: Math.max(prox.projecaoVariavel - prox.variavel, 0), cor: "rgba(59,130,246,0.35)" },
             { rot: "parcelado", v: prox.parcelado + prox.parcelasQueVemAi, cor: "#E8A33D" },
             { rot: "assinaturas", v: prox.assinaturas + prox.assinaturasQueVemAi, cor: "#a855f7" },
           ].filter(p => p.v > 0.5);
