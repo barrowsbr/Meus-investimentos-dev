@@ -64,8 +64,10 @@ export default function ThemeSection() {
   const { theme, setTheme, bgAnim, setBgAnim } = useTheme();
   const [holo, setHolo] = useState<HoloStyle>("imersivo");
 
-  // Padrão do olho de privacidade da Home. O clique no olho lá vale só para a
-  // sessão (sessionStorage) — este padrão decide como a Home ABRE.
+  // Padrão dos olhos de privacidade da Home (um no patrimônio, outro no
+  // retorno do dia). O clique nos olhos lá é PERMANENTE (localStorage);
+  // este padrão vale enquanto nenhum olho foi clicado — e escolher aqui
+  // rearma os dois olhos para o padrão.
   const [privDefault, setPrivDefault] = useState<"fechado" | "aberto">("fechado");
 
   useEffect(() => {
@@ -77,7 +79,9 @@ export default function ThemeSection() {
     setPrivDefault(v);
     try {
       localStorage.setItem("home-privacy-default", v);
-      sessionStorage.removeItem("home-privacy"); // o novo padrão vale já na próxima visita à Home
+      localStorage.removeItem("home-priv-patrimonio"); // rearma os 2 olhos p/ o padrão
+      localStorage.removeItem("home-priv-retorno");
+      sessionStorage.removeItem("home-privacy"); // legado (modo por sessão antigo)
     } catch { /* ignore */ }
   };
 
