@@ -1,6 +1,7 @@
-import { yahooTicker } from "./cotacoes";
+import { yahooTicker, fetchQuotes } from "./cotacoes";
 import { identificarSetor, isRendaFixaManual } from "./sectors";
 import { getMarketDataStore } from "./data-store";
+import { aplicarSpotHoje, hojeSaoPaulo } from "./spot-overlay";
 import type { PriceMatrix, FxHistory } from "./twr-engine";
 import type { FxRates } from "./cotacoes";
 
@@ -20,6 +21,9 @@ export interface HistoricalData {
   // pelo ticker Yahoo, alinhados a `dates` como ibov/sp500.
   bench: Record<string, (number | null)[]>;
   errors: string[];
+  // true quando a última linha do grid é HOJE com preços SPOT (provisórios —
+  // ver aplicarSpotHoje). A golden source não é tocada; o dia fecha no cron.
+  hojeParcial?: boolean;
 }
 
 const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"] as const;
@@ -166,7 +170,8 @@ export async function fetchTicker(
 
 export async function fetchHistoricalData(
   originalTickers: { ticker: string; moeda: string; corretora: string }[],
-  lookbackDays: number = 365
+  lookbackDays: number = 365,
+  opts?: { spotHoje?: boolean }
 ): Promise<HistoricalData> {
   const errors: string[] = [];
 
@@ -347,5 +352,29 @@ export async function fetchHistoricalData(
     }
   }
 
-  return { dates: allDates, prices, fxHistory, ibov: ibovArr, sp500: sp500Arr, sp500tr: sp500trArr, bench: benchArrs, errors };
+  // ── Hoje ao vivo (opt-in): spot do Yahoo como última perna PROVISÓRIA ──
+  // Consumidores de análise (TWR/Performance) pedem spotHoje; auditorias e
+  // reconciliações ficam no grid determinístico (só fechamentos da golden).
+  let hojeParcial = false;
+  if (opts?.spotHoje) {
+    try {
+      const { quotes } = await fetchQuotes(allYahoo);
+      const spots: Record<string, number> = {};
+      for (const [yt, q] of Object.entries(quotes)) {
+        if (q?.price != null && q.price > 0) spots[yt] = q.price;
+      }
+      const res = aplicarSpotHoje({
+        dates: allDates,
+        prices,
+        fxHistory,
+        extras: { [IBOV_TICKER]: ibovArr, [SP500_TICKER]: sp500Arr, [SP500TR_TICKER]: sp500trArr, ...benchArrs },
+        hoje: hojeSaoPaulo(),
+        spots,
+        yahooToOrig: Object.fromEntries([...tickerMap.entries()]),
+      });
+      hojeParcial = res.aplicado;
+    } catch { /* best-effort: sem spot, o grid segue só com fechamentos */ }
+  }
+
+  return { dates: allDates, prices, fxHistory, ibov: ibovArr, sp500: sp500Arr, sp500tr: sp500trArr, bench: benchArrs, errors, hojeParcial };
 }

@@ -141,6 +141,7 @@ export default function PerfHero({
           </div>
           <p className="font-mono" style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
             {formatDuracao(s.duracaoAnos)} · {formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}
+            {s.hojeParcial && <span style={{ color: "var(--pos)", fontWeight: 700 }}> · hoje ao vivo</span>}
             {" · "}Patrimônio {compactCurr(patNet)}
           </p>
         </section>
@@ -221,6 +222,7 @@ export default function PerfHero({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3">
             <span className="text-[10px] text-zinc-500 font-medium">
               {formatDuracao(s.duracaoAnos)} · {formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}
+              {s.hojeParcial && <span className="font-bold text-emerald-400"> · hoje ao vivo</span>}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {benchmarks.map(b => (

@@ -18,6 +18,9 @@ export interface Summary {
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
+  // true = a última perna do grid é HOJE com preços spot (provisória; o dia
+  // fecha na golden source com o cron das 23h UTC).
+  hojeParcial?: boolean;
   vsCDI: number;
   vsIBOV: number;
   vsSP500BRL?: number;

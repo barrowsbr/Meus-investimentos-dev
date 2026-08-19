@@ -353,7 +353,9 @@ export async function GET(request: Request) {
     // Custom date range (from/to) overrides lookback. Fetch full history when a
     // custom 'from' is given so the window is fully covered.
     const fetchLookback = (fromParam || toParam) ? 0 : (lookback > 0 ? lookback + 10 : 0);
-    const hist = await fetchHistoricalData(tickerList, fetchLookback);
+    // spotHoje: a linha de HOJE entra com preços spot (provisória) — o número
+    // se move durante o pregão; o dia só fecha na golden com o cron das 23h UTC.
+    const hist = await fetchHistoricalData(tickerList, fetchLookback, { spotHoje: true });
     if (hist.dates.length === 0) {
       return NextResponse.json({ error: "Sem dados históricos" }, { status: 422 });
     }
@@ -1229,6 +1231,7 @@ export async function GET(request: Request) {
         troughDate,
         peakTwr: peakTwr === -Infinity ? 0 : peakTwr,
         troughTwr: troughTwr === Infinity ? 0 : troughTwr,
+        hojeParcial: hist.hojeParcial ?? false,
       },
       chart: (() => {
         const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
@@ -1322,7 +1325,8 @@ export async function GET(request: Request) {
       })(),
       lookback,
     }, {
-      headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=300" },
+      // 5 min: com o spot de hoje no grid, cache longo seguraria o intradia.
+      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=300" },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

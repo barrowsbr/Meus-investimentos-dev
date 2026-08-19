@@ -77,7 +77,9 @@ export async function GET(request: Request) {
 
     // ── 3. Fetch historical price data ───────────────────────────────────────
     console.log(`[TWR] Fetching history for ${tickerList.length} tickers, lookback=${lookback}`);
-    const hist = await fetchHistoricalData(tickerList, lookback > 0 ? lookback + 10 : 0);
+    // spotHoje: o grid ganha a linha de HOJE com preços spot (provisória) —
+    // TWR/MWR ficam dinâmicos ao longo do dia; a golden source segue intocada.
+    const hist = await fetchHistoricalData(tickerList, lookback > 0 ? lookback + 10 : 0, { spotHoje: true });
     console.log(`[TWR] History result: ${hist.dates.length} dates, errors: ${hist.errors.join("; ") || "none"}`);
 
     if (hist.dates.length === 0) {
@@ -193,6 +195,7 @@ export async function GET(request: Request) {
       cdiTotal,
       ibovTotal,
       ganhoEconomico: twr.ganhoEconomico,
+      hojeParcial: hist.hojeParcial ?? false,
     };
 
     return NextResponse.json(
@@ -205,7 +208,8 @@ export async function GET(request: Request) {
       },
       {
         headers: {
-          "Cache-Control": "s-maxage=900, stale-while-revalidate=300",
+          // 5 min: com o spot de hoje no grid, cache longo seguraria o intradia.
+          "Cache-Control": "s-maxage=300, stale-while-revalidate=300",
         },
       }
     );
