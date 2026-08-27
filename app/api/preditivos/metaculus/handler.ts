@@ -10,6 +10,7 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[API] Metaculus error:", err);
-    return NextResponse.json([], { status: 500 });
+    // Devolve a CAUSA (não um [] mudo) — o painel mostra qual fonte caiu.
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Metaculus indisponível" }, { status: 502 });
   }
 }

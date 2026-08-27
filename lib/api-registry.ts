@@ -42,7 +42,9 @@ export interface ApiDef {
   probe: () => Promise<ApiProbeResult>;
 }
 
-const UA = "Mozilla/5.0 (compatible; MeusInvestimentos-HealthCheck/1.0)";
+// UA de navegador real: o padrão "compatible; bot" toma 403 de WAF/Cloudflare
+// (Polymarket etc.) e faria a probe acusar falha onde a integração real passa.
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const TIMEOUT_MS = 8000;
 
 async function httpGet(

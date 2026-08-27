@@ -15,8 +15,8 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("[API] Polymarket error:", err);
     return NextResponse.json(
-      { error: "Failed to fetch Polymarket data", categories: {} },
-      { status: 500 }
+      { error: err instanceof Error ? err.message : "Polymarket indisponível", categories: {} },
+      { status: 502 }
     );
   }
 }

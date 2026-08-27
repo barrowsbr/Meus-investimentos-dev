@@ -83,10 +83,12 @@ function findImpact(title: string): string[] {
 
 export async function fetchKalshi(): Promise<KalshiEvent[]> {
   try {
+    // UA de navegador real: o padrão "compatible; bot" toma 403 de WAF.
     const res = await fetch(`${BASE}/events?limit=100&status=open&with_nested_markets=true`, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "Mozilla/5.0 (compatible; InvestDash/1.0)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
       },
       signal: AbortSignal.timeout(12000),
     });
@@ -152,7 +154,9 @@ export async function fetchKalshi(): Promise<KalshiEvent[]> {
 
     events.sort((a, b) => b.volume - a.volume);
     return events;
-  } catch {
-    return [];
+  } catch (e) {
+    // Propaga a CAUSA (era um `return []` silencioso — a página mostrava vazio
+    // sem dizer que a fonte caiu). O handler devolve o erro ao painel.
+    throw e instanceof Error ? e : new Error("Kalshi: falha desconhecida");
   }
 }
