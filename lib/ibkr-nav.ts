@@ -57,29 +57,6 @@ export function anexarFluxos(
   return pontos;
 }
 
-export interface AparaInicio {
-  pontos: NavPonto[];
-  cortados: number;      // pregões removidos do início
-  dataInicio: string | null; // primeiro pregão mantido
-}
-
-/** Apara o "período de teste" do INÍCIO da série: pregões iniciais em que o
- *  NAV era irrisório (< fração do NAV máximo da série) — tipicamente o teste
- *  de câmbio/depósito simbólico de abertura da conta, cujo retorno sobre base
- *  minúscula polui a curva inteira (o mesmo defeito do PortfolioAnalyst).
- *  Corta APENAS o prefixo — depois que o capital real entra, nada é removido. */
-export function apararInicioIrrisorio(pontos: NavPonto[], fracMinima = 0.01): AparaInicio {
-  if (pontos.length === 0) return { pontos, cortados: 0, dataInicio: null };
-  const navMax = Math.max(...pontos.map((p) => p.nav));
-  const limiar = navMax * fracMinima;
-  let i = 0;
-  while (i < pontos.length && pontos[i].nav < limiar) i++;
-  // Nunca corta a série inteira (se tudo é "irrisório", não há o que aparar).
-  if (i >= pontos.length) return { pontos, cortados: 0, dataInicio: pontos[0].date };
-  const mantidos = pontos.slice(i);
-  return { pontos: mantidos, cortados: i, dataInicio: mantidos[0].date };
-}
-
 export function calcularTwrNav(pontos: NavPonto[]): TwrNavResult {
   const validos = pontos.filter((p) => p.nav > 0);
   const VAZIO: TwrNavResult = {

@@ -299,7 +299,6 @@ interface TwrResp {
   primeiraData: string; ultimaData: string;
   fontes: { planilha: number; flex: number };
   semSecaoNav: boolean;
-  inicioAparado?: { cortados: number; dataInicio: string | null };
   error?: string;
 }
 
@@ -410,7 +409,6 @@ function DesempenhoTwr() {
 
         <p className="font-mono text-[9px] pb-3" style={{ color: "var(--faint)" }}>
           NAV a NAV da própria IBKR (aportes/retiradas fora do retorno) · {d.fontes.planilha > 0 ? `${d.fontes.planilha} pregões da aba ibkr_nav + ` : ""}{d.fontes.flex} do Flex · S&amp;P 500 = preço em US$
-          {d.inicioAparado && d.inicioAparado.cortados > 0 && ` · ${d.inicioAparado.cortados} pregões de teste (NAV irrisório) fora da curva`}
         </p>
       </div>
     </Section>

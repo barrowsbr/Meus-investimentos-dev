@@ -7,18 +7,31 @@
 import { getDataStore } from "./data-store";
 import { ensureTab, appendRowsTyped } from "./gsheets";
 import { toNumber } from "./format";
-import { mesclarNav, anexarFluxos, calcularTwrNav, apararInicioIrrisorio, type NavPonto, type TwrNavResult } from "./ibkr-nav";
+import { mesclarNav, anexarFluxos, calcularTwrNav, type NavPonto, type TwrNavResult } from "./ibkr-nav";
 import type { FlexParsed } from "./ibkr-flex";
 
 const TAB = "ibkr_nav";
 const HEADERS = ["data", "nav_usd", "fluxo_usd"];
+
+// A aba também aceita COLAGEM MANUAL do histórico (dono importando o NAV desde
+// a abertura da conta) — então a data pode chegar como yyyy-mm-dd, dd/mm/yyyy
+// ou serial do Sheets, e o número com vírgula (toNumber já resolve).
+function normalizarDataNav(val: unknown): string {
+  if (typeof val === "number" && val > 20000) {
+    return new Date((val - 25569) * 86400000).toISOString().slice(0, 10);
+  }
+  const s = String(val ?? "").trim();
+  const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+  return s.slice(0, 10);
+}
 
 export async function lerNavPlanilha(): Promise<NavPonto[]> {
   try {
     const rows = await getDataStore().fetchTab(TAB);
     return rows
       .map((r) => ({
-        date: String(r["data"] ?? "").slice(0, 10),
+        date: normalizarDataNav(r["data"]),
         nav: toNumber(r["nav_usd"]) ?? 0,
         fluxo: toNumber(r["fluxo_usd"]) ?? 0,
       }))
@@ -45,26 +58,19 @@ export interface TwrIbkrMontado extends TwrNavResult {
    *  o campo está habilitado) — o número exato que a IBKR mostra. */
   oficialPeriodo: number | null;
   semSecaoNav: boolean;
-  /** Pregões iniciais de "período de teste" (NAV irrisório) excluídos da curva
-   *  — o teste de câmbio da abertura da conta poluía o gráfico na corretora. */
-  inicioAparado: { cortados: number; dataInicio: string | null };
 }
 
-/** Monta a série completa: planilha (passado) + Flex (janela atual, vence).
- *  O prefixo de NAV irrisório (teste de câmbio da abertura) é aparado — ver
- *  apararInicioIrrisorio. */
+/** Monta a série completa: planilha (passado) + Flex (janela atual, vence). */
 export function montarTwrIbkr(parsed: Pick<FlexParsed, "navDiario" | "fluxosExternos" | "changeInNav">, planilha: NavPonto[]): TwrIbkrMontado {
   const flexPontos = anexarFluxos(parsed.navDiario, parsed.fluxosExternos);
   const janelaIni = flexPontos[0]?.date ?? "";
   // Fora da janela do Flex, a planilha manda (inclui o fluxo gravado na época).
   const antigos = janelaIni ? planilha.filter((p) => p.date < janelaIni) : planilha;
-  const apara = apararInicioIrrisorio(mesclarNav(antigos, flexPontos));
-  const r = calcularTwrNav(apara.pontos);
+  const r = calcularTwrNav(mesclarNav(antigos, flexPontos));
   return {
     ...r,
     fontes: { planilha: antigos.length, flex: flexPontos.length },
     oficialPeriodo: parsed.changeInNav?.twr != null ? parsed.changeInNav.twr / 100 : null,
     semSecaoNav: parsed.navDiario.length === 0,
-    inicioAparado: { cortados: apara.cortados, dataInicio: apara.dataInicio },
   };
 }
