@@ -1,0 +1,18 @@
+# Diagnóstico manual do extrato IBKR Flex em PRODUÇÃO — para quando o dono
+# reconfigura a Flex query e queremos confirmar as seções sem entrar no app.
+# Os runners do GitHub alcançam a produção (a network policy do dev não).
+# ⚠️ Repo público: imprime SÓ metadados (nomes de seção/contagens) — NUNCA
+# valores de NAV/dinheiro.
+name: ibkr-diag
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Seções do extrato Flex (produção)
+        run: |
+          curl -sS --max-time 90 "${APP_URL:-https://meus-investimentos-dev.vercel.app}/api/ibkr/twr?debug=1" \
+            | jq '{temEquitySummary, navDiario, fluxosExternos, temChangeInNav: (.changeInNav != null), temTwrOficial: (.changeInNav.twr != null), secoes: [.secoes[].tag]}'
