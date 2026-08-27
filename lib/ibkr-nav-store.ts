@@ -7,7 +7,7 @@
 import { getDataStore } from "./data-store";
 import { ensureTab, appendRowsTyped } from "./gsheets";
 import { toNumber } from "./format";
-import { mesclarNav, anexarFluxos, calcularTwrNav, type NavPonto, type TwrNavResult } from "./ibkr-nav";
+import { mesclarNav, anexarFluxos, calcularTwrNav, apararInicioIrrisorio, type NavPonto, type TwrNavResult } from "./ibkr-nav";
 import type { FlexParsed } from "./ibkr-flex";
 
 const TAB = "ibkr_nav";
@@ -45,20 +45,26 @@ export interface TwrIbkrMontado extends TwrNavResult {
    *  o campo está habilitado) — o número exato que a IBKR mostra. */
   oficialPeriodo: number | null;
   semSecaoNav: boolean;
+  /** Pregões iniciais de "período de teste" (NAV irrisório) excluídos da curva
+   *  — o teste de câmbio da abertura da conta poluía o gráfico na corretora. */
+  inicioAparado: { cortados: number; dataInicio: string | null };
 }
 
-/** Monta a série completa: planilha (passado) + Flex (janela atual, vence). */
+/** Monta a série completa: planilha (passado) + Flex (janela atual, vence).
+ *  O prefixo de NAV irrisório (teste de câmbio da abertura) é aparado — ver
+ *  apararInicioIrrisorio. */
 export function montarTwrIbkr(parsed: Pick<FlexParsed, "navDiario" | "fluxosExternos" | "changeInNav">, planilha: NavPonto[]): TwrIbkrMontado {
   const flexPontos = anexarFluxos(parsed.navDiario, parsed.fluxosExternos);
   const janelaIni = flexPontos[0]?.date ?? "";
   // Fora da janela do Flex, a planilha manda (inclui o fluxo gravado na época).
   const antigos = janelaIni ? planilha.filter((p) => p.date < janelaIni) : planilha;
-  const pontos = mesclarNav(antigos, flexPontos);
-  const r = calcularTwrNav(pontos);
+  const apara = apararInicioIrrisorio(mesclarNav(antigos, flexPontos));
+  const r = calcularTwrNav(apara.pontos);
   return {
     ...r,
     fontes: { planilha: antigos.length, flex: flexPontos.length },
     oficialPeriodo: parsed.changeInNav?.twr != null ? parsed.changeInNav.twr / 100 : null,
     semSecaoNav: parsed.navDiario.length === 0,
+    inicioAparado: { cortados: apara.cortados, dataInicio: apara.dataInicio },
   };
 }

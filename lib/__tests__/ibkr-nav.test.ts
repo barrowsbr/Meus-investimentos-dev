@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularTwrNav, mesclarNav, anexarFluxos, type NavPonto } from "../ibkr-nav";
+import { calcularTwrNav, mesclarNav, anexarFluxos, apararInicioIrrisorio, type NavPonto } from "../ibkr-nav";
 
 const p = (date: string, nav: number, fluxo = 0): NavPonto => ({ date, nav, fluxo });
 
@@ -37,6 +37,37 @@ describe("calcularTwrNav — a conta do PortfolioAnalyst", () => {
   it("menos de 2 pontos válidos → vazio (sem inventar retorno)", () => {
     expect(calcularTwrNav([p("2026-01-02", 100000)]).pontos).toHaveLength(0);
     expect(calcularTwrNav([]).twrTotal).toBe(0);
+  });
+});
+
+describe("apararInicioIrrisorio — o teste de câmbio da abertura", () => {
+  it("corta o prefixo de NAV irrisório e ancora no primeiro capital real", () => {
+    const r = apararInicioIrrisorio([
+      p("2025-09-01", 20), p("2025-09-02", 15), // teste de câmbio: US$ 20 → 15 (−25%!)
+      p("2025-09-10", 100000, 100000), p("2025-09-11", 101000),
+    ]);
+    expect(r.cortados).toBe(2);
+    expect(r.dataInicio).toBe("2025-09-10");
+    // a curva limpa: só o +1% real — o −25% do teste não contamina
+    expect(calcularTwrNav(r.pontos).twrTotal).toBeCloseTo(0.01, 10);
+  });
+
+  it("sem prefixo irrisório, não corta nada", () => {
+    const r = apararInicioIrrisorio([p("2026-01-02", 90000), p("2026-01-03", 91000)]);
+    expect(r.cortados).toBe(0);
+  });
+
+  it("NAV baixo NO MEIO da série não é cortado (só prefixo)", () => {
+    const r = apararInicioIrrisorio([
+      p("2026-01-02", 100000), p("2026-01-03", 500, -99500), p("2026-01-06", 100500, 100000),
+    ]);
+    expect(r.cortados).toBe(0);
+  });
+
+  it("série inteira irrisória fica intacta (não há o que aparar)", () => {
+    const r = apararInicioIrrisorio([p("2026-01-02", 0.5), p("2026-01-03", 0.4)]);
+    expect(r.cortados).toBe(0);
+    expect(r.pontos).toHaveLength(2);
   });
 });
 

@@ -20,4 +20,4 @@ jobs:
       - name: Seções do extrato Flex (produção)
         run: |
           curl -sS --max-time 90 "${APP_URL:-https://meus-investimentos-dev.vercel.app}/api/ibkr/twr?debug=1" \
-            | jq '{temEquitySummary, navDiario, fluxosExternos, temChangeInNav: (.changeInNav != null), temTwrOficial: (.changeInNav.twr != null), twrOficialPct: .changeInNav.twr, inicioSerie, retornosAnomalos, secoes: [.secoes[].tag]}'
+            | jq '{temEquitySummary, navDiario, fluxosExternos, temChangeInNav: (.changeInNav != null), temTwrOficial: (.changeInNav.twr != null), twrOficialPct: .changeInNav.twr, inicioSerie, retornosAnomalos, aparadoPreview, secoes: [.secoes[].tag]}'
