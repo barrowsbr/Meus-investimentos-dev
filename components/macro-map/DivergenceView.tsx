@@ -27,16 +27,16 @@ const FAMILIA_LABEL: Record<string, string> = {
 };
 
 // Nomes em português dos símbolos — para as frases não falarem "BR_RISK_PREMIUM".
-const SYMBOL_LABEL: Record<string, string> = {
+export const SYMBOL_LABEL: Record<string, string> = {
   BRENT: "o petróleo Brent", GOLD: "o ouro", DXY: "o dólar (DXY)", USDBRL: "o dólar/real",
   US10Y: "o juro de 10 anos dos EUA", US02Y: "o juro de 2 anos dos EUA", US10Y_REAL: "o juro real de 10 anos dos EUA",
   SPX: "o S&P 500", IBOV: "o Ibovespa", US_SMALLCAP: "as small caps dos EUA", VIX: "o VIX",
   HY_SPREAD: "o spread de high yield", SELIC_EXP: "a expectativa de Selic", BR_10Y: "o juro longo do Brasil",
   BR_RISK_PREMIUM: "o prêmio de risco do Brasil",
 };
-const nome = (sym: string) => SYMBOL_LABEL[sym] ?? sym;
+export const nome = (sym: string) => SYMBOL_LABEL[sym] ?? sym;
 // versão para começo de frase (maiúscula) sem o artigo duplicado
-const Nome = (sym: string) => {
+export const Nome = (sym: string) => {
   const s = nome(sym);
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
@@ -46,7 +46,7 @@ const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}%`;
 // ── leitura acionável do sinal ───────────────────────────────────────────────
 
 // Onde a regra pega na carteira do dono, em rótulo curto.
-const CARTEIRA_LABEL: Record<string, string> = {
+export const CARTEIRA_LABEL: Record<string, string> = {
   SHV: "RF US$", VWRA: "RV mundo", PATRIMONIO_BRL: "patrimônio R$",
 };
 
@@ -54,7 +54,7 @@ const CARTEIRA_LABEL: Record<string, string> = {
 const efeitoPrimario = (efs: Efeito[] | undefined): Efeito | null =>
   efs?.length ? efs.find((e) => e.confianca === "alta") ?? efs[0] : null;
 
-const janela = ([a, b]: [number, number]): string =>
+export const janela = ([a, b]: [number, number]): string =>
   a <= 0 ? (b === 0 ? "no dia" : `até ${b} pregões`) : `${a}–${b} pregões`;
 
 // "se disparar → o S&P 500 cai · 1–10 pregões" — o playbook do sinal, sempre
@@ -68,15 +68,15 @@ function playbook(a: RuleEvaluation): string | null {
 
 // Selo de confiabilidade HONESTO, derivado do histórico medido ao vivo.
 // <35% com amostra decente é informação também: o efeito costuma vir ao contrário.
-function selo(a: RuleEvaluation): { texto: string; cor: string } | null {
-  if (a.taxaAcertoLive == null) return null;
-  const x = Math.round(a.taxaAcertoLive * 100);
-  const n = a.nEventos;
+export function seloHistorico(taxa: number | null, n: number): { texto: string; cor: string } | null {
+  if (taxa == null) return null;
+  const x = Math.round(taxa * 100);
   if (n < 8) return { texto: `amostra curta · ${x}% ×${n}`, cor: "var(--faint)" };
-  if (a.taxaAcertoLive >= 0.6) return { texto: `confiável · acertou ${x}% ×${n}`, cor: "#3FB950" };
-  if (a.taxaAcertoLive <= 0.35) return { texto: `veio o contrário na maioria · ${x}% ×${n}`, cor: "#E8A33D" };
+  if (taxa >= 0.6) return { texto: `confiável · acertou ${x}% ×${n}`, cor: "#3FB950" };
+  if (taxa <= 0.35) return { texto: `veio o contrário na maioria · ${x}% ×${n}`, cor: "#E8A33D" };
   return { texto: `moeda ao ar · ${x}% ×${n}`, cor: "var(--muted)" };
 }
+const selo = (a: RuleEvaluation) => seloHistorico(a.taxaAcertoLive, a.nEventos);
 
 // ── frase em português do que está acontecendo hoje ──────────────────────────
 function resumo(a: RuleEvaluation): string {

@@ -214,6 +214,7 @@ export function classifyRule(
       choqueAtivo: false,
       ultimoChoque: null,
       ultimoChoqueGeral: null,
+      zAtual: null,
       efeitos: [],
       taxaAcertoLive: null,
       nEventos: 0,
@@ -230,6 +231,11 @@ export function classifyRule(
   const zlSeries = rollingZ(metric, params.zLongo);
   const zcMap = new Map(zcSeries.dates.map((d, i) => [d, zcSeries.values[i]]));
   const zlMap = new Map(zlSeries.dates.map((d, i) => [d, zlSeries.values[i]]));
+
+  // z de HOJE (último pregão da métrica) — distância atual do gatilho.
+  const zAtual = zcSeries.values.length && zlSeries.values.length
+    ? { z60: round(zcSeries.values[zcSeries.values.length - 1]), z250: round(zlSeries.values[zlSeries.values.length - 1]) }
+    : null;
 
   const lastIdx = cal.length - 1;
 
@@ -298,6 +304,7 @@ export function classifyRule(
       ? { date: ultimo.date, z60: round(zcMap.get(ultimo.date) ?? ultimo.z), z250: round(zlMap.get(ultimo.date) ?? 0) }
       : null,
     ultimoChoqueGeral,
+    zAtual,
     efeitos,
     taxaAcertoLive,
     nEventos: tot,
