@@ -6,6 +6,11 @@
 name: ibkr-diag
 on:
   workflow_dispatch:
+  # O GitHub App do assistente não tem permissão de dispatch manual — editar
+  # este arquivo (via merge na main) também dispara o diagnóstico.
+  push:
+    branches: [main]
+    paths: [".github/workflows/ibkr-diag.yml"]
 
 jobs:
   diag:
