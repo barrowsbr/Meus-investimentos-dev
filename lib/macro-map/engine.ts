@@ -192,6 +192,7 @@ export function classifyRule(
     relevancia_portfolio: rule.relevancia_portfolio,
     canal: rule.canal,
     falsificacao: rule.falsificacao,
+    efeitosEsperados: rule.efeitos,
   };
 
   const driverOk = !!driverPrice && driverPrice.values.length >= params.zLongo;
