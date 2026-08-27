@@ -37,12 +37,34 @@ export async function GET(request: Request) {
     const parsed = parseFlexXml(xml);
 
     if (debug) {
+      // Anatomia do INÍCIO da série + retornos anômalos — só métricas RELATIVAS
+      // (datas, %, nav como fração do final): o log do CI é público, valor
+      // absoluto de NAV nunca sai daqui.
+      const pontosDbg = anexarFluxos(parsed.navDiario, parsed.fluxosExternos);
+      const navFinalDbg = pontosDbg.length ? pontosDbg[pontosDbg.length - 1].nav : 0;
+      const linha = (i: number) => {
+        const p = pontosDbg[i];
+        const prev = i > 0 ? pontosDbg[i - 1] : null;
+        const base = prev ? prev.nav + p.fluxo : 0;
+        return {
+          date: p.date,
+          navRelPct: navFinalDbg > 0 ? +(100 * p.nav / navFinalDbg).toFixed(3) : null,
+          retornoPct: prev && base > 0 ? +((p.nav / base - 1) * 100).toFixed(2) : null,
+          temFluxo: p.fluxo !== 0,
+        };
+      };
+      const inicio = pontosDbg.slice(0, 12).map((_, i) => linha(i));
+      const anomalos = pontosDbg
+        .map((_, i) => linha(i))
+        .filter((l) => l.retornoPct != null && Math.abs(l.retornoPct) > 5);
       return NextResponse.json({
         secoes: listarSecoes(xml),
         navDiario: parsed.navDiario.length,
         fluxosExternos: parsed.fluxosExternos.length,
         changeInNav: parsed.changeInNav,
         temEquitySummary: parsed.navDiario.length > 0,
+        inicioSerie: inicio,
+        retornosAnomalos: anomalos.slice(0, 20),
       }, { headers: { "Cache-Control": "no-store" } });
     }
     const planilha = await lerNavPlanilha();
