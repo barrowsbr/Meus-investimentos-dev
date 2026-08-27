@@ -387,13 +387,18 @@ export function parseFlexXml(xml: string): FlexParsed {
     }
   }
 
-  // NAV diário em base (Equity Summary in Base by Report Date) — atributo `total`.
-  // Dedup por data (a seção pode vir com MTM+lote duplicado), last-wins.
+  // NAV diário em base — no Client Portal atual a seção chama-se
+  // "Net Asset Value (NAV) in Base"; o XML historicamente sai como
+  // EquitySummaryByReportDateInBase, mas aceitamos também os nomes novos.
+  // Atributo `total`; dedup por data, last-wins.
   const navPorData = new Map<string, number>();
-  for (const a of extractElements(xml, "EquitySummaryByReportDateInBase")) {
-    const date = normalizeDate(a.reportDate ?? "");
-    const nav = parseValor(a.total ?? "0");
-    if (date && nav !== 0) navPorData.set(date, nav);
+  for (const tag of ["EquitySummaryByReportDateInBase", "NetAssetValueInBase", "EquitySummaryInBase"]) {
+    for (const a of extractElements(xml, tag)) {
+      const date = normalizeDate(a.reportDate ?? a.date ?? "");
+      const nav = parseValor(a.total ?? "0");
+      if (date && nav !== 0) navPorData.set(date, nav);
+    }
+    if (navPorData.size > 0) break; // uma variante basta — não mistura seções
   }
   const navDiario = [...navPorData.entries()]
     .map(([date, nav]) => ({ date, nav }))
