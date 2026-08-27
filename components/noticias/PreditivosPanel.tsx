@@ -124,6 +124,9 @@ export default function PreditivosPanel() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [sourceCounts, setSourceCounts] = useState({ polymarket: 0, kalshi: 0, metaculus: 0 });
+  // Fonte que caiu → causa (ex.: "Polymarket API 403"). Antes a falha era um
+  // [] mudo e a página só dizia "não foi possível carregar", sem o porquê.
+  const [falhas, setFalhas] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<"hot" | "top" | "fecha">("hot");
 
@@ -142,10 +145,19 @@ export default function PreditivosPanel() {
     (async () => {
       const allPreds: UnifiedPrediction[] = [];
       const counts = { polymarket: 0, kalshi: 0, metaculus: 0 };
+      const erros: Record<string, string> = {};
+      const causa = (data: unknown, status: number) =>
+        (data && typeof data === "object" && "error" in data && typeof (data as { error?: unknown }).error === "string"
+          ? (data as { error: string }).error
+          : `HTTP ${status}`);
 
       const [polyRes, kalshiRes, metaculusRes] = await Promise.allSettled([
-        fetch(`/api/preditivos/polymarket?tickers=${portfolioTickers.join(",")}`).then(r => r.json()).then(data => {
-          if (!data.categories) return [];
+        fetch(`/api/preditivos/polymarket?tickers=${portfolioTickers.join(",")}`).then(async r => {
+          const data = await r.json();
+          if (!r.ok || !data.categories || Object.keys(data.categories).length === 0) {
+            if (!r.ok) erros.Polymarket = causa(data, r.status);
+            return [];
+          }
           const events = Object.values(data.categories).flat();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return (events as Array<any>).map(ev => {
@@ -155,18 +167,30 @@ export default function PreditivosPanel() {
             return u;
           });
         }),
-        fetch(`/api/preditivos/kalshi`).then(r => r.json()).then(data => data || []),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fetch(`/api/preditivos/metaculus`).then(r => r.json()).then(qs => (qs || []).map((q: any) => ({ id: q.id, source: q.source, title: q.title, url: q.url, category: q.category, odds: q.odds, forecasters: q.forecasters, end_date: q.end_date, days_left: q.days_left, portfolio_impact: q.portfolio_impact } as UnifiedPrediction))),
+        fetch(`/api/preditivos/kalshi`).then(async r => {
+          const data = await r.json();
+          if (!r.ok || !Array.isArray(data)) { erros.Kalshi = causa(data, r.status); return []; }
+          return data as UnifiedPrediction[];
+        }),
+        fetch(`/api/preditivos/metaculus`).then(async r => {
+          const data = await r.json();
+          if (!r.ok || !Array.isArray(data)) { erros.Metaculus = causa(data, r.status); return []; }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (data as Array<any>).map((q: any) => ({ id: q.id, source: q.source, title: q.title, url: q.url, category: q.category, odds: q.odds, forecasters: q.forecasters, end_date: q.end_date, days_left: q.days_left, portfolio_impact: q.portfolio_impact } as UnifiedPrediction));
+        }),
       ]);
 
       if (polyRes.status === "fulfilled") { allPreds.push(...polyRes.value); counts.polymarket = polyRes.value.length; }
+      else erros.Polymarket = erros.Polymarket ?? "sem resposta";
       if (kalshiRes.status === "fulfilled") { allPreds.push(...kalshiRes.value.map((k: UnifiedPrediction) => ({ ...k }))); counts.kalshi = kalshiRes.value.length; }
+      else erros.Kalshi = erros.Kalshi ?? "sem resposta";
       if (metaculusRes.status === "fulfilled") { allPreds.push(...metaculusRes.value); counts.metaculus = metaculusRes.value.length; }
+      else erros.Metaculus = erros.Metaculus ?? "sem resposta";
 
       if (!cancelled) {
         setPredictions(allPreds);
         setSourceCounts(counts);
+        setFalhas(erros);
         if (allPreds.length === 0) setError("Não foi possível carregar mercados preditivos.");
       }
     })().finally(() => { if (!cancelled) setLoading(false); });
@@ -247,6 +271,11 @@ export default function PreditivosPanel() {
       </div>
 
       {error && <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400">{error}</div>}
+      {Object.keys(falhas).length > 0 && (
+        <p className="mb-4 font-mono text-[11px] text-amber-400">
+          fonte fora do ar: {Object.entries(falhas).map(([f, c]) => `${f} (${c})`).join(" · ")}
+        </p>
+      )}
 
       {!loading && predictions.length > 0 && (<>
         <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-zinc-600">

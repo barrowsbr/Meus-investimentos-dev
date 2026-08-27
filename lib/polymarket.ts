@@ -18,6 +18,15 @@ export interface PolyResponse {
 
 const GAMMA_API = "https://gamma-api.polymarket.com/events";
 
+// Headers de navegador real: o gamma-api fica atrás de Cloudflare e devolve
+// 403 para requests "de bot" (sem UA de browser) vindos de datacenter — foi o
+// que derrubou o painel de predições (ago/2026).
+const BROWSER_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept-Language": "en-US,en;q=0.9",
+} as const;
+
 // ── Keyword classification lists ──────────────────────────────────────────────
 
 const CRYPTO_KW = [
@@ -212,7 +221,7 @@ function parseEventList(data: Record<string, any>[]): PolyEvent[] {
 async function fetchEvents(): Promise<{ events: PolyEvent[]; totalFetched: number }> {
   const url = `${GAMMA_API}?limit=200&active=true&closed=false&order=volume_24hr&ascending=false`;
   const res = await fetch(url, {
-    headers: { Accept: "application/json" },
+    headers: BROWSER_HEADERS,
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(`Polymarket API ${res.status}`);
@@ -244,7 +253,7 @@ async function searchAssetPriceEvents(tickers: string[]): Promise<PolyEvent[]> {
 
   const results = await Promise.allSettled(queries.map(async (q) => {
     const url = `https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(q)}&limit_per_type=10&events_status=active`;
-    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
+    const res = await fetch(url, { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(10000) });
     if (!res.ok) return [] as PolyEvent[];
     const data = await res.json();
     const list = Array.isArray(data?.events) ? data.events : [];

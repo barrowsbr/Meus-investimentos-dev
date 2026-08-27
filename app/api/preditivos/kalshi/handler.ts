@@ -10,6 +10,7 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[API] Kalshi error:", err);
-    return NextResponse.json([], { status: 500 });
+    // Devolve a CAUSA (não um [] mudo) — o painel mostra qual fonte caiu.
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Kalshi indisponível" }, { status: 502 });
   }
 }
