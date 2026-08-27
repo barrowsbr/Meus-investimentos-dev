@@ -481,6 +481,16 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 ## Base de cotações (golden source — `db_cotacoes`)
 
 - `db_cotacoes` é a **fonte de verdade** de preços para performance/TWR: matriz larga (1 linha/dia, 1 coluna/ativo), **preço bruto de fechamento** (não ajustado). FX e índices (`BRL=X`, `^BVSP`, `^GSPC`) são colunas normais.
+- **Regime híbrido (27/08/2026)**: para ativos custodiados na **IBKR** (corretora=IBKR
+  em `meus_ativos`), o fechamento diário vem do **markPrice oficial do extrato Flex**
+  (OpenPositions na data `toDate`), gravado pelo cron IBKR das 6h (`runFlexSync` →
+  `lib/ibkr-marks.ts`). O cron de cotações (20h BRT) **reserva** as células T/T−1
+  desses ativos (não grava Yahoo) e volta como **fallback em T−2** se o Flex falhar.
+  O gate da golden nunca deixa um sobrescrever o outro (só preenche célula vazia);
+  o passado anterior ao corte permanece Yahoo. Kill-switch: Configurações →
+  Automações → `golden_ibkr` (desligar volta ao regime 100% Yahoo no dia seguinte).
+  Brasil, cripto, FX e índices seguem 100% Yahoo. ⚠️ O Flex NÃO fornece série
+  diária por ativo do passado — só o mark do último dia; não tentar "backfill IBKR".
 - A Performance lê dessa aba primeiro (`lib/market-history.ts`); só recorre ao Yahoo para tickers ausentes.
 - **Preço bruto + proventos somados separadamente** (motor TWR) = retorno correto. Usar `adjClose` causaria double-count de dividendos (foi o que inflava a rentabilidade antes).
 - Atualização automática via Vercel Cron (`/api/cron/cotacoes`, dias úteis 23h UTC). Botão manual em Configurações.

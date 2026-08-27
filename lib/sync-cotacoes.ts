@@ -34,6 +34,9 @@ export interface SyncReport {
   status: ReturnType<typeof goldenSourceStatus>;
   newPoints: number;
   weekendSkipped?: number;
+  // Células de ativos IBKR (datas T/T−1) RESERVADAS para o mark oficial do
+  // extrato Flex (cron das 6h) — o Yahoo só entra como fallback em T−2.
+  ibkrReservados?: number;
   tickerErrors?: string[];
   anomalies: Anomaly[];
   anomalyCount: number;
@@ -188,8 +191,22 @@ export async function runCotacoesSync(
     if (!existingByBase.has(b)) existingByBase.set(b, t);
   }
 
+  // Regime híbrido (decisão do dono 27/08): para ativos custodiados na IBKR, o
+  // fechamento de T e T−1 é RESERVADO para o markPrice oficial do extrato Flex
+  // (gravado pelo cron das 6h do dia seguinte — lib/ibkr-flex-sync). O Yahoo
+  // segue dono de todo o resto e vira FALLBACK dos ativos IBKR em T−2 (se o
+  // Flex falhar, a série não fica com buraco). O gate da golden nunca deixa um
+  // sobrescrever o outro: quem chega primeiro na célula, fica.
+  const reservaCorte = (() => {
+    const d = new Date(endStr + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().split("T")[0];
+  })();
+  const ehIbkr = (orig: string) => (tickerMeta.get(orig)?.corretora ?? "").toUpperCase().includes("IBKR");
+
   let newPoints = 0;
   let weekendSkipped = 0;
+  let ibkrReservados = 0;
   const tickerErrors: string[] = [];
   for (const res of fetchResults) {
     if (res.status !== "fulfilled") continue;
@@ -202,9 +219,12 @@ export async function runCotacoesSync(
       continue;
     }
     const isCrypto = identificarSetor(orig) === "Cripto";
+    const reservado = ehIbkr(orig);
     for (const { date, price } of rows) {
       // Bolsa fechada no fim de semana → preço de não-cripto é lixo. Não adiciona.
       if (isWeekend(date) && !isCrypto) { weekendSkipped++; continue; }
+      // Célula reservada ao mark oficial IBKR (T/T−1) — Yahoo não grava aqui.
+      if (reservado && date >= reservaCorte) { ibkrReservados++; continue; }
       dateSet.add(date);
       if (!prices[date]) prices[date] = {};
       if (prices[date][col] == null) {
@@ -233,6 +253,7 @@ export async function runCotacoesSync(
     status: goldenSourceStatus(finalState),
     newPoints: written ? newPoints : 0,
     weekendSkipped: weekendSkipped > 0 ? weekendSkipped : undefined,
+    ibkrReservados: ibkrReservados > 0 ? ibkrReservados : undefined,
     tickerErrors: tickerErrors.length > 0 ? tickerErrors : undefined,
     anomalies: anomalies.slice(0, 50),
     anomalyCount: anomalies.length,

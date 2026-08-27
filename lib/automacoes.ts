@@ -37,6 +37,11 @@ export const AUTOMACOES: AutomacaoDef[] = [
     descricao: "Importa trades e proventos da IBKR via Flex Web Service (dedup + backup — rodar de novo não duplica).",
   },
   {
+    chave: "golden_ibkr", tipo: "app", agenda: "diário · 6h BRT, junto do Sync IBKR",
+    nome: "Preços oficiais IBKR na golden source",
+    descricao: "Para os ativos custodiados na IBKR, o fechamento diário da db_cotacoes passa a ser o mark oficial do extrato Flex (Yahoo vira fallback). Desligar volta ao regime 100% Yahoo no dia seguinte.",
+  },
+  {
     chave: "alertas", tipo: "vercel", agenda: "diário · 6h30 BRT",
     nome: "Alertas Telegram (chave geral)",
     descricao: "DARF, DIRPF e alavancagem no Telegram. Mesma chave geral do card Alertas — os sub-alertas continuam lá.",
@@ -65,7 +70,7 @@ export const AUTOMACOES: AutomacaoDef[] = [
 
 // ── Toggles próprios (escopo `automacoes` da app_config) ─────────────────────
 
-const CHAVES_PROPRIAS = new Set(["cron_cotacoes", "cron_ibkr", "gh_daily_report", "gh_backup"]);
+const CHAVES_PROPRIAS = new Set(["cron_cotacoes", "cron_ibkr", "golden_ibkr", "gh_daily_report", "gh_backup"]);
 
 async function readProprias(): Promise<Map<string, boolean>> {
   const map = new Map<string, boolean>();
