@@ -285,26 +285,16 @@ export async function runFlexSync(
     try {
       const { isAutomacaoAtiva } = await import("./automacoes");
       if (await isAutomacaoAtiva("golden_ibkr")) {
-        const { montarMarksParaGolden } = await import("./ibkr-marks");
+        const { montarMarksParaGolden, aplicarMarksNaGolden } = await import("./ibkr-marks");
         const { getMarketDataStore } = await import("./data-store");
         const meta = parseFlexMeta(xml);
         const mktStore = getMarketDataStore();
         const golden = await mktStore.read();
         const marks = montarMarksParaGolden(positions, meta.toDate, golden.tickers);
         if (marks) {
-          const prices: Record<string, Record<string, number>> = {};
-          for (const d of golden.dates) prices[d] = { ...golden.prices[d] };
-          const tickers = new Set(golden.tickers.map((t) => t.toUpperCase()));
-          const dates = new Set(golden.dates);
-          dates.add(marks.date);
-          if (!prices[marks.date]) prices[marks.date] = {};
-          let preenchidos = 0;
-          for (const [col, preco] of Object.entries(marks.valores)) {
-            tickers.add(col);
-            if (prices[marks.date][col] == null) { prices[marks.date][col] = preco; preenchidos++; }
-          }
+          const { data, preenchidos } = aplicarMarksNaGolden(golden, marks);
           if (preenchidos > 0) {
-            const w = await mktStore.write({ tickers: [...tickers].sort(), dates: [...dates].sort(), prices });
+            const w = await mktStore.write(data);
             result.golden_ibkr = { data: marks.date, preenchidos, modo: w.mode, motivo: w.reason };
           } else {
             result.golden_ibkr = { data: marks.date, preenchidos: 0, aviso: "células já preenchidas" };
