@@ -11,14 +11,14 @@
 
 import { useState } from "react";
 import { ArrowUp, ArrowDown, Check, X, AlertTriangle, Loader2, ChevronRight } from "lucide-react";
-import type { DivergenceReport, RuleEvaluation, Estado, EffectOutcome } from "@/lib/macro-map/types";
+import type { DivergenceReport, RuleEvaluation, Estado, EffectOutcome, Efeito } from "@/lib/macro-map/types";
 
 export const STATE: Record<Estado, { label: string; cor: string; alerta: boolean }> = {
   anomalo: { label: "Anômalo", cor: "#E8A33D", alerta: true },
   regime_rompido: { label: "Regime rompido", cor: "#F0504A", alerta: true },
   observando: { label: "Observando", cor: "#5BA8FF", alerta: false },
   confirmado: { label: "Confirmado", cor: "#3FB950", alerta: false },
-  quiescente: { label: "Quiescente", cor: "var(--faint)", alerta: false },
+  quiescente: { label: "Calmo", cor: "var(--faint)", alerta: false },
   sem_dados: { label: "Sem dados", cor: "var(--faint)", alerta: false },
 };
 
@@ -42,6 +42,41 @@ const Nome = (sym: string) => {
 };
 
 const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}%`;
+
+// ── leitura acionável do sinal ───────────────────────────────────────────────
+
+// Onde a regra pega na carteira do dono, em rótulo curto.
+const CARTEIRA_LABEL: Record<string, string> = {
+  SHV: "RF US$", VWRA: "RV mundo", PATRIMONIO_BRL: "patrimônio R$",
+};
+
+// Efeito primário da regra (o mesmo critério do motor: alta confiança primeiro).
+const efeitoPrimario = (efs: Efeito[] | undefined): Efeito | null =>
+  efs?.length ? efs.find((e) => e.confianca === "alta") ?? efs[0] : null;
+
+const janela = ([a, b]: [number, number]): string =>
+  a <= 0 ? (b === 0 ? "no dia" : `até ${b} pregões`) : `${a}–${b} pregões`;
+
+// "se disparar → o S&P 500 cai · 1–10 pregões" — o playbook do sinal, sempre
+// visível (mesmo em dia calmo), porque antecipação é o produto do painel.
+function playbook(a: RuleEvaluation): string | null {
+  const p = efeitoPrimario(a.efeitosEsperados);
+  if (!p) return null;
+  const verbo = p.sinal > 0 ? "sobe" : "cai";
+  return `se disparar → ${nome(p.ativo)} ${verbo} · ${janela(p.defasagem_dias)}`;
+}
+
+// Selo de confiabilidade HONESTO, derivado do histórico medido ao vivo.
+// <35% com amostra decente é informação também: o efeito costuma vir ao contrário.
+function selo(a: RuleEvaluation): { texto: string; cor: string } | null {
+  if (a.taxaAcertoLive == null) return null;
+  const x = Math.round(a.taxaAcertoLive * 100);
+  const n = a.nEventos;
+  if (n < 8) return { texto: `amostra curta · ${x}% ×${n}`, cor: "var(--faint)" };
+  if (a.taxaAcertoLive >= 0.6) return { texto: `confiável · acertou ${x}% ×${n}`, cor: "#3FB950" };
+  if (a.taxaAcertoLive <= 0.35) return { texto: `veio o contrário na maioria · ${x}% ×${n}`, cor: "#E8A33D" };
+  return { texto: `moeda ao ar · ${x}% ×${n}`, cor: "var(--muted)" };
+}
 
 // ── frase em português do que está acontecendo hoje ──────────────────────────
 function resumo(a: RuleEvaluation): string {
@@ -107,16 +142,22 @@ function RuleCard({ a, onOpen }: { a: RuleEvaluation; onOpen: (a: RuleEvaluation
         <p style={{ fontSize: 12.5, lineHeight: 1.5, color: a.estado === "anomalo" || a.estado === "regime_rompido" ? "var(--text)" : "var(--text-2)" }}>
           {resumo(a)}
         </p>
-        {/* rodapé curto: histórico + toque para detalhes */}
-        <div className="flex items-center justify-between gap-2 mt-2.5" style={{ fontSize: 11 }}>
-          <span style={{ color: "var(--faint)" }}>
-            {a.estado === "sem_dados"
-              ? "aguardando fonte"
-              : a.taxaAcertoLive == null
-                ? "sem histórico ainda"
-                : `funcionou ${Math.round(a.taxaAcertoLive * 100)}% das vezes (${a.nEventos} ${a.nEventos === 1 ? "caso" : "casos"})`}
+        {/* o playbook: o que esperar quando o gatilho dispara */}
+        {playbook(a) && (
+          <p className="font-mono mt-2" style={{ fontSize: 11, color: "var(--text-2)" }}>{playbook(a)}</p>
+        )}
+        {/* rodapé: selo de confiabilidade + onde pega na carteira + detalhes */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2" style={{ fontSize: 10.5 }}>
+          {(() => {
+            const s2 = selo(a);
+            if (a.estado === "sem_dados") return <span style={{ color: "var(--faint)" }}>aguardando fonte</span>;
+            if (!s2) return <span style={{ color: "var(--faint)" }}>sem histórico ainda</span>;
+            return <span className="font-mono" style={{ color: s2.cor, fontWeight: 700 }}>{s2.texto}</span>;
+          })()}
+          <span className="font-mono" style={{ color: "var(--faint)" }}>
+            {a.relevancia_portfolio.map((t) => CARTEIRA_LABEL[t] ?? t).join(" · ")}
           </span>
-          <span className="inline-flex items-center gap-0.5 shrink-0" style={{ color: "var(--muted)" }}>
+          <span className="inline-flex items-center gap-0.5 shrink-0 ml-auto" style={{ color: "var(--muted)" }}>
             detalhes <ChevronRight size={13} />
           </span>
         </div>
@@ -193,6 +234,25 @@ function DetailModal({ a, onClose }: { a: RuleEvaluation; onClose: () => void })
               {a.ultimoChoque && <span style={{ color: s.cor }}> · disparou {a.ultimoChoque.date} (z60 {a.ultimoChoque.z60}, z250 {a.ultimoChoque.z250})</span>}
             </p>
           </Secao>
+
+          {/* o playbook completo: cada efeito que a regra espera */}
+          {a.efeitosEsperados?.length > 0 && (
+            <Secao titulo="O que esperar quando dispara">
+              <div style={{ borderTop: "1px solid var(--line)" }}>
+                {a.efeitosEsperados.map((e) => (
+                  <div key={e.ativo} className="flex items-center gap-2 py-1.5" style={{ fontSize: 12 }}>
+                    <span className="min-w-0 flex-1" style={{ color: "var(--text)" }}>{Nome(e.ativo)}</span>
+                    <span className="inline-flex items-center gap-1 font-mono shrink-0" style={{ color: e.sinal > 0 ? "#3FB950" : "#F0504A" }}>
+                      {e.sinal > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                      {e.sinal > 0 ? "sobe" : "cai"}
+                    </span>
+                    <span className="font-mono shrink-0" style={{ minWidth: 92, textAlign: "right", color: "var(--muted)" }}>{janela(e.defasagem_dias)}</span>
+                    <span className="font-mono shrink-0" style={{ minWidth: 52, textAlign: "right", color: "var(--faint)", fontSize: 10 }}>{e.confianca}</span>
+                  </div>
+                ))}
+              </div>
+            </Secao>
+          )}
 
           {/* efeitos esperados vs. observados */}
           {a.estado !== "sem_dados" && a.efeitos.length > 0 && (
@@ -282,7 +342,18 @@ export function DivergenceView({
       </div>
 
       <div className="grid gap-2.5">
-        {report.avaliacoes.map((a) => <RuleCard key={a.id} a={a} onOpen={setAberta} />)}
+        {/* Alertas primeiro; no resto, os sinais com histórico mais confiável no topo. */}
+        {[...report.avaliacoes]
+          .sort((a, b) => {
+            const prio = (x: RuleEvaluation) =>
+              x.estado === "anomalo" || x.estado === "regime_rompido" ? 0
+                : x.estado === "observando" ? 1 : x.estado === "confirmado" ? 2
+                : x.estado === "quiescente" ? 3 : 4;
+            const pa = prio(a), pb = prio(b);
+            if (pa !== pb) return pa - pb;
+            return (b.taxaAcertoLive ?? -1) - (a.taxaAcertoLive ?? -1);
+          })
+          .map((a) => <RuleCard key={a.id} a={a} onOpen={setAberta} />)}
       </div>
 
       {footnote && (

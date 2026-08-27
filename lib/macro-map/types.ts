@@ -75,6 +75,11 @@ export interface RuleEvaluation {
   // (null = janela ainda não decorreu).
   ultimoChoqueGeral: { date: string; z60: number; z250: number; primarioConfirmado: boolean | null } | null;
   efeitos: EffectOutcome[];
+  // O que a regra ESPERA quando o gatilho dispara (espec da regra, sempre
+  // presente) — alimenta a linha "se disparar → X sobe/cai em N pregões" do
+  // card, mesmo em dia quiescente. Distinto de `efeitos` (o REALIZADO de um
+  // choque ativo).
+  efeitosEsperados: Efeito[];
   // taxa de concordância de sinal MEDIDA ao vivo na janela (a "métrica central").
   // Distinta da evidencia.taxa_acerto do YAML (essa é a priori/Fase 2 formal).
   taxaAcertoLive: number | null;
