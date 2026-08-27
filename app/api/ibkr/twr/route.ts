@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getFlexXmlCached, parseFlexXml } from "@/lib/ibkr-flex";
 import { getMarketDataStore } from "@/lib/data-store";
 import { lerNavPlanilha, persistirNavIbkr, montarTwrIbkr } from "@/lib/ibkr-nav-store";
-import { anexarFluxos } from "@/lib/ibkr-nav";
+import { anexarFluxos, apararInicioIrrisorio } from "@/lib/ibkr-nav";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -65,6 +65,7 @@ export async function GET(request: Request) {
         temEquitySummary: parsed.navDiario.length > 0,
         inicioSerie: inicio,
         retornosAnomalos: anomalos.slice(0, 20),
+        aparadoPreview: (() => { const a = apararInicioIrrisorio(pontosDbg); return { cortados: a.cortados, dataInicio: a.dataInicio }; })(),
       }, { headers: { "Cache-Control": "no-store" } });
     }
     const planilha = await lerNavPlanilha();
@@ -107,6 +108,7 @@ export async function GET(request: Request) {
       ultimaData: twr.ultimaData,
       fontes: twr.fontes,
       semSecaoNav: twr.semSecaoNav,
+      inicioAparado: twr.inicioAparado,
       persistidos,
     }, { headers: { "Cache-Control": "s-maxage=1800, stale-while-revalidate=600" } });
   } catch (e) {
