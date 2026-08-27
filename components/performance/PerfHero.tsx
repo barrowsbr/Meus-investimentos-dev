@@ -144,6 +144,15 @@ export default function PerfHero({
             {s.hojeParcial && <span style={{ color: "var(--pos)", fontWeight: 700 }}> · hoje ao vivo</span>}
             {" · "}Patrimônio {compactCurr(patNet)}
           </p>
+          {s.ibkrOficial && (
+            <p className="font-mono" style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+              IBKR oficial (NAV): <b style={{ color: "var(--text)" }}>{pct(s.ibkrOficial.twrJanela * 100)}</b>
+              {" · Δ motor "}
+              <b style={{ color: Math.abs(s.ibkrOficial.divergenciaPp) <= 1 ? "var(--pos)" : "var(--neg)" }}>
+                {s.ibkrOficial.divergenciaPp >= 0 ? "+" : ""}{s.ibkrOficial.divergenciaPp.toFixed(1)} p.p.
+              </b>
+            </p>
+          )}
         </section>
 
         {/* ── Benchmarks as divergent bars ── */}
@@ -223,6 +232,13 @@ export default function PerfHero({
             <span className="text-[10px] text-zinc-500 font-medium">
               {formatDuracao(s.duracaoAnos)} · {formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}
               {s.hojeParcial && <span className="font-bold text-emerald-400"> · hoje ao vivo</span>}
+              {s.ibkrOficial && (
+                <span> · IBKR oficial (NAV) <b className="text-zinc-300">{pct(s.ibkrOficial.twrJanela * 100)}</b>{" "}
+                  <b className={Math.abs(s.ibkrOficial.divergenciaPp) <= 1 ? "text-emerald-400" : "text-red-400"}>
+                    Δ {s.ibkrOficial.divergenciaPp >= 0 ? "+" : ""}{s.ibkrOficial.divergenciaPp.toFixed(1)} p.p.
+                  </b>
+                </span>
+              )}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {benchmarks.map(b => (

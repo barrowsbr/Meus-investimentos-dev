@@ -1168,6 +1168,37 @@ export async function GET(request: Request) {
       };
     })();
 
+    // ── TWR oficial IBKR (NAV) — reconciliação com o motor (dono, 27/08) ──
+    // Só na visão filtrada pela corretora IBKR: monta a série NAV oficial
+    // (aba ibkr_nav + Flex em cache) e devolve o TWR oficial NA MESMA JANELA
+    // da visão USD + a divergência para o nosso motor. Best-effort com teto
+    // de tempo: nunca atrasa nem derruba a rota.
+    if (usdView && corretoraFiltro.toUpperCase().includes("IBKR")) {
+      try {
+        const token = process.env.IBKR_FLEX_TOKEN;
+        const queryId = process.env.IBKR_FLEX_QUERY_ID;
+        if (token && queryId) {
+          const [flexMod, navMod] = await Promise.all([
+            import("@/lib/ibkr-flex"),
+            import("@/lib/ibkr-nav-store"),
+          ]);
+          const xml = await flexMod.getFlexXmlCached(token, queryId, 1_800_000, 8_000);
+          const oficial = navMod.montarTwrIbkr(flexMod.parseFlexXml(xml), await navMod.lerNavPlanilha());
+          const inicio = meaningfulPoints[0]?.date ?? "";
+          const naJanela = oficial.pontos.filter(p => p.date >= inicio);
+          if (naJanela.length >= 2) {
+            const base = 1 + naJanela[0].twr;
+            const twrJanela = (1 + naJanela[naJanela.length - 1].twr) / base - 1;
+            (usdView.summary as Record<string, unknown>).ibkrOficial = {
+              twrJanela,
+              divergenciaPp: (usdView.summary.twrTotal - twrJanela) * 100,
+              ultimaData: naJanela[naJanela.length - 1].date,
+            };
+          }
+        }
+      } catch { /* melhor sem a régua do que atrasar a rota */ }
+    }
+
     // Trava retornos mensais de meses já fechados (fire-and-forget)
     const isFullView = isAllTimeUnfiltered;
     if (isFullView) {

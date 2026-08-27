@@ -72,7 +72,7 @@ export async function runFlexSync(
   }
 
   const xml = await fetchFlexStatement(token, queryId);
-  const { proventos, trades, cambio, positions, proventosDupsRemoved, exchangeBySymbol } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, proventosDupsRemoved, exchangeBySymbol, navDiario, fluxosExternos } = parseFlexXml(xml);
 
   // ── Garantia de grafia Yahoo (regra do dono) ──────────────────────────────
   // ANTES de qualquer escrita, cada ticker vira o símbolo EXATO do Yahoo
@@ -259,6 +259,20 @@ export async function runFlexSync(
       await store.appendRows("cambio", rows);
       (result.cambio as Record<string, unknown>).inserted = novos.length;
     }
+  }
+
+  // ── NAV diário → aba ibkr_nav (TWR oficial — acumula além dos 365d do Flex) ──
+  if (!dryRun && navDiario.length > 0) {
+    try {
+      const { persistirNavIbkr } = await import("./ibkr-nav-store");
+      const { anexarFluxos } = await import("./ibkr-nav");
+      const inseridos = await persistirNavIbkr(anexarFluxos(navDiario, fluxosExternos));
+      result.nav = { pontos_flex: navDiario.length, inseridos };
+    } catch (e) {
+      result.nav = { pontos_flex: navDiario.length, erro: e instanceof Error ? e.message : "falha ao gravar" };
+    }
+  } else if (navDiario.length === 0) {
+    result.nav = { pontos_flex: 0, aviso: "seção Equity Summary in Base ausente na Flex query" };
   }
 
   // Foto das posições (reconciliação) — não gravada na planilha.
