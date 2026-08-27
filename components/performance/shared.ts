@@ -21,6 +21,9 @@ export interface Summary {
   // true = a última perna do grid é HOJE com preços spot (provisória; o dia
   // fecha na golden source com o cron das 23h UTC).
   hojeParcial?: boolean;
+  // Visão USD filtrada pela corretora IBKR: TWR OFICIAL da conta (NAV diário
+  // da própria IBKR) na mesma janela + divergência para o nosso motor.
+  ibkrOficial?: { twrJanela: number; divergenciaPp: number; ultimaData: string };
   vsCDI: number;
   vsIBOV: number;
   vsSP500BRL?: number;

@@ -45,6 +45,16 @@ export interface FlexParsed {
   /** Bolsa de listagem por ticker (atributo listingExchange do Flex) — pista
    *  determinística para a grafia Yahoo (TSE→.TO, AEB→.AS, IBIS→.DE…). */
   exchangeBySymbol: Record<string, string>;
+  /** NAV diário em moeda BASE (seção "Equity Summary in Base by Report Date").
+   *  É o MESMO número que o PortfolioAnalyst usa para o TWR oficial. Vazio
+   *  enquanto a seção não estiver habilitada na Flex query. */
+  navDiario: { date: string; nav: number }[];
+  /** Depósitos/retiradas em moeda base (CashTransaction type Deposits/Withdrawals)
+   *  — os fluxos EXTERNOS que ficam FORA do retorno no TWR. */
+  fluxosExternos: { date: string; valor: number }[];
+  /** Seção "Change in NAV" (resumo do período), com o TWR oficial quando o
+   *  campo Time Weighted Rate of Return está habilitado na query. */
+  changeInNav: { startingValue: number; endingValue: number; depositsWithdrawals: number; twr: number | null } | null;
 }
 
 // ── XML helpers (formato Flex é plano: elementos auto-fechados com atributos) ──
@@ -262,15 +272,34 @@ export function parseFlexXml(xml: string): FlexParsed {
     }));
   }
 
-  // Cash transactions → só dividendos e imposto retido (ignora juros, taxas, etc.)
+  // Cash transactions → dividendos, imposto retido e depósitos/retiradas
+  // (fluxos externos p/ o TWR). Juros/taxas seguem ignorados.
+  const fluxosExternos: { date: string; valor: number }[] = [];
+  const seenFluxo = new Set<string>();
   for (const a of extractElements(xml, "CashTransaction")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
     if (lod === "SUMMARY") continue;
     const symbol = a.symbol ?? "";
     const amount = parseValor(a.amount ?? "0");
-    if (!symbol || amount === 0) continue;
+    if (amount === 0) continue;
 
     const type = (a.type ?? "").toLowerCase();
+
+    // Depósito/retirada: sem symbol; converte p/ moeda base via fxRateToBase.
+    if (type.includes("deposit") || type.includes("withdraw")) {
+      const fxBase = parseValor(a.fxRateToBase ?? "1") || 1;
+      const date = normalizeDate(a.reportDate ?? a.dateTime ?? a.settleDate ?? "");
+      if (!date) continue;
+      // A seção pode emitir cada lançamento 2× bit-idêntico (mesmo caso dos
+      // proventos) — dedup por chave exata.
+      const k = `${date}|${amount}|${a.currency ?? ""}`;
+      if (seenFluxo.has(k)) continue;
+      seenFluxo.add(k);
+      fluxosExternos.push({ date, valor: amount * fxBase });
+      continue;
+    }
+
+    if (!symbol) continue;
     const isImposto = type.includes("withholding") || type.includes("tax");
     const isDividend = type.includes("dividend") || type.includes("lieu");
     if (!isImposto && !isDividend) continue;
@@ -358,6 +387,31 @@ export function parseFlexXml(xml: string): FlexParsed {
     }
   }
 
+  // NAV diário em base (Equity Summary in Base by Report Date) — atributo `total`.
+  // Dedup por data (a seção pode vir com MTM+lote duplicado), last-wins.
+  const navPorData = new Map<string, number>();
+  for (const a of extractElements(xml, "EquitySummaryByReportDateInBase")) {
+    const date = normalizeDate(a.reportDate ?? "");
+    const nav = parseValor(a.total ?? "0");
+    if (date && nav !== 0) navPorData.set(date, nav);
+  }
+  const navDiario = [...navPorData.entries()]
+    .map(([date, nav]) => ({ date, nav }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Change in NAV (resumo do período) — traz o TWR OFICIAL quando habilitado.
+  let changeInNav: FlexParsed["changeInNav"] = null;
+  const cin = extractElements(xml, "ChangeInNAV")[0];
+  if (cin) {
+    const twrRaw = cin.twr ?? cin.timeWeightedRateOfReturn ?? "";
+    changeInNav = {
+      startingValue: parseValor(cin.startingValue ?? "0"),
+      endingValue: parseValor(cin.endingValue ?? "0"),
+      depositsWithdrawals: parseValor(cin.depositsWithdrawals ?? "0"),
+      twr: twrRaw !== "" ? parseValor(twrRaw) : null,
+    };
+  }
+
   // A seção Cash Transactions da Flex pode emitir cada lançamento 2× (bit-idêntico)
   // — colapsa as duplicatas. Pares dividendo+imposto NÃO são duplicata (decisao/
   // valor diferentes), então são preservados.
@@ -371,5 +425,5 @@ export function parseFlexXml(xml: string): FlexParsed {
     proventosUnique.push(p);
   }
 
-  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved, exchangeBySymbol };
+  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved, exchangeBySymbol, navDiario, fluxosExternos, changeInNav };
 }

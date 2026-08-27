@@ -5,8 +5,11 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Loader2, Wifi, AlertCircle, ArrowUpRight, ArrowDownRight, X,
-  Wallet, TrendingUp, Layers, Coins, Receipt, ChevronRight,
+  Wallet, TrendingUp, Layers, Coins, Receipt, ChevronRight, LineChart as LineChartIcon, ShieldAlert,
 } from "lucide-react";
+import {
+  ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, Bar, Cell,
+} from "recharts";
 import { pct, currency } from "@/lib/format";
 import PageHeader from "@/components/PageHeader";
 import AssetLogo from "@/components/AssetLogo";
@@ -284,6 +287,153 @@ function PositionModal({ data, p, onClose }: { data: IbkrOverview; p: OverviewPo
   );
 }
 
+// ── Desempenho — TWR oficial (NAV IBKR) ───────────────────────────────────────
+// Mesma conta do PortfolioAnalyst: NAV diário da própria corretora + fluxos
+// externos fora do retorno (lib/ibkr-nav.ts). vs S&P 500 na mesma janela.
+
+interface TwrResp {
+  pontos: Array<{ date: string; twr: number; sp500: number | null }>;
+  mensal: Array<{ mes: string; ret: number }>;
+  twrTotal: number; twrAnualizado: number; oficialPeriodo: number | null;
+  navFinal: number; fluxoTotal: number;
+  primeiraData: string; ultimaData: string;
+  fontes: { planilha: number; flex: number };
+  semSecaoNav: boolean;
+  error?: string;
+}
+
+const TT_STYLE = { background: "#131318", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 12 };
+const MES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const rotMes = (ym: string) => `${MES_PT[Number(ym.slice(5, 7)) - 1]}/${ym.slice(2, 4)}`;
+
+function DesempenhoTwr() {
+  const [d, setD] = useState<TwrResp | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/ibkr/twr")
+      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "Falha"); return j as TwrResp; })
+      .then(setD)
+      .catch((e) => setErro(e instanceof Error ? e.message : "Erro"));
+  }, []);
+
+  if (erro) return null; // sem token/erro de rede: seção some (o resto da página já avisa)
+  if (!d) {
+    return (
+      <Section title="Desempenho · TWR oficial (NAV IBKR)">
+        <div className="px-4 py-6 flex items-center gap-2" style={{ color: "var(--muted)" }}>
+          <Loader2 size={14} className="animate-spin" /><span className="text-xs">Calculando do NAV diário…</span>
+        </div>
+      </Section>
+    );
+  }
+
+  // Seção NAV ainda não habilitada na Flex query → passo a passo exato.
+  if (d.semSecaoNav || d.pontos.length < 2) {
+    return (
+      <Section title="Desempenho · TWR oficial (NAV IBKR)">
+        <div className="px-4 py-4 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+          <p className="font-semibold mb-1" style={{ color: "var(--text)" }}>Falta habilitar o NAV diário na sua Flex query (2 min):</p>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Client Portal → Performance &amp; Statements → Flex Queries → editar a query</li>
+            <li>Adicionar a seção <b>Equity Summary in Base by Report Date</b> (Report Date + Total)</li>
+            <li>Adicionar <b>Change in NAV</b> (todos os campos, inclui o TWR oficial)</li>
+            <li>Em <b>Cash Transactions</b>, marcar também <b>Deposits &amp; Withdrawals</b></li>
+            <li>Período: <b>Last 365 Calendar Days</b></li>
+          </ol>
+          <p className="mt-2">Com isso, o gráfico TWR idêntico ao do PortfolioAnalyst acende aqui sozinho — e o histórico passa a acumular na aba <code>ibkr_nav</code> além dos 365 dias.</p>
+        </div>
+      </Section>
+    );
+  }
+
+  const chart = d.pontos.map((p) => ({ ...p, twrPct: p.twr * 100, spPct: p.sp500 != null ? p.sp500 * 100 : null }));
+  const vsSp = (() => {
+    const ult = [...d.pontos].reverse().find((p) => p.sp500 != null);
+    return ult && ult.sp500 != null ? d.twrTotal - ult.sp500 : null;
+  })();
+  const mensal = d.mensal.slice(-13);
+
+  return (
+    <Section
+      title="Desempenho · TWR oficial (NAV IBKR)"
+      action={<span className="font-mono text-[9px]" style={{ color: "var(--faint)" }}>{fmtDate(d.primeiraData)} → {fmtDate(d.ultimaData)}</span>}
+    >
+      <div className="px-4 pt-3">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-2">
+          <span className="font-mono text-2xl font-extrabold tnum" style={{ color: cor(d.twrTotal) }}>
+            {d.twrTotal >= 0 ? "+" : ""}{(d.twrTotal * 100).toFixed(2)}%
+          </span>
+          <span className="font-mono text-[11px]" style={{ color: "var(--muted)" }}>anualizado {pctR(d.twrAnualizado)}</span>
+          {vsSp != null && (
+            <span className="font-mono text-[11px] font-semibold" style={{ color: cor(vsSp) }}>
+              vs S&amp;P {vsSp >= 0 ? "+" : ""}{(vsSp * 100).toFixed(1)} p.p.
+            </span>
+          )}
+          {d.oficialPeriodo != null && (
+            <span className="font-mono text-[11px]" style={{ color: "var(--faint)" }}>IBKR oficial (período): {pctR(d.oficialPeriodo)}</span>
+          )}
+          <span className="font-mono text-[10px]" style={{ color: "var(--faint)" }}>
+            NAV {compact(d.navFinal, "US$")} · fluxo líq. {signed(d.fluxoTotal, "US$")}
+          </span>
+        </div>
+
+        <ResponsiveContainer width="100%" height={230}>
+          <ComposedChart data={chart}>
+            <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 9.5 }} axisLine={false} tickLine={false}
+              tickFormatter={(v: string) => `${v.slice(8, 10)}/${v.slice(5, 7)}`} minTickGap={42} />
+            <YAxis tick={{ fill: "#52525b", fontSize: 9.5 }} axisLine={false} tickLine={false}
+              tickFormatter={(v: number) => `${v.toFixed(0)}%`} width={44} />
+            <Tooltip contentStyle={TT_STYLE} labelStyle={{ color: "#a1a1aa" }}
+              formatter={(v: number, n: string) => [`${v >= 0 ? "+" : ""}${v.toFixed(2)}%`, n === "twrPct" ? "Conta IBKR (TWR)" : "S&P 500"]} />
+            <ReferenceLine y={0} stroke="#3f3f46" />
+            <Area dataKey="twrPct" stroke={IBKR_RED} strokeWidth={2} fill={IBKR_RED} fillOpacity={0.09} dot={false} />
+            <Line dataKey="spPct" stroke="#5BA8FF" strokeWidth={1.4} strokeDasharray="5 3" dot={false} connectNulls />
+          </ComposedChart>
+        </ResponsiveContainer>
+
+        {/* Retornos mensais (composto dentro do mês) */}
+        <div className="mt-1 mb-3">
+          <ResponsiveContainer width="100%" height={110}>
+            <BarChart data={mensal.map((m) => ({ ...m, rot: rotMes(m.mes), pct: m.ret * 100 }))} barCategoryGap="30%">
+              <XAxis dataKey="rot" tick={{ fill: "#52525b", fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#52525b", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(0)}%`} width={38} />
+              <Tooltip contentStyle={TT_STYLE} labelStyle={{ color: "#a1a1aa" }}
+                formatter={(v: number) => [`${v >= 0 ? "+" : ""}${v.toFixed(2)}%`, "mês"]} />
+              <ReferenceLine y={0} stroke="#3f3f46" />
+              <Bar dataKey="pct">
+                {mensal.map((m) => <Cell key={m.mes} fill={m.ret >= 0 ? "var(--pos)" : "var(--neg)"} fillOpacity={0.8} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <p className="font-mono text-[9px] pb-3" style={{ color: "var(--faint)" }}>
+          NAV a NAV da própria IBKR (aportes/retiradas fora do retorno) · {d.fontes.planilha > 0 ? `${d.fontes.planilha} pregões da aba ibkr_nav + ` : ""}{d.fontes.flex} do Flex · S&amp;P 500 = preço em US$
+        </p>
+      </div>
+    </Section>
+  );
+}
+
+// ── Margem & risco ────────────────────────────────────────────────────────────
+
+function MargemRisco({ data }: { data: IbkrOverview }) {
+  const k = data.kpis;
+  if (data.marginByCurrency.length === 0 || k.margemBRL <= 0) return null;
+  const usoPct = k.patrimonioTotalBRL > 0 ? k.margemBRL / (k.patrimonioTotalBRL + k.margemBRL) : null;
+  return (
+    <Section title="Margem & risco">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px" style={{ background: "var(--line)" }}>
+        <Kpi icon={<ShieldAlert size={10} />} label="Dívida de margem" usd={compact(k.margemUSD, "US$")} brl={compact(k.margemBRL, "R$")} color="var(--neg)"
+          sub={usoPct != null ? `${(usoPct * 100).toFixed(1)}% do bruto` : undefined} />
+        <Kpi icon={<Receipt size={10} />} label="Juros acruados" usd={compact(data.marginByCurrency.reduce((s, m) => s + m.jurosAcruados, 0), "US$")} brl=" " color="var(--neg)" sub="a pagar no ciclo" />
+        <Kpi icon={<Layers size={10} />} label="Margem inicial (req.)" usd={compact(data.marginByCurrency.reduce((s, m) => s + m.initMargin, 0), "US$")} brl=" " />
+        <Kpi icon={<AlertCircle size={10} />} label="Margem manutenção" usd={compact(data.marginByCurrency.reduce((s, m) => s + m.maintMargin, 0), "US$")} brl=" " sub="abaixo disso = chamada" />
+      </div>
+    </Section>
+  );
+}
+
 // ── Atividade (abas) ───────────────────────────────────────────────────────────
 
 type AbaAtividade = "operacoes" | "proventos" | "cambio";
@@ -399,6 +549,12 @@ function Dashboard({ data }: { data: IbkrOverview }) {
         <Kpi icon={<Coins size={10} />} label="Dividendos líq." usd={compact(k.dividendosLiquidoUSD, "US$")} brl={compact(k.dividendosLiquidoBRL, "R$")} sub={`bruto ${compact(k.dividendosBRL, "R$")}`} color="var(--pos)" />
         <Kpi icon={<Receipt size={10} />} label="Imposto retido" usd={compact(k.impostosUSD, "US$")} brl={compact(k.impostosBRL, "R$")} color="var(--neg)" />
       </div>
+
+      {/* Desempenho — TWR oficial por NAV (o gráfico do PortfolioAnalyst) */}
+      <div className="mb-5"><DesempenhoTwr /></div>
+
+      {/* Margem & risco (só aparece quando há dívida de margem) */}
+      <div className="mb-5"><MargemRisco data={data} /></div>
 
       {/* Alocação */}
       <div className="mb-5">

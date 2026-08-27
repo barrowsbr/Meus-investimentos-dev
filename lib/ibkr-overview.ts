@@ -47,7 +47,7 @@ export interface IbkrOverview {
     dividendosLiquidoBRL: number; dividendosLiquidoUSD: number | null;
   };
   cashByCurrency: Array<{ moeda: string; valor: number; valorBRL: number | null }>;
-  marginByCurrency: Array<{ moeda: string; valor: number; valorBRL: number | null; jurosAcruados: number }>;
+  marginByCurrency: Array<{ moeda: string; valor: number; valorBRL: number | null; jurosAcruados: number; initMargin: number; maintMargin: number }>;
   byCurrency: Array<{ moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>;
   dividendsByTicker: Array<{ ticker: string; moeda: string; dividendos: number; impostos: number; liquido: number }>;
   positions: OverviewPosition[];
@@ -135,7 +135,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   // Sem isso, entrar em margem INFLAVA o "Patrimônio do dia" da Home (e o
   // histórico patrimonial) exatamente no valor emprestado.
   const marginByCurrency = marginBalances
-    .map((m) => ({ moeda: m.moeda, valor: m.saldo, valorBRL: toBRL(m.saldo, m.moeda), jurosAcruados: m.jurosAcruados }))
+    .map((m) => ({ moeda: m.moeda, valor: m.saldo, valorBRL: toBRL(m.saldo, m.moeda), jurosAcruados: m.jurosAcruados, initMargin: m.initMargin, maintMargin: m.maintMargin }))
     .sort((a, b) => (b.valorBRL ?? b.valor) - (a.valorBRL ?? a.valor));
   const margemBRL = marginByCurrency.reduce((s, c) => s + (c.valorBRL ?? 0), 0);
   const patrimonioTotalBRL = patrimonioBRL + caixaBRL - margemBRL;
