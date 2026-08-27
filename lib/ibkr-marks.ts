@@ -47,3 +47,42 @@ export function montarMarksParaGolden(
 
   return Object.keys(valores).length > 0 ? { date: toDate, valores } : null;
 }
+
+// ── Merge dos marks na golden (puro, testado) ────────────────────────────────
+
+export interface GoldenLike {
+  tickers: string[];
+  dates: string[];
+  prices: Record<string, Record<string, number>>;
+}
+
+/** Aplica os marks na golden SÓ em células vazias — nenhuma célula existente
+ *  é alterada (compatível com o checkGoldenGuard por construção: o resultado
+ *  é sempre superset do original). Devolve o próximo estado + quantas células
+ *  foram de fato preenchidas. */
+export function aplicarMarksNaGolden(
+  golden: GoldenLike,
+  marks: MarksParaGolden,
+): { data: GoldenLike; preenchidos: number } {
+  const prices: Record<string, Record<string, number>> = {};
+  for (const d of golden.dates) prices[d] = { ...golden.prices[d] };
+
+  const tickers = new Set(golden.tickers.map((t) => t.toUpperCase()));
+  const dates = new Set(golden.dates);
+  dates.add(marks.date);
+  if (!prices[marks.date]) prices[marks.date] = {};
+
+  let preenchidos = 0;
+  for (const [col, preco] of Object.entries(marks.valores)) {
+    tickers.add(col);
+    if (prices[marks.date][col] == null) {
+      prices[marks.date][col] = preco;
+      preenchidos++;
+    }
+  }
+
+  return {
+    data: { tickers: [...tickers].sort(), dates: [...dates].sort(), prices },
+    preenchidos,
+  };
+}
