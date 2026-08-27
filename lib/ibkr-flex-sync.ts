@@ -23,7 +23,7 @@ import {
   parseValor,
   pick,
 } from "./broker-import";
-import { fetchFlexStatement, parseFlexXml } from "./ibkr-flex";
+import { fetchFlexStatement, parseFlexXml, parseFlexMeta } from "./ibkr-flex";
 import { canonicalizeTickersForSheet, persistAssetMeta } from "./asset-meta";
 import { activeUserKey } from "./user-sheet";
 
@@ -273,6 +273,49 @@ export async function runFlexSync(
     }
   } else if (navDiario.length === 0) {
     result.nav = { pontos_flex: 0, aviso: "seção Equity Summary in Base ausente na Flex query" };
+  }
+
+  // ── Marks oficiais → golden source (regime híbrido, decisão do dono 27/08) ──
+  // Para os ativos IBKR, o fechamento do pregão toDate na db_cotacoes passa a
+  // ser o markPrice do PRÓPRIO extrato — o cron de cotações RESERVA essas
+  // células (ver sync-cotacoes) e este passo as preenche na manhã seguinte.
+  // Só células vazias: o gate da golden garante que nada existente muda.
+  // Best-effort e desligável (Configurações → Automações, chave golden_ibkr).
+  if (!dryRun && positions.length > 0) {
+    try {
+      const { isAutomacaoAtiva } = await import("./automacoes");
+      if (await isAutomacaoAtiva("golden_ibkr")) {
+        const { montarMarksParaGolden } = await import("./ibkr-marks");
+        const { getMarketDataStore } = await import("./data-store");
+        const meta = parseFlexMeta(xml);
+        const mktStore = getMarketDataStore();
+        const golden = await mktStore.read();
+        const marks = montarMarksParaGolden(positions, meta.toDate, golden.tickers);
+        if (marks) {
+          const prices: Record<string, Record<string, number>> = {};
+          for (const d of golden.dates) prices[d] = { ...golden.prices[d] };
+          const tickers = new Set(golden.tickers.map((t) => t.toUpperCase()));
+          const dates = new Set(golden.dates);
+          dates.add(marks.date);
+          if (!prices[marks.date]) prices[marks.date] = {};
+          let preenchidos = 0;
+          for (const [col, preco] of Object.entries(marks.valores)) {
+            tickers.add(col);
+            if (prices[marks.date][col] == null) { prices[marks.date][col] = preco; preenchidos++; }
+          }
+          if (preenchidos > 0) {
+            const w = await mktStore.write({ tickers: [...tickers].sort(), dates: [...dates].sort(), prices });
+            result.golden_ibkr = { data: marks.date, preenchidos, modo: w.mode, motivo: w.reason };
+          } else {
+            result.golden_ibkr = { data: marks.date, preenchidos: 0, aviso: "células já preenchidas" };
+          }
+        }
+      } else {
+        result.golden_ibkr = { desligado: true };
+      }
+    } catch (e) {
+      result.golden_ibkr = { erro: e instanceof Error ? e.message : "falha ao gravar marks" };
+    }
   }
 
   // Foto das posições (reconciliação) — não gravada na planilha.
