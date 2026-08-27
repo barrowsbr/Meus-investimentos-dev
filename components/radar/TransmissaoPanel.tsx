@@ -8,10 +8,11 @@
 // escopo — assim a vista fica coerente com o Radar mesmo em tema claro (creme).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, RefreshCw, Network } from "lucide-react";
 import type { DivergenceReport } from "@/lib/macro-map/types";
 import { DivergenceView } from "@/components/macro-map/DivergenceView";
+import { CenariosView } from "@/components/macro-map/CenariosView";
 
 // Escopo escuro: sobrepõe as vars de tema só neste subtree.
 const DARK_SCOPE = {
@@ -41,6 +42,9 @@ export default function TransmissaoPanel({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
+  // Abas: "Hoje" = detector de divergência (o que existia); "E se?" = cenários
+  // por evento — estourou a notícia → o que segue (decisão do dono 27/08).
+  const [aba, setAba] = useState<"hoje" | "ese">("hoje");
   const anomalias = report?.resumo.anomalo ?? 0;
 
   return (
@@ -69,7 +73,11 @@ export default function TransmissaoPanel({
                 </span>
               )}
             </h2>
-            <p className="truncate text-[10px] text-zinc-500">Detector de divergência — o que deveria acontecer vs. o que aconteceu (EUA/Brasil)</p>
+            <p className="truncate text-[10px] text-zinc-500">
+              {aba === "hoje"
+                ? "Detector de divergência — o que deveria acontecer vs. o que aconteceu (EUA/Brasil)"
+                : "Cenários — estourou a notícia, o que costuma seguir e em quanto tempo"}
+            </p>
           </div>
         </div>
         <button
@@ -83,9 +91,27 @@ export default function TransmissaoPanel({
         </button>
       </div>
 
+      {/* Abas */}
+      <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2">
+        {([["hoje", "Hoje"], ["ese", "E se?"]] as const).map(([k, rot]) => (
+          <button
+            key={k}
+            onClick={() => setAba(k)}
+            className="rounded-lg px-3 py-1.5 font-mono text-[11px] font-bold transition-colors"
+            style={aba === k
+              ? { background: "rgba(232,163,61,0.14)", color: "#E8A33D", border: "1px solid rgba(232,163,61,0.4)" }
+              : { background: "rgba(255,255,255,0.04)", color: "#8b8b93", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            {rot}
+          </button>
+        ))}
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-4">
         <div className="mx-auto max-w-3xl">
-          <DivergenceView report={report} loading={loading} erro={erro} />
+          {aba === "hoje"
+            ? <DivergenceView report={report} loading={loading} erro={erro} />
+            : <CenariosView report={report} loading={loading} erro={erro} />}
         </div>
       </div>
     </div>

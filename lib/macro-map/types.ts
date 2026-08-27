@@ -74,6 +74,10 @@ export interface RuleEvaluation {
   // card informativo em dia calmo. primarioConfirmado: efeito primário veio?
   // (null = janela ainda não decorreu).
   ultimoChoqueGeral: { date: string; z60: number; z250: number; primarioConfirmado: boolean | null } | null;
+  // z-score ATUAL da métrica do driver (último pregão) — mede a distância do
+  // gatilho HOJE, mesmo sem choque. Alimenta a barra de proximidade da aba
+  // "E se?". null quando a série é curta demais para a janela longa.
+  zAtual: { z60: number; z250: number } | null;
   efeitos: EffectOutcome[];
   // O que a regra ESPERA quando o gatilho dispara (espec da regra, sempre
   // presente) — alimenta a linha "se disparar → X sobe/cai em N pregões" do
