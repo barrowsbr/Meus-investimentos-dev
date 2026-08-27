@@ -7,19 +7,44 @@ import { anexarFluxos } from "@/lib/ibkr-nav";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// Raio-X do extrato (?debug=1): quais SEÇÕES a Flex query está mandando —
+// tira a adivinhação de "habilitei a seção certa?" na configuração da query.
+function listarSecoes(xml: string): Array<{ tag: string; n: number }> {
+  const counts = new Map<string, number>();
+  const re = /<([A-Za-z][\w]*)\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
+  return [...counts.entries()]
+    .filter(([tag]) => !["FlexQueryResponse", "FlexStatements", "FlexStatement"].includes(tag))
+    .map(([tag, n]) => ({ tag, n }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 40);
+}
+
 // TWR OFICIAL da conta IBKR — calculado do NAV diário da própria corretora
 // (ver lib/ibkr-nav.ts). Benchmark S&P 500 (^GSPC, golden source) na MESMA
 // janela, normalizado no primeiro pregão da série.
-export async function GET() {
+export async function GET(request: Request) {
   const token = process.env.IBKR_FLEX_TOKEN;
   const queryId = process.env.IBKR_FLEX_QUERY_ID;
   if (!token || !queryId) {
     return NextResponse.json({ error: "IBKR_FLEX_TOKEN e/ou IBKR_FLEX_QUERY_ID não configurados" }, { status: 422 });
   }
+  const debug = new URL(request.url).searchParams.get("debug") === "1";
 
   try {
     const xml = await getFlexXmlCached(token, queryId, 1_800_000, 40_000);
     const parsed = parseFlexXml(xml);
+
+    if (debug) {
+      return NextResponse.json({
+        secoes: listarSecoes(xml),
+        navDiario: parsed.navDiario.length,
+        fluxosExternos: parsed.fluxosExternos.length,
+        changeInNav: parsed.changeInNav,
+        temEquitySummary: parsed.navDiario.length > 0,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
     const planilha = await lerNavPlanilha();
     const twr = montarTwrIbkr(parsed, planilha);
 
