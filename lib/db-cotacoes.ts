@@ -8,8 +8,14 @@ const TAB = "db_cotacoes";
 
 export interface GoldenSourceData {
   tickers: string[];
+  /** Datas ÚNICAS, ordenadas — a visão lógica que os motores consomem. */
   dates: string[];
   prices: Record<string, Record<string, number>>;
+  /** Datas na ORDEM FÍSICA das linhas (com eventuais duplicatas) — usada pela
+   *  escrita para saber se a aba está saudável. Escritas concorrentes podem
+   *  anexar o mesmo bloco de dias 2× (visto em 08/2026); nesse estado, updates
+   *  por índice de linha acertariam a linha errada. */
+  physicalDates?: string[];
 }
 
 const EMPTY: GoldenSourceData = { tickers: [], dates: [], prices: {} };
@@ -75,7 +81,17 @@ export async function readGoldenSource(): Promise<GoldenSourceData> {
     }
   }
 
-  return { tickers, dates: dates.sort(), prices };
+  // dates: únicas e ordenadas (linha duplicada não vira data duplicada — o
+  // prices já é last-wins por chave). A ordem física fica em physicalDates.
+  return { tickers, dates: [...new Set(dates)].sort(), prices, physicalDates: dates };
+}
+
+/** A aba está saudável para escrita INCREMENTAL? Exige linhas físicas sem
+ *  duplicata e em ordem cronológica (== visão lógica). Fora disso, updates por
+ *  índice de linha são perigosos e a escrita cai no rewrite (que deduplica). */
+export function abaSaudavel(physicalDates: string[] | undefined, dates: string[]): boolean {
+  const fisicas = physicalDates ?? dates;
+  return fisicas.length === dates.length && fisicas.every((d, i) => d === dates[i]);
 }
 
 // Resultado de uma escrita na golden source — surfaceia o que aconteceu para
@@ -217,7 +233,12 @@ export async function writeGoldenSource(
     }
   }
 
-  const canIncremental = !opts.force && sameColumns && allNewAtTail;
+  // Aba com linhas duplicadas/fora de ordem: NUNCA incremental. Os updates
+  // pontuais endereçam a linha por ÍNDICE (rowIndex = i+2), o que só é válido
+  // enquanto a ordem física == a lógica. Nesse estado o rewrite é o caminho
+  // seguro — e de quebra HIGIENIZA a aba (regrava única e ordenada).
+  const saudavel = abaSaudavel(existing.physicalDates, existing.dates);
+  const canIncremental = !opts.force && sameColumns && allNewAtTail && saudavel;
 
   // Backup best-effort antes de qualquer escrita.
   try { await backupTab(TAB); } catch { /* best-effort */ }
@@ -266,7 +287,13 @@ export async function writeGoldenSource(
     valueInputOption: "RAW",
     requestBody: { values },
   });
-  return { mode: "rewrite", appendedDates: newDates.length, before, after };
+  return {
+    mode: "rewrite",
+    appendedDates: newDates.length,
+    reason: saudavel ? undefined : "aba tinha linhas duplicadas/fora de ordem — regravada única e ordenada",
+    before,
+    after,
+  };
 }
 
 export function goldenSourceStatus(data: GoldenSourceData) {
