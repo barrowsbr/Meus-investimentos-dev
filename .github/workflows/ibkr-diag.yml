@@ -1,4 +1,4 @@
-# Diagnóstico manual do extrato IBKR Flex em PRODUÇÃO — para quando o dono
+# Diagnóstico manual do extrato IBKR Flex em PRODUÇÃO (v3 — inclui a auditoria dos marks)
 # reconfigura a Flex query e queremos confirmar as seções sem entrar no app.
 # Os runners do GitHub alcançam a produção (a network policy do dev não).
 # ⚠️ Repo público: imprime SÓ metadados (nomes de seção/contagens) — NUNCA
