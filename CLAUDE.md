@@ -240,6 +240,13 @@ e plano do mês (`teto_cartao`, `meta_aporte`, `plano`). Criada on-demand pelo
 `POST /api/financas {tab:"meses"}` (ensureTab ANTES do write — sem a aba, o
 resolveTabName difuso casaria com `financas` e limparia a aba errada).
 
+### 11c. `telegram_conversas` — Memória do bot com IA
+
+Fio de conversa do bot do Telegram (`chat_id, timestamp, papel, texto`),
+append-only. As últimas ~6 mensagens entram no prompt para o follow-up
+("detalha melhor isso") funcionar. `/limpar` grava um marcador `__limpar__`:
+o histórico anterior segue na aba (auditável) mas deixa de entrar no prompt.
+
 ### 12. `app_config` — Configurações do app (aba única: escopo/chave/valor)
 
 Fusão das antigas abas de configuração `historico_config`, `alertas_config`,
@@ -549,6 +556,23 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - Regra de produto: **notícia com imagem tem preferência** no ranking e o
   hero/grid do jornal — imagem real de veículo, nunca logo do Google.
 
+## Bot do Telegram com IA (responde perguntas)
+
+- `POST /api/telegram/webhook` recebe as mensagens. **Endpoint PÚBLICO** — 3 travas,
+  nesta ordem: (1) **segredo** `X-Telegram-Bot-Api-Secret-Token` (gerado no botão
+  "Ativar respostas", salvo em `app_config` escopo `alertas` → `telegram_webhook_secret`);
+  (2) **allowlist**: só o `chatId` salvo é atendido — outro chat leva recusa e ZERO dado
+  da carteira; (3) só texto, teto de 1000 caracteres. Dedup por `update_id` (o Telegram
+  reenvia se não receber 200 rápido).
+- **Somente leitura**: o bot não grava na planilha (exceto o próprio fio em
+  `telegram_conversas`) nem executa ordens. Não dar poder de escrita a endpoint público.
+- Reusa o MESMO cérebro do Agente IA: `buildAgentContext()` + cascata `llmComplete()`.
+  Quando a pergunta cita um ativo da carteira, `lib/telegram-contexto.ts` anexa cotação
+  ao vivo + manchetes do papel (caminho leve, RSS direto — não é o motor de notícias).
+- Liga/desliga em Configurações → Alertas → "Responder perguntas no Telegram":
+  chama `setWebhook`/`deleteWebhook`. ⚠️ Quem salvar `AlertasConfig` precisa PRESERVAR
+  `webhookSecret` (apagá-lo desliga o bot em silêncio — ver `/api/alertas/config`).
+
 ## APIs & Integrações externas (regra dura)
 
 > **Fonte única: `lib/api-registry.ts`.** É o catálogo canônico de TODA API/serviço
@@ -603,7 +627,8 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   NASA api.nasa.gov (`NASA_API_KEY` opc., aceita DEMO_KEY) ·
   NASA EONET (livre) · USGS Earthquakes (livre) · GDELT DOC 2.0 (livre, 1 req/5s) ·
   GDELT Events 2.0 CSV (livre) · World Bank (livre)
-- **Alertas & Logos**: Telegram Bot (`TELEGRAM_BOT_TOKEN` — ou salvo em Configurações) ·
+- **Alertas & Logos**: Telegram Bot (`TELEGRAM_BOT_TOKEN` — ou salvo em Configurações;
+  o mesmo bot também RESPONDE perguntas com IA, ver abaixo) ·
   Logo.dev (`LOGO_DEV_TOKEN` opc.) · FMP Images (livre) · Parqet Logos (livre)
 
 Fontes auxiliares NÃO no painel (assets/scraping, sem semântica de health-check):

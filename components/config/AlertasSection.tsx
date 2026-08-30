@@ -41,8 +41,35 @@ export default function AlertasSection() {
   const [tokenSource, setTokenSource] = useState<"env" | "config" | "none">("none");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Respostas do bot (webhook com IA) — liga/desliga sem trabalho manual.
+  const [botAtivo, setBotAtivo] = useState(false);
+  const [botUrl, setBotUrl] = useState("");
+  const [botErro, setBotErro] = useState("");
+  const [botBusy, setBotBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/telegram/ativar")
+      .then(r => r.json())
+      .then(d => { setBotAtivo(Boolean(d?.ativo)); setBotUrl(d?.url ?? ""); setBotErro(d?.ultimoErro ?? ""); })
+      .catch(() => {});
+  }, []);
+
+  const alternarBot = async (ligar: boolean) => {
+    setBotBusy(true); setBotErro("");
+    try {
+      const r = await fetch("/api/telegram/ativar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativar: ligar }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setBotErro(d?.error ?? "Falha ao alternar"); return; }
+      setBotAtivo(Boolean(d?.ativo)); setBotUrl(d?.url ?? "");
+    } catch (e) {
+      setBotErro(e instanceof Error ? e.message : "Erro de rede");
+    } finally { setBotBusy(false); }
+  };
   const [sendingDigest, setSendingDigest] = useState(false);
   const [digestMsg, setDigestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -315,6 +342,37 @@ export default function AlertasSection() {
             {testMsg.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />} {testMsg.text}
           </span>
         )}
+      </div>
+
+      {/* ── Respostas do bot (IA no Telegram) ── */}
+      <div className="rounded-xl px-4 py-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-zinc-200">Responder perguntas no Telegram (IA)</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
+              Ligado, você pergunta no chat do bot e ele responde com os dados reais da carteira —
+              mesmo cérebro do Agente IA. Só o seu chat_id é atendido; o bot é somente leitura.
+            </p>
+          </div>
+          <button
+            onClick={() => alternarBot(!botAtivo)}
+            disabled={botBusy || !chatId}
+            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40"
+            style={botAtivo
+              ? { background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)" }
+              : { background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }}
+          >
+            {botBusy ? "…" : botAtivo ? "Desativar" : "Ativar respostas"}
+          </button>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px]">
+          <span style={{ color: botAtivo ? "#34d399" : "var(--faint)" }}>
+            {botAtivo ? "● ativo" : "○ desligado"}
+          </span>
+          {!chatId && <span className="text-amber-400">salve o chat_id primeiro</span>}
+          {botUrl && <span className="text-zinc-600 truncate max-w-[280px]">{botUrl}</span>}
+          {botErro && <span className="text-red-400">último erro: {botErro}</span>}
+        </div>
       </div>
 
       <p className="text-[11px] text-zinc-600 flex items-start gap-1.5">

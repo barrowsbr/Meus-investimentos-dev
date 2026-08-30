@@ -75,3 +75,17 @@ export async function sendTelegramPhoto(
     return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
   }
 }
+
+// Mostra "digitando…" no chat enquanto o LLM pensa. Best-effort: é só
+// feedback visual, nunca deve atrapalhar a resposta.
+export async function sendTelegramChatAction(token: string, chatId: string, action = "typing"): Promise<void> {
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, action }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch { /* silencioso */ }
+}
