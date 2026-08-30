@@ -27,4 +27,5 @@ jobs:
           # Só metadados: contagem de dias/tickers, cobertura e Nº de anomalias.
           # NUNCA o detalhe das anomalias (traz preços) — o log do CI é público.
           curl -sS --max-time 60 "${APP_URL:-https://meus-investimentos-dev.vercel.app}/api/sync/cotacoes" \
-            | jq '{firstDate, lastDate, dateCount, tickerCount, points, gaps, coveragePct: .coverage, anomalyCount}'
+            | jq '{firstDate, lastDate, dateCount, tickerCount, points, gaps, coveragePct: .coverage, anomalyCount,
+                   anomalias: [.anomalies[] | {ticker, date, type}]}'
