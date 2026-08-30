@@ -25,10 +25,12 @@ on:
 jobs:
   registrar:
     runs-on: ubuntu-latest
-    # O dono criou o CRON_SECRET como ENVIRONMENT secret (Production) — o job
-    # precisa declarar o ambiente para recebê-lo. Sem regras de proteção no
-    # ambiente, não bloqueia nada; Repository secret/variable seguem valendo.
-    environment: Production
+    # O dono criou o CRON_SECRET como ENVIRONMENT secret no ambiente da
+    # integração Vercel — o nome EXATO é "Production – meus-investimentos-dev"
+    # (com en-dash). O job precisa declarar o ambiente para receber o secret.
+    # Sem regras de proteção, não bloqueia nada; Repository secret/variable
+    # seguem valendo como alternativa.
+    environment: "Production – meus-investimentos-dev"
     steps:
       - name: Registrar patrimônio no histórico
         env:
