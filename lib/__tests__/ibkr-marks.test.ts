@@ -16,6 +16,7 @@ describe("montarMarksParaGolden — marks oficiais IBKR na golden", () => {
     expect(m).toEqual({
       date: "2026-08-27",
       valores: { "VOO": 520.12, "DPM.TO": 12.34, "VOW3.DE": 108.9 },
+      rejeitados: [],
     });
   });
 
@@ -80,5 +81,68 @@ describe("aplicarMarksNaGolden — nenhuma perda, nenhuma mutação", () => {
     const guard = checkGoldenGuard(golden, mutado);
     expect(guard.ok).toBe(false);
     expect(guard.reason).toContain("VOO@2026-08-25");
+  });
+});
+
+
+// ── Gate de divergência: o que NÃO pode entrar na golden ────────────────────
+// O TWR é o core do projeto; um mark em unidade/moeda errada corromperia a
+// série de forma silenciosa (um dia de −99% ou +9900%). Cada cenário abaixo é
+// um modo de falha real da integração IBKR→golden.
+
+const historico = (col: string, preco: number): GoldenLike => ({
+  tickers: [col],
+  dates: ["2026-08-25", "2026-08-26"],
+  prices: { "2026-08-25": { [col]: preco * 0.99 }, "2026-08-26": { [col]: preco } },
+});
+
+describe("montarMarksParaGolden — gate de divergência (unidade/moeda/coluna)", () => {
+  it("mark coerente com o histórico ENTRA", () => {
+    const m = montarMarksParaGolden([{ ticker: "VOO", markPrice: 522 }], "2026-08-27", ["VOO"], historico("VOO", 520));
+    expect(m!.valores).toEqual({ VOO: 522 });
+    expect(m!.rejeitados).toEqual([]);
+  });
+
+  it("PENCE × LIBRA (LSE, fator ~100) é BARRADO", () => {
+    // Yahoo guarda a coluna em pence (1.234); a IBKR manda libras (12,34).
+    const m = montarMarksParaGolden([{ ticker: "CSPX.L", markPrice: 12.34 }], "2026-08-27", ["CSPX.L"], historico("CSPX.L", 1234));
+    expect(m!.valores).toEqual({});
+    expect(m!.rejeitados).toEqual([{ coluna: "CSPX.L", fator: 0.01 }]);
+  });
+
+  it("moeda trocada (mark em US$ numa coluna CAD) é BARRADO", () => {
+    const m = montarMarksParaGolden([{ ticker: "DPM.TO", markPrice: 8.9 }], "2026-08-27", ["DPM.TO"], historico("DPM.TO", 12.34));
+    expect(m!.valores).toEqual({});
+    expect(m!.rejeitados[0].coluna).toBe("DPM.TO");
+  });
+
+  it("split (>25%) é BARRADO — o Yahoo, que ajusta split, preenche em T−2", () => {
+    const m = montarMarksParaGolden([{ ticker: "NVDA", markPrice: 60 }], "2026-08-27", ["NVDA"], historico("NVDA", 600));
+    expect(m!.valores).toEqual({});
+  });
+
+  it("oscilação normal (±10%) NÃO é barrada", () => {
+    for (const preco of [468, 572]) { // −10% / +10%
+      const m = montarMarksParaGolden([{ ticker: "VOO", markPrice: preco }], "2026-08-27", ["VOO"], historico("VOO", 520));
+      expect(m!.valores).toEqual({ VOO: preco });
+    }
+  });
+
+  it("ticker NOVO (sem histórico) entra — não há com o que comparar", () => {
+    const m = montarMarksParaGolden([{ ticker: "NOVO", markPrice: 42 }], "2026-08-27", ["VOO"], historico("VOO", 520));
+    expect(m!.valores).toEqual({ NOVO: 42 });
+  });
+
+  it("a referência é o PASSADO — o próprio dia não serve de âncora", () => {
+    const g = historico("VOO", 520);
+    g.dates.push("2026-08-27");
+    g.prices["2026-08-27"] = { VOO: 9999 }; // lixo no próprio dia não vira referência
+    const m = montarMarksParaGolden([{ ticker: "VOO", markPrice: 522 }], "2026-08-27", ["VOO"], g);
+    expect(m!.valores).toEqual({ VOO: 522 });
+  });
+
+  it("sem golden (chamada legada) aceita tudo — compatibilidade", () => {
+    const m = montarMarksParaGolden([{ ticker: "VOO", markPrice: 1 }], "2026-08-27", ["VOO"]);
+    expect(m!.valores).toEqual({ VOO: 1 });
   });
 });
