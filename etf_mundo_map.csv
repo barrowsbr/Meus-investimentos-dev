@@ -1,0 +1,1100 @@
+isin,symbol,nome
+US5949181045,MSFT,Microsoft Corporation
+US67066G1040,NVDA,NVIDIA Corporation
+US0231351067,AMZN,Amazon.com Inc.
+US0378331005,AAPL,Apple Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US11135F1012,AVGO,Broadcom Inc.
+US02079K1079,GOOG,Alphabet Inc. Class C
+US30303M1027,META,Meta Platforms Inc Class A
+TW0002330008,2330.TW,Taiwan Semiconductor Manufacturing Co. Ltd.
+US5951121038,MU,Micron Technology Inc.
+US46625H1005,JPM,JPMorgan Chase & Co.
+US88160R1014,TSLA,Tesla Inc.
+US5324571083,LLY,Eli Lilly and Company
+US0079031078,AMD,Advanced Micro Devices Inc.
+KR7005930003,005930.KS,Samsung Electronics Co. Ltd.
+US4781601046,JNJ,Johnson & Johnson
+NL0010273215,ASML.AS,ASML Holding NV
+US0846707026,BRK-B,Berkshire Hathaway Inc. Class B
+US92826C8394,V,Visa Inc. Class A
+KR7000660001,000660.KS,SK hynix Inc.
+US4581401001,INTC,Intel Corporation
+US9311421039,WMT,Walmart Inc.
+US17275R1023,CSCO,Cisco Systems Inc.
+US57636Q1040,MA,Mastercard Incorporated Class A
+US00287Y1091,ABBV,AbbVie Inc.
+US1491231015,CAT,Caterpillar Inc.
+US0605051046,BAC,Bank of America Corp
+US0382221051,AMAT,Applied Materials Inc.
+US22160K1051,COST,Costco Wholesale Corporation
+US3696043013,GE,GE Aerospace
+GB0005405286,HSBA.L,HSBC Holdings Plc
+KYG875721634,0700.HK,Tencent Holdings Ltd
+US91324P1021,UNH,UnitedHealth Group Incorporated
+US4370761029,HD,Home Depot Inc.
+US5128073062,LRCX,Lam Research Corporation
+US1912161007,KO,Coca-Cola Company
+US1667641005,CVX,Chevron Corporation
+US69608A1088,PLTR,Palantir Technologies Inc. Class A
+US7427181091,PG,Procter & Gamble Company
+CH1499059983,ROP.SW,Roche Holding Ltd
+US58933Y1055,MRK,Merck & Co. Inc.
+US38141G1040,GS,Goldman Sachs Group Inc.
+US64110L1061,NFLX,Netflix Inc.
+US75513E1010,RTX,RTX Corporation
+US6974351057,PANW,Palo Alto Networks Inc.
+CH0012005267,NOVN.SW,Novartis AG
+US7181721090,PM,Philip Morris International Inc.
+KYG017191142,9988.HK,Alibaba Group Holding Limited
+CA7800871021,RY.TO,Royal Bank of Canada
+US36828A1016,GEV,GE Vernova Inc.
+US8825081040,TXN,Texas Instruments Incorporated
+US4824801009,KLAC,KLA Corporation
+US9497461015,WFC,Wells Fargo & Company
+CH0038863350,NESN.SW,Nestle S.A.
+US6174464486,MS,Morgan Stanley
+US68389X1054,ORCL,Oracle Corporation
+GB0009895292,AZN.L,AstraZeneca PLC
+JP3902900004,8306.T,Mitsubishi UFJ Financial Group Inc.
+GB00BP6MXD84,SHEL.L,Shell Plc
+DE0007236101,SIE.DE,Siemens AG
+IE000S9YS762,LIN,Linde plc
+AU000000BHP4,BHP.AX,BHP Group Ltd
+US1729674242,C,Citigroup Inc.
+US4592001014,IBM,International Business Machines Corporation
+US0311621009,AMGN,Amgen Inc.
+DE0007164600,SAP.DE,SAP SE
+US0320951017,APH,Amphenol Corporation Class A
+US8835561023,TMO,Thermo Fisher Scientific Inc.
+ES0113900J37,SAN.MC,Banco Santander S.A.
+AU000000CBA7,CBA.AX,Commonwealth Bank of Australia
+US92343V1044,VZ,Verizon Communications Inc.
+CA8911605092,TD,Toronto-Dominion Bank
+US0404132054,ANET,Arista Networks Inc
+US22788C1053,CRWD,CrowdStrike Holdings Inc. Class A
+FR0000121972,SU.PA,Schneider Electric SE
+US5801351017,MCD,McDonald's Corporation
+DE0008404005,ALV.DE,Allianz SE
+IE00BKVD2N49,STX,Seagate Technology Holdings PLC
+US7134481081,PEP,PepsiCo Inc.
+US0028241000,ABT,Abbott Laboratories
+US2546871060,DIS,Walt Disney Company
+CA82509L1076,SHOP,Shopify Inc. Class A
+US5738741041,MRVL,Marvell Technology Inc.
+US0326541051,ADI,Analog Devices Inc.
+US0258161092,AXP,American Express Company
+JP3633400001,7203.T,Toyota Motor Corp.
+US8725401090,TJX,TJX Companies Inc
+US8085131055,SCHW,Charles Schwab Corp
+IE00B8KQN827,ETN,Eaton Corp. Plc
+US65339F1012,NEE,NextEra Energy Inc.
+US9078181081,UNP,Union Pacific Corporation
+US0970231058,BA,Boeing Company
+GB00B63H8491,RR.L,Rolls-Royce Holdings plc
+US7475251036,QCOM,QUALCOMM Incorporated
+TW0002454006,2454.TW,MediaTek Inc
+CH0244767585,UBSG.SW,UBS Group AG
+US95040Q1040,WELL,Welltower Inc.
+FR0000120271,TTE.PA,TotalEnergies SE
+US00206R1023,T,AT&T Inc
+US09290D1019,BLK,BlackRock Inc.
+CH0012221716,ABBN.SW,ABB Ltd.
+US3755581036,GILD,Gilead Sciences Inc.
+ES0113211835,BBVA.MC,Banco Bilbao Vizcaya Argentaria S.A.
+US09857L1089,BKNG,Booking Holdings Inc.
+JP3571400005,8035.T,Tokyo Electron Ltd.
+JP3788600009,6501.T,Hitachi Ltd.
+US9581021055,WDC,Western Digital Corporation
+JP3122400009,6857.T,Advantest Corp.
+JP3890350006,8316.T,Sumitomo Mitsui Financial Group Inc.
+US79466L3024,CRM,Salesforce Inc.
+US2441991054,DE,Deere & Company
+US7170811035,PFE,Pfizer Inc.
+DK0062498333,NOVO-B.CO,Novo Nordisk A/S Class B
+NL0000235190,AIR.PA,Airbus SE
+US20825C1045,COP,ConocoPhillips
+ES0144580Y14,IBE.MC,Iberdrola SA
+FR0000073272,SAF.PA,Safran SA
+DE000ENER6Y0,ENR.DE,Siemens Energy AG
+FR0000121014,MC.PA,LVMH Moet Hennessy Louis Vuitton SE
+GB00BVZK7T90,ULVR.L,Unilever PLC
+JP3436100006,9984.T,SoftBank Group Corp.
+US46120E6023,ISRG,Intuitive Surgical Inc.
+US7010941042,PH,Parker-Hannifin Corporation
+IT0005239360,UCG.MI,UniCredit S.p.A.
+JP3435000009,6758.T,Sony Group Corporation
+US24703L2025,DELL,Dell Technologies Inc. Class C
+US74340W1036,PLD,Prologis Inc.
+US1101221083,BMY,Bristol-Myers Squibb Company
+US14040H1059,COF,Capital One Financial Corp
+JP3885780001,8411.T,Mizuho Financial Group Inc.
+US90353T1007,UBER,Uber Technologies Inc.
+FR0000131104,BNP.PA,BNP Paribas S.A. Class A
+FR0000120073,AI.PA,Air Liquide SA
+CH0210483332,CFR.SW,Compagnie Financiere Richemont SA
+US2193501051,GLW,Corning Inc
+US81762P1021,NOW,ServiceNow Inc.
+US7433151039,PGR,Progressive Corporation
+US78409V1044,SPGI,S&P Global Inc.
+US92532F1003,VRTX,Vertex Pharmaceuticals Incorporated
+US2358511028,DHR,Danaher Corporation
+US1266501006,CVS,CVS Health Corporation
+CA0636711016,BMO.TO,Bank of Montreal
+US8552441094,SBUX,Starbucks Corporation
+US5486611073,LOW,Lowe's Companies Inc.
+US5398301094,LMT,Lockheed Martin Corporation
+GB0002875804,BATS.L,British American Tobacco p.l.c.
+US8636671013,SYK,Stryker Corporation
+DE0005557508,DTE.DE,Deutsche Telekom AG
+CH0044328745,CB,Chubb Limited
+US4432011082,HWM,Howmet Aerospace Inc.
+US02209S1033,MO,Altria Group Inc.
+CA29250N1050,ENB.TO,Enbridge Inc.
+US6516391066,NEM,Newmont Corporation
+SG1L01001701,D05.SI,DBS Group Holdings Ltd
+GB0007980591,BP.L,BP PLC
+JP3970300004,6098.T,Recruit Holdings Co. Ltd.
+IE00B4BNMY34,ACN,Accenture Plc Class A
+IE00BTN1Y115,MDT,Medtronic Plc
+IT0000072618,ISP.MI,Intesa Sanpaolo S.p.A.
+US0530151036,ADP,Automatic Data Processing Inc.
+US58155Q1031,MCK,McKesson Corporation
+CA1360691010,CM.TO,Canadian Imperial Bank of Commerce
+GB0007188757,RIO.L,Rio Tinto plc
+US8334451098,SNOW,Snowflake Inc.
+FR0000120321,OR.PA,L'Oreal S.A.
+CH0011075394,ZURN.SW,Zurich Insurance Group Ltd
+GB00BN7SWP63,GSK.L,GSK plc
+US00724F1012,ADBE,Adobe Inc.
+US0640581007,BNY,Bank of New York Mellon Corp
+TW0002308004,2308.TW,Delta Electronics Inc.
+CA0641491075,BNS.TO,Bank of Nova Scotia
+US29444U7000,EQIX,Equinix Inc.
+NL0011821202,INGA.AS,ING Groep N.V.
+IE00BK9ZQ967,TT,Trane Technologies plc
+US34959E1091,FTNT,Fortinet Inc.
+HK0000069689,1299.HK,AIA Group Limited
+US74762E1029,PWR,Quanta Services Inc.
+US35671D8570,FCX,Freeport-McMoRan Inc.
+US09260D1072,BX,Blackstone Inc.
+US92537N1081,VRT,Vertiv Holdings Co. Class A
+KR7005931001,005935.KS,Samsung Electronics Co Ltd Pfd  Non-Voting
+US8425871071,SO,Southern Company
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US6934751057,PNC,PNC Financial Services Group Inc.
+US9029733048,USB,U.S. Bancorp
+TW0002317005,2317.TW,Hon Hai Precision Industry Co. Ltd.
+CA1363851017,CNQ.TO,Canadian Natural Resources Limited
+US88579Y1010,MMM,3M Company
+JP3236200006,6861.T,Keyence Corporation
+US12572Q1058,CME,CME Group Inc. Class A
+CNE1000002H1,0939.HK,China Construction Bank Corporation Class H
+US1273871087,CDNS,Cadence Design Systems Inc.
+US5717481023,MRSH,Marsh & McLennan Companies Inc.
+IE00BY7QL619,JCI,Johnson Controls International plc
+GB0031348658,BARC.L,Barclays PLC
+JP3236330001,285A.T,Kioxia Holdings Corporation
+US91913Y1001,VLO,Valero Energy Corporation
+DE0006231004,IFX.DE,Infineon Technologies AG
+FR0000120578,SAN.PA,Sanofi SA
+JP3802300008,9983.T,FAST RETAILING CO. LTD.
+SG1S04926220,O39.SI,Oversea-Chinese Banking Corporation Limited
+AU000000NAB4,NAB.AX,National Australia Bank Limited
+US1264081035,CSX,CSX Corporation
+US20030N1019,CMCSA,Comcast Corporation Class A
+AU000000WBC1,WBC.AX,Westpac Banking Corporation
+US8725901040,TMUS,T-Mobile US Inc.
+US18915M1071,NET,Cloudflare Inc Class A
+JP3898400001,8058.T,Mitsubishi Corporation
+GB0008706128,LLOY.L,Lloyds Banking Group plc
+US4612021034,INTU,Intuit Inc.
+US2910111044,EMR,Emerson Electric Co.
+US94106L1098,WM,Waste Management Inc.
+US9694571004,WMB,Williams Companies Inc.
+JP3910660004,8766.T,Tokio Marine Holdings Inc.
+US56585A1025,MPC,Marathon Petroleum Corporation
+CA0084741085,AEM,Agnico Eagle Mines Limited
+US26441C2044,DUK,Duke Energy Corporation
+CA11271J1075,BN.TO,Brookfield Corporation
+US7782961038,ROST,Ross Stores Inc.
+US2310211063,CMI,Cummins Inc.
+INE040A01034,HDFCBANK.NS,HDFC Bank Limited
+IT0003128367,ENEL.MI,Enel SpA
+US0367521038,ELV,Elevance Health Inc.
+US8243481061,SHW,Sherwin-Williams Company
+US58733R1023,MELI,MercadoLibre Inc.
+INE002A01018,RELIANCE.NS,Reliance Industries Limited
+GB0002634946,BA.L,BAE Systems plc
+US45866F1049,ICE,Intercontinental Exchange Inc.
+LR0008862868,RCL,Royal Caribbean Group
+US6092071058,MDLZ,Mondelez International Inc. Class A
+US3695501086,GD,General Dynamics Corporation
+JP3900000005,7011.T,Mitsubishi Heavy Industries Ltd.
+US7185461040,PSX,Phillips 66
+INE090A01021,ICICIBANK.NS,ICICI Bank Limited
+US03027X1000,AMT,American Tower Corporation
+US21037T1097,CEG,Constellation Energy Corporation
+FR0000120628,CS.PA,AXA SA
+AU000000ANZ3,ANZ.AX,ANZ Group Holdings Limited
+SE0015811963,INVE-B.ST,Investor AB Class B
+AN8068571086,SLB,SLB Limited
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+DE0008430026,MUV2.DE,Munchener Ruckversicherungs-Gesellschaft AG
+US25809K1051,DASH,DoorDash Inc. Class A
+CA13646K1084,CP.TO,Canadian Pacific Kansas City Limited
+US75886F1075,REGN,Regeneron Pharmaceuticals Inc.
+US37045V1008,GM,General Motors Company
+US67103H1077,ORLY,O'Reilly Automotive Inc.
+US89417E1091,TRV,Travelers Companies Inc.
+GB00BDR05C01,NG.L,National Grid plc
+US03831W1080,APP,AppLovin Corp. Class A
+US5719032022,MAR,Marriott International Inc. Class A
+JP3914400001,6981.T,Murata Manufacturing Co. Ltd.
+US4385162056,HON,Honeywell Technologies Inc.
+US4523081093,ITW,Illinois Tool Works Inc.
+CA56501R1064,MFC.TO,Manulife Financial Corporation
+US6200763075,MSI,Motorola Solutions Inc.
+US6668071029,NOC,Northrop Grumman Corp.
+GB00BM8PJY71,NWG.L,NatWest Group Plc
+US0311001004,AME,AMETEK Inc.
+CA8672241079,SU.TO,Suncor Energy Inc.
+US26875P1012,EOG,EOG Resources Inc.
+US9113121068,UPS,United Parcel Service Inc. Class B
+US43300A2033,HLT,Hilton Worldwide Holdings Inc.
+BE0974293251,ABI.BR,Anheuser-Busch InBev SA/NV
+US6558441084,NSC,Norfolk Southern Corporation
+US9113631090,URI,United Rentals Inc.
+US1011371077,BSX,Boston Scientific Corporation
+US8716071076,SNPS,Synopsys Inc.
+IE00BLP1HW54,AON,Aon Plc Class A
+US0200021014,ALL,Allstate Corporation
+US23804L1035,DDOG,Datadog Inc. Class A
+US6153691059,MCO,Moody's Corporation
+US8936411003,TDG,TransDigm Group Incorporated
+US1255231003,CI,Cigna Group
+ES0148396007,ITX.MC,Industria de Diseno Textil S.A.
+AU000000WES1,WES.AX,Wesfarmers Limited
+US31428X1063,FDX,FedEx Corporation
+US2538681030,DLR,Digital Realty Trust Inc.
+JE00B4T3BW64,GLEN.L,Glencore plc
+US2788651006,ECL,Ecolab Inc.
+CA06849F1080,ABX.TO,Barrick Mining Corporation
+JP3902400005,6503.T,Mitsubishi Electric Corp.
+US8288061091,SPG,Simon Property Group Inc.
+JP3893600001,8031.T,Mitsui & Co.Ltd
+US9297401088,WAB,Westinghouse Air Brake Technologies Corporation
+DE0005140008,DBK.DE,Deutsche Bank Aktiengesellschaft
+US8574771031,STT,State Street Corporation
+US1729081059,CTAS,Cintas Corporation
+US42824C1099,HPE,Hewlett Packard Enterprise Co.
+LU1778762911,SPOT,Spotify Technology SA
+US6937181088,PCAR,PACCAR Inc
+US7707001027,HOOD,Robinhood Markets Inc. Class A
+JP3143600009,8001.T,Itochu Corporation
+US1941621039,CL,Colgate-Palmolive Company
+US61174X1090,MNST,Monster Beverage Corporation
+US3635761097,AJG,Arthur J. Gallagher & Co.
+US87612E1064,TGT,Target Corporation
+US0255371017,AEP,American Electric Power Company Inc.
+IE0001827041,CRH,CRH public limited company
+AU000000MQG1,MQG.AX,Macquarie Group Ltd.
+JP3463000004,4502.T,Takeda Pharmaceutical Co. Ltd.
+JP3866800000,6752.T,Panasonic Holdings Corporation
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+FR0000125486,DG.PA,VINCI SA
+US05722G1004,BKR,Baker Hughes Company Class A
+CA1363751027,CNR.TO,Canadian National Railway Company
+KR7402340004,402340.KS,SK Square Co. Ltd.
+GB00B2B0DG97,REL.L,RELX PLC
+US48251W1045,KKR,KKR & Co Inc
+CA87807B1076,TRP.TO,TC Energy Corporation
+HK0388045442,0388.HK,Hong Kong Exchanges & Clearing Ltd.
+US6098391054,MPWR,Monolithic Power Systems Inc.
+CA6330671034,NA.TO,National Bank of Canada
+JP3371200001,4063.T,Shin-Etsu Chemical Co. Ltd.
+SE0017486897,0XXV.IL,Atlas Copco AB Class B
+TW0003711008,3711.TW,ASE Technology Holding Co. Ltd.
+US40412C1018,HCA,HCA Healthcare Inc
+US0091581068,APD,Air Products and Chemicals Inc.
+US89832Q1094,TFC,Truist Financial Corporation
+US0090661010,ABNB,Airbnb Inc. Class A
+NL0013654783,PRX.AS,Prosus N.V. Class N
+US19247G1076,COHR,Coherent Corp.
+US9344231041,WBD,Warner Bros. Discovery Inc. Series A
+IE000IVNQZ81,TEL,TE Connectivity plc
+INE397D01024,BHARTIARTL.BO,Bharti Airtel Limited
+US0937121079,BE,Bloom Energy Corporation Class A
+FR0000130809,GLE.PA,Societe Generale SA Class A
+KYG9830T1067,1810.HK,Xiaomi Corporation Class B
+DE0007030009,RHM.DE,Rheinmetall AG
+US1999081045,FIX,Comfort Systems USA Inc.
+US84615Q1031,SPCX,Space Exploration Technologies Corp. Class A
+US8807701029,TER,Teradyne Inc.
+US49338L1035,KEYS,Keysight Technologies Inc
+KYG596691041,3690.HK,Meituan Class B
+SE0000115446,VOLV-B.ST,Volvo AB Class B
+US6703461052,NUE,Nucor Corporation
+US49456B1017,KMI,Kinder Morgan Inc Class P
+US55024U1097,LITE,Lumentum Holdings Inc.
+NL0009538784,NXPI,NXP Semiconductors NV
+FI4000297767,NDA-FI.HE,Nordea Bank Abp
+FR0000121667,EL.PA,EssilorLuxottica SA
+JP3726800000,2914.T,Japan Tobacco Inc.
+DE0005552004,DHL.DE,Deutsche Post AG
+US25746U1097,D,Dominion Energy Inc
+US03073E1055,COR,Cencora Inc.
+US14149Y1082,CAH,Cardinal Health Inc.
+JP3496400007,9433.T,KDDI Corporation
+CNE1000003X6,2318.HK,Ping An Insurance (Group) Company of China Ltd. Class H
+US3119001044,FAST,Fastenal Company
+JP3837800006,7741.T,HOYA CORPORATION
+US7561091049,O,Realty Income Corporation
+CNE1000003G1,1398.HK,Industrial and Commercial Bank of China Limited Class H
+US1717793095,CIEN,Ciena Corporation
+AEE000401019,nao_encontrado,Emirates Telecommunications Group Company PJSC
+CA9628791027,WPM.TO,Wheaton Precious Metals Corp
+GB00BTK05J60,AAL.L,Anglo American plc
+US87612G1013,TRGP,Targa Resources Corp.
+GB00BD6K4575,CPG.L,Compass Group PLC
+DE000BAY0017,BAYN.DE,Bayer AG
+US6826801036,OKE,ONEOK Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US74460D1090,PSA,Public Storage
+US0010551028,AFL,Aflac Incorporated
+US29364G1031,ETR,Entergy Corporation
+AU000000TCL6,TCL.AX,Transurban Group Ltd.
+NL0010832176,ARGX.BR,argenx SE
+US59156R1086,MET,MetLife Inc.
+ZAE000066304,FSR.JO,FirstRand Limited
+DE0005810055,DB1.DE,Deutsche Boerse AG
+DE000BASF111,BAS.DE,BASF SE
+US3848021040,GWW,W.W. Grainger Inc.
+US0527691069,ADSK,Autodesk Inc.
+CH0014852781,SLHN.SW,Swiss Life Holding AG
+US16411R2085,LNG,Cheniere Energy Inc.
+BRVALEACNOR0,VALE3.SA,Vale S.A.
+FR0010208488,ENGI.PA,ENGIE S.A.
+US5024311095,LHX,L3Harris Technologies Inc
+US03769M1062,APO,Apollo Global Management Inc
+US3453708600,F,Ford Motor Company
+CA01626P1484,ATD.TO,Alimentation Couche-Tard Inc.
+US8168511090,SRE,Sempra
+FR0000125007,SGO.PA,Compagnie de Saint-Gobain SA
+US31488V1070,FERG,Ferguson Enterprises Inc.
+JP3200450009,8591.T,ORIX Corporation
+ES0140609019,CABK.MC,CaixaBank SA
+GB0004082847,STAN.L,Standard Chartered PLC
+JP3756600007,7974.T,Nintendo Co. Ltd.
+GB00B0SWJX34,LSEG.L,London Stock Exchange Group plc
+CH0126881561,SREN.SW,Swiss Re AG
+CNE1000001Z5,3988.HK,Bank of China Limited Class H
+US3167731005,FITB,Fifth Third Bancorp
+JP3890310000,8725.T,MS&AD Insurance Group Holdings Inc.
+KYG6427A1022,KYG6427A1022.SG,Netease Inc
+CA94106B1013,WCN,Waste Connections Inc.
+US70450Y1038,PYPL,PayPal Holdings Inc.
+KYG6683N1034,NU,Nu Holdings Ltd. Class A
+US28176E1082,EW,Edwards Lifesciences Corporation
+US22052L1044,CTVA,Corteva Inc
+CA45823T1066,IFC.TO,Intact Financial Corporation
+FR0000120644,BN.PA,Danone SA
+US00846U1016,A,Agilent Technologies Inc.
+GB0002374006,DGE.L,Diageo plc
+US0533321024,AZO,AutoZone Inc.
+AU000000RIO1,RIO.AX,Rio Tinto Limited
+US0758871091,BDX,Becton Dickinson and Company
+US03076C1062,AMP,Ameriprise Financial Inc.
+NL0011794037,AD.AS,Koninklijke Ahold Delhaize N.V.
+US7223041028,9PDA.SG,PDD Holdings Inc. Sponsored ADR Class A
+US6541061031,NKE,NIKE Inc. Class B
+JP3404600003,8053.T,Sumitomo Corporation
+SA0007879113,1120.SR,Al Rajhi Bank
+FI0009000681,NOKIA.HE,Nokia Oyj
+FR0000052292,RMS.PA,Hermes International SCA
+GB00BLGZ9862,TSCO.L,Tesco PLC
+IT0003132476,ENI.MI,Eni S.p.A.
+NL0011585146,RACE.MI,Ferrari NV
+GB0007908733,SSE.L,SSE PLC
+US14448C1045,CARR,Carrier Global Corp.
+KR7009150004,009150.KS,Samsung Electro-Mechanics Co. Ltd
+DE0007037129,RWE.DE,RWE AG
+DE000ENAG999,EOAN.DE,E.ON SE
+US43849R1059,HONA,Honeywell Aerospace Inc
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US7739031091,ROK,Rockwell Automation Inc.
+CH0013841017,LONN.SW,Lonza Group AG
+CH0114405324,GRMN,Garmin Ltd.
+US45168D1046,IDXX,IDEXX Laboratories Inc.
+SE0000107203,INDU-C.ST,Industrivarden AB Class C
+US92840M1027,VST,Vistra Corp.
+CH0012214059,HOLN.SW,Holcim Ltd
+US2786421030,EBAY,eBay Inc.
+FR0010307819,LR.PA,Legrand SA
+FR0000133308,ORA.PA,Orange SA
+US25179M1036,DVN,Devon Energy Corporation
+US8718291078,SYY,Sysco Corporation
+NL0000334118,ASM.AS,ASM International N.V.
+CA21037X1006,CSU.TO,Constellation Software Inc.
+AT0000652011,EBS.VI,Erste Group Bank AG
+US7766961061,ROP,Roper Technologies Inc.
+AU000000CSL8,CSL.AX,CSL Limited
+GB00BSZBP530,RKT.L,Reckitt Benckiser Group plc
+US98389B1008,XEL,Xcel Energy Inc.
+JP3249600002,6971.T,Kyocera Corporation
+GB00BMX86B70,HLN.L,Haleon PLC
+CA8667961053,SLF.TO,Sun Life Financial Inc.
+SG9999000020,FLEX,Flex Ltd
+TW0003037008,3037.TW,Unimicron Technology Corp.
+US4448591028,HUM,Humana Inc.
+CA7063271034,PPL.TO,Pembina Pipeline Corporation
+CA3518581051,FNV.TO,Franco-Nevada Corporation
+TW0002303005,2303.TW,United Microelectronics Corp.
+KR7105560007,105560.KS,KB Financial Group Inc.
+US46266C1053,IQV,IQVIA Holdings Inc
+INE296A01032,BAJFINANCE.NS,Bajaj Finance Limited
+JP3877600001,8002.T,Marubeni Corporation
+US5926881054,MTD,Mettler-Toledo International Inc.
+US04626A1034,ALAB,Astera Labs Inc.
+ZAE000351946,NPN.JO,Naspers Limited Class N
+US1696561059,CMG,Chipotle Mexican Grill Inc.
+KR7005380001,005380.KS,Hyundai Motor Company
+US30161N1019,EXC,Exelon Corporation
+US92276F1003,VTR,Ventas Inc.
+US12504L1098,CBRE,CBRE Group Inc. Class A
+JP3811000003,5803.T,Fujikura Ltd
+CA3039011026,FFH.TO,Fairfax Financial Holdings Limited
+GB00BRXH2664,AU,Anglogold Ashanti PLC
+US8793601050,TDY,Teledyne Technologies Incorporated
+US49271V1008,KDP,Keurig Dr Pepper Inc.
+INE018A01030,LT.NS,Larsen & Toubro Limited
+IT0000062072,G.MI,Assicurazioni Generali S.p.A.
+US7443201022,PRU,Prudential Financial Inc.
+AU0000224040,WDS.AX,Woodside Energy Group Ltd
+US6311031081,NDAQ,Nasdaq Inc.
+US2091151041,ED,Consolidated Edison Inc.
+US1468691027,CVNA,Carvana Co. Class A
+SA14TG012N13,2222.SR,Saudi Arabian Oil Co.
+CH0418792922,SIKA.SW,Sika AG
+JP3854600008,7267.T,Honda Motor Co. Ltd.
+AU000000GMG2,GMG.AX,Goodman Group
+INE101A01026,M&M.NS,Mahindra & Mahindra Ltd.
+CA13321L1085,CCO.TO,Cameco Corporation
+US2600031080,DOV,Dover Corporation
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US6745991058,OXY,Occidental Petroleum Corporation
+DK0060079531,DSV.CO,DSV A/S
+BREQTLACNOR0,EQTL3.SA,Equatorial S.A.
+TW0002891009,2891.TW,CTBC Financial Holding Company Ltd.
+CH1335392721,GALD.SW,Galderma Group AG
+JP3304200003,6301.T,Komatsu Ltd.
+US9224751084,VEEV,Veeva Systems Inc. Class A
+US7043261079,PAYX,Paychex Inc.
+US9884981013,YUM,Yum! Brands Inc.
+US7607591002,RSG,Republic Services Inc.
+IT0004176001,PRY.MI,Prysmian S.p.A.
+BRPETRACNOR9,PETR3.SA,Petroleo Brasileiro SA
+TW0002885001,2885.TW,Yuanta Financial Holding Co. Ltd.
+US23331A1097,DHI,D.R. Horton Inc.
+US5950171042,MCHP,Microchip Technology Incorporated
+NL0015001FS8,FER.MC,Ferrovial N.V.
+MXP370841019,GMEXICOB.MX,Grupo Mexico S.A.B. de C.V. Class B
+US0268747849,AIG,American International Group Inc.
+JP3476480003,8750.T,Daiichi Life Group. Inc.
+JP3548600000,6146.T,Disco Corporation
+US8522341036,XYZ,Block Inc. Class A
+US8816242098,TEVA,Teva Pharmaceutical Industries Limited Sponsored ADR
+US6795801009,ODFL,Old Dominion Freight Line Inc.
+INE238A01034,AXISBANK.BO,Axis Bank Limited
+GB00B19NLV48,EXPN.L,Experian PLC
+US9418481035,WAT,Waters Corporation
+KYG8208B1014,9618.HK,JD.com Inc. Class A
+US81141R1005,SE,Sea Limited Sponsored ADR Class A
+US05464C1018,AXON,Axon Enterprise Inc
+BRITUBACNPR1,ITUB4.SA,Itau Unibanco Holding SA Pfd
+US1713401024,CHD,Church & Dwight Co. Inc.
+US8740541094,TTWO,Take-Two Interactive Software Inc.
+US7731211089,RKLB,Rocket Lab Corporation
+JP3164720009,6723.T,Renesas Electronics Corporation
+TW0002383007,2383.TW,Elite Material Co. Ltd.
+IL0006046119,LUMI.TA,Bank Leumi Le-Israel B.M.
+DE0007100000,MBG.DE,Mercedes-Benz Group AG
+GB0004544929,IMB.L,Imperial Brands PLC
+JP3818000006,6702.T,Fujitsu Limited
+US55354G1004,MSCI,MSCI Inc. Class A
+US69351T1060,PPL,PPL Corporation
+CA7392391016,POW.TO,Power Corporation of Canada
+JP3732000009,9434.T,SoftBank Corp.
+INE009A01021,INFY.NS,Infosys Limited
+CH1243598427,SDZ.SW,Sandoz Group Ltd
+US4943681035,KMB,Kimberly-Clark Corporation
+US4165151048,HIG,Hartford Insurance Group Inc.
+US7458671010,PHM,PulteGroup Inc.
+CA25675T1075,DOL.TO,Dollarama Inc.
+US45687V1061,IR,Ingersoll Rand Inc.
+CA3495531079,FTS.TO,Fortis Inc.
+JP3407400005,5802.T,Sumitomo Electric Industries Ltd.
+CH0010645932,GIVN.SW,Givaudan SA
+KYG254571055,CRDO,Credo Technology Group Holding Ltd.
+ES0173516115,REP.MC,Repsol SA
+US0394831020,ADM,Archer-Daniels-Midland Company
+JP3802400006,6954.T,Fanuc Corporation
+SE0000667891,SAND.ST,Sandvik AB
+JP3830800003,5108.T,Bridgestone Corporation
+KR7055550008,055550.KS,Shinhan Financial Group Co. Ltd.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US6935061076,PPG,PPG Industries Inc.
+US8581191009,STLD,Steel Dynamics Inc.
+US69331C1080,PCG,PG&E Corporation
+JP3165000005,8630.T,Sompo HoldingsInc.
+US64110D1046,NTAP,NetApp Inc.
+US9256521090,VICI,VICI Properties Inc
+CA15101Q2071,CLS.TO,Celestica Inc.
+GB00B1YW4409,III.L,3i Group plc
+BMG2004J1036,CCL,Carnival Corporation Ltd.
+US4461501045,HBAN,Huntington Bancshares Incorporated
+US4663131039,JBL,Jabil Inc.
+INE733E01010,NTPC.NS,NTPC Limited
+US45841N1072,IBKR,Interactive Brokers Group Inc. Class A
+CA15135U1093,CVE.TO,Cenovus Energy Inc.
+US55261F1049,MTB,M&T Bank Corporation
+JP3733000008,6701.T,NEC Corporation
+JP3946750001,7182.T,Japan Post Bank Co. Ltd.
+TW0002887007,2887.TW,TS Financial Holding Co. Ltd.
+US46284V1017,IRM,Iron Mountain Inc.
+CH0432492467,ALC.SW,Alcon AG
+DK0010274414,DANSKE.CO,Danske Bank A/S
+US98978V1035,ZTS,Zoetis Inc. Class A
+GB0007099541,PRU.L,Prudential plc
+US25278X1090,FANG,Diamondback Energy Inc.
+US30212P3038,EXPE,Expedia Group Inc.
+US98138H1014,WDAY,Workday Inc. Class A
+SG1M31001969,U11.SI,United Overseas Bank Limited
+JP3538800008,6762.T,TDK Corporation
+US9291601097,VMC,Vulcan Materials Company
+US7445731067,PEG,Public Service Enterprise Group Inc
+US49177J1025,KVUE,Kenvue Inc.
+US29084Q1004,EME,EMCOR Group Inc.
+JP3481800005,6367.T,DAIKIN INDUSTRIES LTD.
+US6323071042,NTRA,Natera Inc.
+NL0000226223,STMPA.PA,STMicroelectronics NV
+INE481G01011,ULTRACEMCO.NS,UltraTech Cement Limited
+DE000A1EWWW0,ADS.DE,adidas AG
+JP3162600005,6273.T,SMC Corporation
+TW0002884004,2884.TW,E.SUN Financial Holding Co. Ltd.
+US5010441013,KR,Kroger Co.
+JP3188220002,4578.T,Otsuka Holdings Co. Ltd.
+IL0006625771,POLI.TA,Bank Hapoalim BM
+US6951561090,PKG,Packaging Corporation of America
+JP3635000007,8015.T,Toyota Tsusho Corp.
+BMG0450A1053,ACGL,Arch Capital Group Ltd.
+SE0007100581,ASSA-B.ST,ASSA ABLOY AB Class B
+AU000000WOW2,WOW.AX,Woolworths Group Ltd
+US3377381088,FISV,Fiserv Inc.
+US3724601055,GPC,Genuine Parts Company
+US65473P1057,NI,NiSource Inc
+KYG2177B1014,1113.HK,CK Asset Holdings Limited
+US7611521078,RMD,ResMed Inc.
+CA4969024047,K.TO,Kinross Gold Corporation
+SA13L050IE10,1180.SR,Saudi National Bank
+SA122050HV19,1150.SR,Alinma Bank
+US76155X1000,RVMD,Revolution Medicines Inc.
+US8760301072,TPR,Tapestry Inc.
+TW0002881000,2881.TW,Fubon Financial Holding Co. Ltd.
+JP3893200000,8801.T,Mitsui Fudosan Co. Ltd.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US8669661048,SUNB,Sunbelt Rentals Holdings Inc
+IT0005508921,BMPS.MI,Banca Monte dei Paschi di Siena S.p.A.
+US36266G1076,GEHC,GE Healthcare Technologies Inc.
+NL0000009082,KPN.AS,Royal KPN NV
+TW0002345006,2345.TW,Accton Technology Corp.
+US22822V1017,CCI,Crown Castle Inc.
+BE0003565737,KBC.BR,KBC Group N.V.
+US2521311074,DXCM,DexCom Inc.
+ZAE000018123,GFI.JO,Gold Fields Limited
+US03990B1017,ARES,Ares Management Corporation
+IE00BDB6Q211,WTW,Willis Towers Watson Public Limited Company
+TW0002890001,2890.TW,SinoPac Financial Holdings Co. Ltd.
+US15135B1017,CNC,Centene Corporation
+TW0002382009,2382.TW,Quanta Computer Inc.
+GB00BH4HKS39,VOD.L,Vodafone Group Public Limited Company
+US1258961002,CMS,CMS Energy Corporation
+KW0EQ0100085,KFH.KW,Kuwait Finance House K.S.C.
+SE0000148884,SEB-A.ST,Skandinaviska Enskilda Banken AB Class A
+AEE000301011,EMAAR.AE,Emaar Properties (P.J.S.C)
+ES0109067019,AMS.MC,Amadeus IT Group SA Class A
+KR7035420009,035420.KS,NAVER Corp.
+BE0003739530,UCB.BR,UCB S.A.
+US7547301090,RJF,Raymond James Financial Inc.
+US6821891057,ON,ON Semiconductor Corporation
+US30225T1025,EXR,Extra Space Storage Inc.
+NL0012969182,ADYEN.AS,Adyen NV
+LU1598757687,MT.AS,ArcelorMittal SA
+US26884L1098,EQT,EQT Corporation
+SE0000242455,SWED-A.ST,Swedbank AB Class A
+US19260Q1076,COIN,Coinbase Global Inc. Class A
+US5732841060,MLM,Martin Marietta Materials Inc.
+US12503M1080,CBOE,Cboe Global Markets Inc
+CA67077M1086,NTR.TO,Nutrien Ltd.
+KYG9066F1019,9961.HK,Trip.com Group Ltd.
+US6658591044,NTRS,Northern Trust Corporation
+US1746101054,CFG,Citizens Financial Group Inc.
+US1924461023,CTSH,Cognizant Technology Solutions Corporation Class A
+US1720621010,CINF,Cincinnati Financial Corporation
+US98419M1009,XYL,Xylem Inc.
+JP3500610005,8308.T,Resona Holdings Inc.
+MYL1295OO004,1295.KL,Public Bank Bhd
+US9699041011,WSM,Williams-Sonoma Inc.
+GB00BPQY8M80,AV.L,Aviva plc
+US1475281036,CASY,Casey's General Stores Inc.
+US09062X1037,BIIB,Biogen Inc.
+KYG070341048,9888.HK,Baidu Inc. Class A
+HU0000061726,OTP.BD,OTP Bank Nyrt
+US60937P1066,MDB,MongoDB Inc. Class A
+IE00BF0L3536,A5G.IR,AIB Group plc
+NL0011540547,ABN.AS,ABN AMRO Bank N.V. Depositary receipts
+SG1U68934629,BN4.SI,Keppel Ltd.
+JP3119600009,2802.T,Ajinomoto Co. Inc.
+GB0005603997,LGEN.L,Legal & General Group Plc
+US4576693075,INSM,Insmed Incorporated
+TW0002327004,2327.TW,Yageo Corporation
+NO0010096985,EQNR.OL,Equinor ASA
+KR7086790003,086790.KS,Hana Financial Group Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+INE081A01020,TATASTEEL.NS,Tata Steel Limited
+CA8787422044,TECK-B.TO,Teck Resources Limited Class B
+JP3475350009,4568.T,Daiichi Sankyo Company Limited
+CNE1000002L3,2628.HK,China Life Insurance Co. Ltd. Class H
+DE0006602006,G1A.F,GEA Group Aktiengesellschaft
+GB00BDSFG982,FTI,TechnipFMC plc
+JP3814000000,4901.T,FUJIFILM Holdings Corp
+SE0000108656,ERIC-B.ST,Telefonaktiebolaget LM Ericsson Class B
+US0495601058,ATO,Atmos Energy Corporation
+US02043Q1076,ALNY,Alnylam Pharmaceuticals Inc
+PLPKO0000016,PKO.WA,PKO Bank Polski SA
+US2566771059,DG,Dollar General Corporation
+JP3519400000,4519.T,Chugai Pharmaceutical Co. Ltd.
+FR0000130577,PUB.PA,Publicis Groupe SA
+TW0002882008,2882.TW,Cathay Financial Holdings Co. Ltd.
+CNE1000003W8,0857.HK,PetroChina Co. Ltd. Class H
+US74834L1008,DGX,Quest Diagnostics Incorporated
+BRPETRACNPR6,PETR4.SA,Petroleo Brasileiro SA Pfd
+US90384S3031,ULTA,Ulta Beauty Inc.
+DK0060336014,NSIS-B.CO,Novonesis A/S Class B
+JP3762600009,8604.T,Nomura Holdings Inc.
+US5007541064,KHC,Kraft Heinz Company
+DK0061539921,VWS.CO,Vestas Wind Systems A/S
+GB00BDCPN049,CCEP.AS,Coca-Cola Europacific Partners plc
+US90138F1021,TWLO,Twilio Inc. Class A
+US50212V1008,LPLA,LPL Financial Holdings Inc.
+KR7000270009,000270.KS,Kia Corporation
+US83406F1021,SOFI,SoFi Technologies Inc
+AU000000ALL7,ALL.AX,Aristocrat Leisure Limited
+US0304201033,AWK,American Water Works Company Inc.
+US5380341090,LYV,Live Nation Entertainment Inc.
+INE646L01027,INDIGO.NS,InterGlobe Aviation Ltd
+HK2388011192,2388.HK,BOC Hong Kong (Holdings) Limited
+US0534841012,AVB,AvalonBay Communities Inc.
+QA0006929895,QNBK.QA,Qatar National Bank QPSC
+US74624M1027,P,Everpure Inc. Class A
+US92939U1060,WEC,WEC Energy Group Inc
+US68902V1070,OTIS,Otis Worldwide Corporation
+ES0105046017,AENA.MC,Aena SME SA
+US2333311072,DTE,DTE Energy Company
+US30040W1080,ES,Eversource Energy
+MXP370711014,GFNORTEO.MX,Grupo Financiero Banorte SAB de CV Class O
+US4062161017,HAL,Halliburton Company
+JP3148800000,4062.T,IBIDEN CO. LTD.
+KYG217651051,0001.HK,CK Hutchison Holdings Ltd
+US74743L1008,Q,Qnity Electronics Inc.
+US2172041061,CPRT,Copart Inc.
+IT0003856405,LDO.MI,Leonardo SpA
+US3703341046,GIS,General Mills Inc.
+US0236081024,AEE,Ameren Corporation
+US4523271090,ILMN,Illumina Inc.
+AU0000030678,COL.AX,Coles Group Ltd.
+TW0001303006,1303.TW,Nan Ya Plastics Corporation
+US29476L1070,EQR,Equity Residential
+JP3752900005,6178.T,JAPAN POST HOLDINGS Co. Ltd.
+US3021301094,EXPD,Expeditors International of Washington Inc.
+IT0000066123,BPE.MI,BPER Banca S.p.A.
+US2315611010,CW,Curtiss-Wright Corporation
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US2810201077,EIX,Edison International
+CNE100000296,1211.HK,BYD Company Limited Class H
+US4435106079,HUBB,Hubbell Incorporated
+DE0006047004,HEI.DE,Heidelberg Materials AG
+US4278661081,HSY,Hershey Company
+FR0000121329,HO.PA,Thales SA
+IL0010823792,TSEM,Tower Semiconductor Ltd
+US87165B1035,SYF,Synchrony Financial
+US74251V1026,PFG,Principal Financial Group Inc.
+US2371941053,DRI,Darden Restaurants Inc.
+SE0000695876,ALFA.ST,Alfa Laval AB
+US92345Y1064,VRSK,Verisk Analytics Inc.
+INE062A01020,SBIN.NS,State Bank of India
+TW0002357001,2357.TW,Asustek Computer Inc.
+US8962391004,TRMB,Trimble Inc.
+KR7012450003,012450.KS,Hanwha Aerospace Co. Ltd.
+DE000CBK1001,CBK.DE,Commerzbank AG
+JP3942400007,4503.T,Astellas Pharma Inc.
+US2567461080,DLTR,Dollar Tree Inc.
+US3364331070,FSLR,First Solar Inc.
+US21873S1087,CRWV,CoreWeave Inc. Class A
+SA123GA0ITH7,1211.SR,Saudi Arabian Mining Co.
+JP3386450005,5020.T,ENEOS Holdings Inc.
+KYG040111059,2020.HK,ANTA Sports Products Ltd.
+DE000A0D9PT0,MTX.DE,MTU Aero Engines AG
+US31620M1062,FIS,Fidelity National Information Services Inc.
+US1651677353,EXE,Expand Energy Corporation
+JP3899600005,8802.T,Mitsubishi Estate Company Limited
+FR0000045072,ACA.PA,Credit Agricole SA
+CNE100001526,002594.SZ,BYD Company Limited Class A
+US7591EP1005,RF,Regions Financial Corporation
+CH1430134226,AMRZ.SW,Amrize Ltd
+NL0000009165,HEIA.AS,Heineken NV
+IE00028FXN24,SW,Smurfit Westrock PLC
+GB0004052071,HLMA.L,Halma plc
+CA5394811015,L.TO,Loblaw Companies Limited
+NO0010161896,NO0010161896.SG,DNB Bank ASA
+ZAE000035861,CPI.JO,Capitec Bank Holdings Limited
+US98980L1017,ZM,Zoom Communications Inc. Class A
+JP3892100003,8309.T,Sumitomo Mitsui Trust Group Inc.
+JP3735400008,9432.T,NTT Inc
+KR7034020008,034020.KS,Doosan Enerbility Co. Ltd.
+TW0003017000,3017.TW,Asia Vital Components Co. Ltd.
+KW0EQ0100010,NBK.KW,National Bank of Kuwait K.S.C.
+US2199481068,CPAY,Corpay Inc.
+AEN000101016,nao_encontrado,First Abu Dhabi Bank P.J.S.C.
+US40434L1052,HPQ,HP Inc.
+US5049221055,LH,Labcorp Holdings Inc.
+BRITSAACNPR7,ITSA4.SA,Itausa SA Non-Cum Perp Pfd Registered Shs
+AU000000QBE9,QBE.AX,QBE Insurance Group Limited
+DE000DTR0CK8,DTG.DE,Daimler Truck Holding AG
+CH0008742519,SCMN.SW,Swisscom AG
+US3379321074,FE,FirstEnergy Corp.
+BMG2519Y1084,BAP,Credicorp Ltd.
+FI4000552500,SAMPO.HE,Sampo Oyj
+KR7068270008,068270.KS,Celltrion Inc.
+SE0009922164,ESSITY-B.ST,Essity AB Class B
+JP3198900007,4661.T,Oriental Land Co. Ltd.
+CA76131D1033,QSR,Restaurant Brands International Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US6792951054,OKTA,Okta Inc. Class A
+US84265V1052,SCCO,Southern Copper Corporation
+CH1430134226,AMRZ.SW,Amrize Ltd
+US74144T1088,TROW,T. Rowe Price Group Inc.
+JP3294460005,1605.T,Inpex Corporation
+US3032501047,FICO,Fair Isaac Corporation
+US5949724083,MSTR,Strategy Inc Class A
+HK0992009065,0992.HK,Lenovo Group Limited
+DE0006599905,MRK.DE,Merck KGaA
+US9553061055,WST,West Pharmaceutical Services Inc.
+SG1T75931496,Z74.SI,Singapore Telecommunications Limited
+HK0669013440,0669.HK,Techtronic Industries Co. Ltd.
+JE00BV7DQ550,AMCR,Amcor PLC
+US6293775085,NRG,NRG Energy Inc.
+JP3422950000,3382.T,Seven & I Holdings Co. Ltd.
+US4595061015,IFF,International Flavors & Fragrances Inc.
+KYG3730V1059,FTAI,FTAI Aviation Ltd.
+ZAE000109815,SBK.JO,Standard Bank Group Limited
+US34959J1088,FTV,Fortive Corp.
+INE280A01028,TITAN.NS,Titan Company Limited
+US7595091023,RS,Reliance Inc.
+GB00BMJ6DW54,INF.L,Informa Plc
+US6819191064,OMC,Omnicom Group Inc
+FR0000124141,VIE.PA,Veolia Environnement SA
+INE038A01020,HINDALCO.NS,Hindalco Industries Limited
+US3156161024,FFIV,F5 Inc.
+GB00BMVP7Y09,RPRX,Royalty Pharma Plc Class A
+US4228061093,HEI,HEICO Corporation
+GB00BHJYC057,IHG.L,InterContinental Hotels Group PLC
+PLPKN0000018,PKN.WA,ORLEN Spolka Akcyjna
+SE0017486889,ATCO-A.ST,Atlas Copco AB Class A
+JP3242800005,7751.T,Canon Inc.
+CH0030170408,GEBN.SW,Geberit AG
+NL0010773842,NN.AS,NN Group N.V.
+US1152361010,BRO,Brown & Brown Inc.
+US9837931008,XPO,XPO Inc.
+DE0005190003,BMW.DE,Bayerische Motoren Werke AG
+GB0032089863,NXT.L,Next plc
+JP3381000003,5401.T,NIPPON STEEL CORP.
+CA1130041058,BAM.TO,Brookfield Asset Management Ltd. Class A
+US5705351048,MKL,Markel Group Inc.
+CH1216478797,DSFIR.AS,DSM-Firmenich AG
+US1220171060,BURL,Burlington Stores Inc.
+US4456581077,JBHT,J.B. Hunt Transport Services Inc.
+US92343E1029,VRSN,VeriSign Inc.
+CA0977518616,BBD-B.TO,Bombardier Inc. Class B
+US00827B1061,AFRM,Affirm Holdings Inc. Class A
+NL0000687663,AER,AerCap Holdings NV
+KYG3323L1005,FN,Fabrinet
+IE00BFY8C754,STE,STERIS plc
+INE237A01036,KOTAKBANK.NS,Kotak Mahindra Bank Limited
+US15189T1079,CNP,CenterPoint Energy Inc.
+CNE1000002R0,1088.HK,China Shenhua Energy Co. Ltd. Class H
+US98850P1093,YUMC,Yum China Holdings Inc.
+FR001400AJ45,ML.PA,Cie Generale des Etablissements Michelin SA
+SE0020050417,BOL.ST,Boliden AB
+IL0010811243,ESLT.TA,Elbit Systems Ltd
+AU000000NST8,NST.AX,Northern Star Resources Ltd
+FI0009005987,UPM.HE,UPM-Kymmene Oyj
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+IE00BD1RP616,BIRG.IR,Bank of Ireland Group Plc
+CH1430134226,AMRZ.SW,Amrize Ltd
+FR0000121485,KER.PA,Kering SA
+JP3979200007,6920.T,Lasertec Corp.
+CNE100000B24,601899.SS,Zijin Mining Group Co. Ltd. Class A
+TH0528010R18,DELTA-R.BK,Delta Electronics (Thailand) Public Co. Ltd. NVDR
+CNE100000Q43,1288.HK,Agricultural Bank of China Limited Class H
+US2605571031,DOW,Dow Inc.
+PTEDP0AM0009,EDP.LS,EDP S.A.
+US2944291051,EFX,Equifax Inc.
+US88262P1021,TPL,Texas Pacific Land Corporation
+KR7012330007,012330.KS,Hyundai Mobis Co. Ltd
+US7710491033,RBLX,Roblox Corp. Class A
+INE467B01029,TCS.NS,Tata Consultancy Services Limited
+SA0007879543,7010.SR,Saudi Telecom Co.
+SE0021921269,SAAB-B.ST,Saab AB Class B
+CA3359341052,FM.TO,First Quantum Minerals Ltd.
+KYG970081173,KYG970081173.SG,Wuxi Biologics (Cayman) Inc.
+CA1367178326,CU.TO,Canadian Utilities Limited Class A
+US29362U1043,ENTG,Entegris Inc.
+US92338C1036,VLTO,Veralto Corporation
+KYG4818G1010,1801.HK,Innovent Biologics Inc.
+US4228062083,HEI-A,HEICO Corporation Class A
+IT0005218380,BAMI.MI,Banco BPM SpA
+US1252691001,CF,CF Industries Holdings Inc.
+ZAE000013181,VAL.JO,Valterra Platinum Limited
+CH1391448177,6160.HK,BeOne Medicines Ltd.
+FI0009013403,KNEBV.HE,KONE Oyj Class B
+US5184391044,EL,Estee Lauder Companies Inc. Class A
+HK0016000132,0016.HK,Sun Hung Kai Properties Limited
+US98956P1021,ZBH,Zimmer Biomet Holdings Inc.
+DE000A1ML7J1,VNA.DE,Vonovia SE
+SE0007100599,SHB-A.ST,Svenska Handelsbanken AB Class A
+GB00B5ZN1N88,SGRO.L,SEGRO plc
+US8330341012,SNA,Snap-on Incorporated
+JP3118000003,7936.T,Asics Corporation
+CNE100000593,2328.HK,PICC Property & Casualty Co. Ltd. Class H
+US4932671088,KEY,KeyCorp
+US5312297550,FWONK,Liberty Media Corporation Series C Liberty Formula One
+AU000000FMG4,FMG.AX,Fortescue Ltd
+KR7028260008,028260.KS,SAMSUNG C&T CORP
+CNE000001B33,600036.SS,China Merchants Bank Co. Ltd. Class A
+AU000000CPU5,CPU.AX,Computershare Limited
+US91307C1027,UTHR,United Therapeutics Corporation
+US21036P1084,STZ,Constellation Brands Inc. Class A
+JP3783600004,9020.T,East Japan Railway Company
+MXP320321310,FEMSAUBD.MX,Fomento Economico Mexicano SAB de CV Units Cons. Of 1 ShsB And 4 ShsD
+CNE100003662,300750.SZ,Contemporary Amperex Technology Co. Limited Class A
+ES0167050915,ACS.MC,ACS Actividades de Construccion y Servicios SA
+US37940X1028,GPN,Global Payments Inc.
+IE00BYTBXV33,RYA.IR,Ryanair Holdings Plc
+AU000000STO6,STO.AX,Santos Limited
+ZAE000042164,MTN.JO,MTN Group Limited
+JP3778630008,7832.T,Bandai Namco Holdings Inc.
+US4601461035,IP,International Paper Company
+JP3566800003,9022.T,Central Japan Railway Company
+CA4530384086,IMO.TO,Imperial Oil Limited
+CA5592224011,MG.TO,Magna International Inc.
+MX01AM050019,AMXB.MX,America Movil SAB de CV Class B
+CH1430134226,AMRZ.SW,Amrize Ltd
+INE721A01047,SHRIRAMFIN.BO,Shriram Finance Limited
+TH0268010R11,ADVANC-R.BK,Advanced Info Service Public Co. Ltd. NVDR
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US5745991068,MAS,Masco Corporation
+INE263A01024,BEL.NS,Bharat Electronics Limited
+NL0000009538,PHIA.AS,Koninklijke Philips N.V.
+US0494681010,TEAM,Atlassian Corp Class A
+HK0823032773,0823.HK,Link Real Estate Investment Trust
+US0188021085,LNT,Alliant Energy Corporation
+CA6979001089,PAAS.TO,Pan American Silver Corp.
+US78410G1040,SBAC,SBA Communications Corp. Class A
+CH0311864901,VACN.SW,VAT Group AG
+DE0007664039,VOW3.DE,Volkswagen AG Pref
+HK0002007356,0002.HK,CLP Holdings Limited
+DK0010272202,GMAB.CO,Genmab A/S
+GB0000456144,ANTO.L,Antofagasta plc
+US98980G1022,ZS,Zscaler Inc.
+US45337C1027,INCY,Incyte Corporation
+JP3505000004,1925.T,Daiwa House Industry Co. Ltd.
+CNE1000015Y8,601901.SS,Founder Securities Co. Ltd. Class A
+US45167R1041,IEX,IDEX Corporation
+SE0015961909,HEXA-B.ST,Hexagon AB Class B
+CNE100000502,2899.HK,Zijin Mining Group Co. Ltd. Class H
+DE0005785604,FRE.DE,Fresenius SE & Co. KGaA
+DE0008402215,HNR1.DE,Hannover Rueck SE
+US75734B1008,RDDT,Reddit Inc. Class A
+INE585B01010,MARUTI.NS,Maruti Suzuki India Limited
+US8887871080,TOST,Toast Inc. Class A
+US11133T1034,BR,Broadridge Financial Solutions Inc.
+FR0000125338,CAP.PA,Capgemini SE
+AU000000EVN4,EVN.AX,Evolution Mining Limited
+ES0113860A34,SAB.MC,Banco de Sabadell SA
+NL0013267909,AKZA.AS,Akzo Nobel N.V.
+US3143521058,FDXF,FedEx Freight Holding Company Inc.
+BRAXIAACNOR0,AXIA3.SA,AXIA Energia SA
+CNE0000018R8,600519.SS,Kweichow Moutai Co. Ltd. Class A
+AU000000ORG5,ORG.AX,Origin Energy Limited
+KR7006400006,006400.KS,Samsung SDI Co. Ltd
+KYG532631028,1024.HK,Kuaishou Technology Class B
+US26614N2018,DD,DuPont de Nemours Inc.
+KYG2108Y1052,1109.HK,China Resources Land Limited
+US12514G1085,CDW,CDW Corporation
+CA92938W2022,WSP.TO,WSP Global Inc
+TW0002360005,2360.TW,Chroma Ate Inc.
+JP3397200001,7269.T,Suzuki Motor Corp.
+US86800U3023,SMCI,Super Micro Computer Inc.
+BRBBDCACNPR8,BBDC4.SA,Banco Bradesco SA Pfd
+CNE1000048K8,6690.HK,Haier Smart Home Co. Ltd. Class H
+CH0102484968,BAER.SW,Julius Baer Gruppe AG
+GB00B8C3BL03,SGE.L,Sage Group plc
+CA74935Q1072,RBA,RB Global Inc.
+US3841091040,GGG,Graco Inc.
+AU000000S320,S32.AX,South32 Ltd.
+CH0466642201,HBAN.SW,Helvetia Baloise Holding AG
+AT0000BAWAG2,BG.VI,BAWAG Group AG
+SG1M51904654,C38U.SI,CapitaLand Integrated Commercial Trust
+JP3827200001,5801.T,Furukawa Electric Co. Ltd.
+CH1101098163,BEAN.SW,BELIMO Holding AG
+KR7035720002,035720.KS,Kakao Corp.
+AU000000BXB1,BXB.AX,Brambles Limited
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US0865161014,BBY,Best Buy Co. Inc.
+CH0024608827,PGHN.SW,Partners Group Holding AG
+CA5503721063,LUN.TO,Lundin Mining Corporation
+CH1256740924,SGSN.SW,SGS SA
+INE044A01036,SUNPHARMA.NS,Sun Pharmaceutical Industries Limited
+NL0000395903,WKL.AS,Wolters Kluwer N.V.
+US62944T1051,NVR,NVR Inc.
+AU000000SUN6,SUN.AX,Suncorp Group Limited
+IT0003242622,TRN.MI,Terna S.p.A.
+JP3116000005,2502.T,Asahi Group Holdings Ltd
+FR0000120693,RI.PA,Pernod Ricard SA
+US9621661043,WY,Weyerhaeuser Company
+NL0015000IY2,UMG.AS,Universal Music Group N.V.
+ZAE000026480,REM.JO,Remgro Limited
+PHY411571011,nao_encontrado,International Container Terminal Services Inc.
+IL0006912120,DSCT.TA,Israel Discount Bank Limited Class A
+NL0012866412,BESI.AS,BE Semiconductor Industries N.V.
+JP3134800006,7013.T,IHI Corporation
+GRS829003003,EUROB.AT,EUROBANK S.A.
+JP3183200009,8697.T,Japan Exchange Group Inc.
+US78467J1007,SSNC,SS&C Technologies Holdings Inc.
+IT0000072170,FBK.MI,FinecoBank SpA
+TW0003231007,3231.TW,Wistron Corporation
+US1921085049,CDE,Coeur Mining Inc.
+JP3368000000,4004.T,Resonac Holdings Corporation
+JP3546800008,4543.T,Terumo Corporation
+HK0000218211,1347.HK,Hua Hong Grace Semiconductor Limited
+ID1000109507,BBCA.JK,PT Bank Central Asia Tbk
+KR7005490008,005490.KS,POSCO Holdings Inc.
+JP3166000004,6361.T,Ebara Corporation
+US1423391002,CSL,Carlisle Companies Incorporated
+US12541W2098,CHRW,C.H. Robinson Worldwide Inc.
+NZFAPE0001S2,FPH.NZ,Fisher & Paykel Healthcare Corporation Limited
+KYG3777B1032,0175.HK,Geely Automobile Holdings Limited
+US31946M1036,FCNCA,First Citizens BancShares Inc. Class A
+SG1J26887955,S68.SI,Singapore Exchange Ltd.
+US6687711084,GEN,Gen Digital Inc.
+CA8849038812,TRI.TO,Thomson Reuters Corporation
+KR7032830002,032830.KS,Samsung Life Insurance Co. Ltd.
+US72348N1090,PNFP,Pinnacle Financial Partners Inc.
+IT0003153415,SRG.MI,Snam S.p.A.
+FI0009003727,WRT1V.HE,Wartsila Oyj Abp
+JP3888400003,5706.T,Mitsui Kinzoku Co. Ltd.
+IL0006954379,MZTF.TA,Mizrahi Tefahot Bank Ltd
+US92936U1097,WPC,W. P. Carey Inc.
+US8923561067,TSCO,Tractor Supply Company
+US46982L1089,J,Jacobs Solutions Inc.
+JP3205800000,4452.T,Kao Corporation
+HK0688002218,0688.HK,China Overseas Land & Investment Limited
+JP3379550001,5016.T,JX Advanced Metals Corporation
+BMG3223R1088,EG,Everest Group Ltd.
+NL0009434992,LYB,LyondellBasell Industries NV
+CA89156V1067,TOU.TO,Tourmaline Oil Corp.
+DE000SYM9999,SY1.DE,Symrise AG
+US79589L1061,IOT,Samsara Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+JP3388200002,8267.T,AEON Co. Ltd.
+JP3421800008,9735.T,Secom Co. Ltd.
+US64125C1099,NBIX,Neurocrine Biosciences Inc.
+MXP225611567,CEMEXCPO.MX,Cemex SAB de CV Cert Part Ord Repr 2 ShsA & 1 ShsB
+CH0010570767,LISP.SW,Chocoladefabriken Lindt & Spruengli AG Partizipsch.
+JP3266400005,6326.T,Kubota Corporation
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US30233Q1085,XOM,Exxonmobil Holdings Corporation
+JP3402600005,5713.T,Sumitomo Metal Mining Co. Ltd.
+CH1430134226,AMRZ.SW,Amrize Ltd
+JP3976300008,7453.T,Ryohin Keikaku Co. Ltd.
+TW0002379005,2379.TW,Realtek Semiconductor Corp
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+TW0002059003,2059.TW,King Slide Works Co. Ltd.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+KR7316140003,316140.KS,Woori Financial Group Inc.
+DE000FRE5EN2,nao_encontrado,Fresenius SE & Co. KGaA
+US5763231090,MTZ,MasTec Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+US30034W1062,EVRG,Evergy Inc.
+US22160N1090,CSGP,CoStar Group Inc.
+KR7034730002,034730.KS,SK Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+TW0006669005,6669.TW,Wiwynn Corporation
+TW0005274005,5274.TWO,ASPEED Technology Inc.
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+KR7267260008,267260.KS,HD Hyundai Electric
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH0025238863,KNIN.SW,Kuehne & Nagel International AG
+CH0012549785,SOON.SW,Sonova Holding AG
+US02079K3059,1GOOGL.MI,Alphabet Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH0012032113,RO.SW,Roche Holding Ltd
+JP3753000003,9101.T,Nippon Yusen Kabushiki Kaisha
+US5404241086,L,Loews Corporation
+US89400J1079,TRU,TransUnion
+CH1430134226,AMRZ.SW,Amrize Ltd
+US02079K3059,nao_encontrado,Alphabet Inc. Class A
+NO0013536151,KOG.OL,Kongsberg Gruppen ASA
+US9022521051,TYL,Tyler Technologies Inc.
+FI0009013296,NESTE.HE,Neste Corporation
+IL0007670123,PHOE.TA,Phoenix Financial Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd
+IE0004906560,KRZ.IR,Kerry Group Plc Class A
+KR7000810002,000810.KS,Samsung Fire & Marine Insurance Co. Ltd
+US76954A1034,RIVN,Rivian Automotive Inc. Class A
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd
+CA0115321089,AGI.TO,Alamos Gold Inc.
+CH1430134226,AMRZ.SW,Amrize Ltd
+US8832031012,TXT,Textron Inc.
+CH1430134226,AMRZ.SW,Amrize Ltd
+CH1430134226,AMRZ.SW,Amrize Ltd

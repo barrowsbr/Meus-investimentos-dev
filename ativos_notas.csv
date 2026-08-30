@@ -1,0 +1,18 @@
+id,ticker,data,texto,feito
+nota-mr8gfr0er2vax,CMIG4.SA,2026-07-06T00:01:11.294Z,Eu quero reinvestir pelo menos o valor dos 1600 que recebi de dividendos,
+nota-mravsh43rxrjs,MSFT,2026-07-07T16:46:31.587Z,Vender em 530 ou perto,
+nota-mrb1xhkuhomff,IA,2026-07-07T19:38:23.166Z,Conseguir editar as anotações depois de criadas,2026-07-07T23:51:42.015Z
+nota-mrbakv83li9z8,IA,2026-07-07T23:40:30.867Z,"Em radar, funda a barra de busca com o botão que abre um pop up e busca ativos e índices. Deve ficar só a barra de pesquisa, abre o popup e conseguimos também buscar os países, que é a única função atual da barra",2026-07-08T00:04:47.997Z
+nota-mrbcws2v4tdxd,IA,2026-07-08T00:45:45.895Z,Crie uma novo filtro no mapa destacando agora as bolsas que temos alocação e colocando um marcador e destacando o país,2026-07-09T14:41:37.523Z
+nota-mrcdaqpuummtg,IA,2026-07-08T17:44:23.490Z,"Seria interessante evoluir a página de ETF's para também trazermos os custos dos ETFs, relativos as taxas de administração.",2026-07-08T19:37:19.328Z
+nota-mrcddhwjhyeiv,IA,2026-07-08T17:46:32.035Z,"Calendário de dividendos dentro da página de proventos com os próximos eventos vindos de alguma API
+seria legal se fosse um botão, abre um popup com o calendário e se clicassemos no dia, abrir mais detalhes",2026-07-08T19:36:22.395Z
+nota-mrcddy68tlgm2,IA,2026-07-08T17:46:53.120Z,Fazer um filtro em anotação para mostrar primáriamente só as que não estão marcados com feito,2026-07-08T19:34:48.714Z
+nota-mrnyr4mlm68iz,IA,2026-07-16T20:30:27.886Z,"Colocar gráfico de volatilidade em performance depois de drowdown
+Ele foi feito, mas está apresentando resultados muito altos em termos numéricos",
+nota-mro7eq7s1zaog,IA,2026-07-17T00:32:45.880Z,Em etf cem fazer um esquema que eu possa marcar aqueles que estou observado e quando entrar novamente no app possa filtra lós mais facilmente,2026-07-17T14:52:15.266Z
+nota-ms7y83fsp8ml9,IA,2026-07-30T20:11:03.400Z,Fazer o esquema da API da FIPE,2026-08-05T12:36:06.666Z
+nota-msg2m0u1uoc79,IA,2026-08-05T12:36:01.081Z,"Quadrado de segmentos e cores, aquele das fotos vermelhas (tipo um painel de mercado)",
+nota-mt021sh000jr5,IA,2026-08-19T12:15:40.644Z,"Tem uma remessa em dolar canadense que está invertida, verificar o formato correto, em vez de 1,4 deveria ser 0,7. Estamos com dados em formatos diferentes sendo considerados como o mesmo formato",
+nota-mt073ilrr0v5y,IA,2026-08-19T14:36:59.247Z,"Lucros em outras moedas sem ser dolar nos cards de renda variável estão aparecendo como R$, exemplo, a DPM que está em CAD",
+nota-mtfsufo786dn3,IA,2026-08-30T12:42:19.735Z,Mudar como o que chega na notificação do barroots pelo telegram (A mensagem que aparece nas notificações),

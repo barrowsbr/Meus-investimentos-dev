@@ -1,0 +1,6 @@
+cenario,tipo,ticker,quantidade,preco,moeda,notas
+Toxinas compras,compra,ZURN.SW,2,"584,8",CHF,
+Toxinas compras,compra,FLJP,15,"39,65",USD,
+Toxinas compras,venda,NVDA,5,"200,04",USD,
+Toxinas compras,compra,VWRA,5,"186,54",GBP,
+Novo Cenário,compra,AMZN,1,"238,34",USD,

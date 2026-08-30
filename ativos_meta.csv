@@ -1,0 +1,25 @@
+ticker,yahoo_symbol,exchange,currency,quote_type,sector,industry,long_name,last_updated
+ITUB4.SA,ITUB4.SA,São Paulo,BRL,EQUITY,Financeiro,Banks - Regional,Itaú Unibanco Holding S.A.,2026-07-04
+CMIG4,CMIG4.SA,São Paulo,BRL,EQUITY,Utilidades Públicas,Utilities - Regulated Electric,Companhia Energética de Minas Gerais - CEMIG,2026-07-05
+CMIG4.SA,CMIG4.SA,São Paulo,BRL,EQUITY,Utilidades Públicas,Utilities - Regulated Electric,Companhia Energética de Minas Gerais - CEMIG,2026-07-05
+IVVB11,IVVB11.SA,São Paulo,BRL,EQUITY,,,ISHARES S&P 500 CLASSE DE ÍNDICE EM COTAS DE CLASSES DE ÍNDICE IE - RESPONSABILIDADE LIMITADA,2026-07-05
+IAU,IAU,NYSEArca,USD,ETF,,,iShares Gold Trust,2026-07-06
+VOW3,VOW3.DE,XETRA,EUR,EQUITY,Varejo,Auto Manufacturers,Volkswagen AG,2026-07-06
+KO,KO,NYSE,USD,EQUITY,Consumo,Beverages - Non-Alcoholic,The Coca-Cola Company,2026-07-06
+DPM,DPM.TO,Toronto,CAD,EQUITY,Mineração & Materiais,Gold,DPM Metals Inc.,2026-07-06
+MSFT,MSFT,NasdaqGS,USD,EQUITY,Tecnologia,Software - Infrastructure,Microsoft Corporation,2026-07-06
+SIVR,SIVR,NYSEArca,USD,ETF,,,abrdn Physical Silver Shares ETF,2026-07-06
+SHV,SHV,NYSE,USD,ETF,,,iShares 0–1 Year Treasury Bond ETF,2026-07-06
+META,META,NasdaqGS,USD,EQUITY,Comunicação,Internet Content & Information,"Meta Platforms, Inc.",2026-07-06
+SPY,SPY,NYSEArca,USD,ETF,,,State Street SPDR S&P 500 ETF Trust,2026-07-06
+TTWO,TTWO,NasdaqGS,USD,EQUITY,Comunicação,Electronic Gaming & Multimedia,"Take-Two Interactive Software, Inc.",2026-07-06
+TSM,TSM,NYSE,USD,EQUITY,Tecnologia,Semiconductors,Taiwan Semiconductor Manufacturing Company Limited,2026-07-06
+ASML,ASML.AS,Amsterdam,EUR,EQUITY,Tecnologia,Semiconductor Equipment & Materials,ASML Holding N.V.,2026-07-06
+QQQ,QQQ,NasdaqGM,USD,ETF,,,Invesco QQQ Trust,2026-07-06
+GOOGL,GOOGL,NasdaqGS,USD,EQUITY,Comunicação,Internet Content & Information,Alphabet Inc.,2026-07-06
+VRSN,VRSN,NasdaqGS,USD,EQUITY,Tecnologia,Software - Infrastructure,"VeriSign, Inc.",2026-07-06
+IBKR,IBKR,NasdaqGS,USD,EQUITY,Financeiro,Capital Markets,"Interactive Brokers Group, Inc.",2026-07-06
+NVDA,NVDA,NasdaqGS,USD,EQUITY,Tecnologia,Semiconductors,NVIDIA Corporation,2026-07-06
+IBM,IBM,NYSE,USD,EQUITY,Tecnologia,Information Technology Services,International Business Machines Corporation,2026-07-15
+KNCR11,KNCR11.SA,São Paulo,BRL,EQUITY,Imobiliário,REIT - Mortgage,Kinea Rendimentos Imobiliários Fundo de Investimento Imobiliário - FII,2026-07-15
+HGLG11,HGLG11.SA,São Paulo,BRL,EQUITY,Imobiliário,REIT - Diversified,Cshg Logistica - Fundo De Investimento Imobiliario,2026-08-12

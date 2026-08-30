@@ -1,0 +1,10 @@
+chave,valor
+telegram_chat_id,1737564761
+telegram_bot_token,
+limite_alavancagem_pct,30
+ativo,FALSE
+darf_ativo,TRUE
+dirpf_ativo,TRUE
+alavancagem_ativo,TRUE
+resumo_ativo,FALSE
+resumo_horarios,18
