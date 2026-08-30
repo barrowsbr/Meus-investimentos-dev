@@ -494,7 +494,18 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - A Performance lê dessa aba primeiro (`lib/market-history.ts`); só recorre ao Yahoo para tickers ausentes.
 - **Preço bruto + proventos somados separadamente** (motor TWR) = retorno correto. Usar `adjClose` causaria double-count de dividendos (foi o que inflava a rentabilidade antes).
 - Atualização automática via Vercel Cron (`/api/cron/cotacoes`, dias úteis 23h UTC). Botão manual em Configurações.
+- **Anomalias da golden NÃO são erro de dado** (decisão do dono 30/08/2026): o
+  `detectAnomalies` marca variação >25% como "possível split/bonificação" — é um
+  AVISO para inspeção, não defeito. As 3 anomalias vivas foram auditadas e
+  confirmadas pelo dono como **movimentos reais e auditáveis de mercado**:
+  `META 03/02/2022` (crash de −26% após o resultado do 4T21), `SIVR 30/01/2026`
+  e `IBM 14/07/2026`. **Não "corrigir", não filtrar, não reprocessar** — o preço
+  gravado é o que de fato aconteceu no pregão. Reauditar só se o dono pedir.
 - Auditoria: `GET /api/debug/auditoria?lookback=DIAS` mede bloqueios anti-outlier e decompõe preço × dividendos.
+- Diagnóstico rápido em produção: workflow `ibkr-diag` (dispara ao editar o
+  próprio arquivo) — seções do Flex, saúde da golden (dias/tickers/cobertura/
+  anomalias) e a auditoria dos marks IBKR (fator mark ÷ fechamento por ativo).
+  Só metadados e RAZÕES: o log do CI é público, preço absoluto nunca sai.
 
 ## Histórico patrimonial (série `historico_patrimonio`)
 
