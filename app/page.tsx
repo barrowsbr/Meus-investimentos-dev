@@ -1198,7 +1198,14 @@ export default function HomePage() {
 
   return (
     <ErrorBoundary>
-    <div className="h-full overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
+    {/* Sem contêiner de scroll PRÓPRIO: quem rola é o <main> do TerminalShell,
+        igual a todas as outras páginas. A Home tinha um scroller aninhado
+        (h-full + overflow-y-auto + overscroll-behavior:none) — o overscroll
+        `none` impede o encadeamento da roda do mouse para o <main>, e o
+        h-full nem sempre resolve, deixando a rolagem morta. ⚠️ Não repor
+        `overflow-x-hidden` aqui: com um eixo em hidden, o outro vira `auto`
+        e o scroller aninhado volta. O <main> já tem overflow-x-hidden. */}
+    <div>
       <div className="w-full space-y-0">
 
         {/* ── Row 1: Hero (logo + saudação + olho de privacidade) ──
