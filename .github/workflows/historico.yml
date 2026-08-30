@@ -25,6 +25,10 @@ on:
 jobs:
   registrar:
     runs-on: ubuntu-latest
+    # O dono criou o CRON_SECRET como ENVIRONMENT secret (Production) — o job
+    # precisa declarar o ambiente para recebê-lo. Sem regras de proteção no
+    # ambiente, não bloqueia nada; Repository secret/variable seguem valendo.
+    environment: Production
     steps:
       - name: Registrar patrimônio no histórico
         env:
