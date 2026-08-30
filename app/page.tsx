@@ -3,13 +3,12 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2, Loader2 } from "lucide-react";
+import { ChevronRight, Newspaper, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2, Loader2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { fetchJsonCached, fetchJsonFresh } from "@/lib/client-cache";
 import PageLoader from "@/components/PageLoader";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
-import { openEmbed, openArticle } from "@/lib/embed-link";
 import PatrimonioModal from "@/components/PatrimonioModal";
 import RetornoDiaModal from "@/components/RetornoDiaModal";
 import PatrimonioSparkline from "@/components/PatrimonioSparkline";
@@ -1231,25 +1230,11 @@ export default function HomePage() {
               />
             </button>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl md:text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-.01em" }}>
-                  Olá, Lucas
-                </h1>
-                <button
-                  type="button"
-                  onClick={() => openEmbed("https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app", "Meus Investimentos · V1", "versão anterior (Streamlit)")}
-                  className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 transition-opacity hover:opacity-80"
-                  style={{
-                    background: "rgba(63,185,80,0.10)",
-                    border: "1px solid rgba(63,185,80,0.25)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "var(--pos)",
-                  }}
-                >
-                  V1 <ExternalLink size={8} />
-                </button>
-              </div>
+              {/* O atalho para a V1 (Streamlit) saiu daqui — vive em
+                  Configurações → Sobre o sistema, junto da história do projeto. */}
+              <h1 className="text-2xl md:text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-.01em" }}>
+                Olá, Lucas
+              </h1>
               <p className="font-mono text-[11px] mt-1" style={{ color: "var(--muted)" }}>
                 {weekday} · {dateStr} · Gestão integrada de investimentos
               </p>
