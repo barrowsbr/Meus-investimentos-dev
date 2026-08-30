@@ -49,6 +49,9 @@ export async function POST(req: Request) {
     await writeAlertasConfig({
       chatId,
       botToken: tokenInput || existing.botToken,
+      // PRESERVA o segredo do webhook: salvar ajustes de alerta pela UI não
+      // pode desligar as respostas do bot em silêncio.
+      webhookSecret: existing.webhookSecret,
       limiteAlavancagemPct: Number.isFinite(limiteRaw) && limiteRaw > 0 ? limiteRaw : 30,
       ativo: flag(body?.ativo),
       darfAtivo: flag(body?.darfAtivo),

@@ -20,6 +20,9 @@ const DEFAULT_RESUMO_HORARIOS = [18];
 export interface AlertasConfig {
   chatId: string;
   botToken: string;          // token do bot salvo na planilha (opcional; env var tem prioridade)
+  /** Segredo do webhook do bot (X-Telegram-Bot-Api-Secret-Token). Gerado pelo
+   *  botão "Ativar respostas" em Configurações; vazio = bot não responde. */
+  webhookSecret: string;
   limiteAlavancagemPct: number;
   ativo: boolean;            // master switch — desliga tudo
   darfAtivo: boolean;        // avisos de DARF (a vencer/vencido)
@@ -55,6 +58,7 @@ export async function readAlertasConfig(): Promise<AlertasConfig> {
   return {
     chatId: map.get("telegram_chat_id") ?? "",
     botToken: map.get("telegram_bot_token") ?? "",
+    webhookSecret: map.get("telegram_webhook_secret") ?? "",
     limiteAlavancagemPct: Number.isFinite(limite) && limite > 0 ? limite : DEFAULT_LIMITE_ALAVANCAGEM_PCT,
     ativo: on("ativo"),
     darfAtivo: on("darf_ativo"),
@@ -69,6 +73,7 @@ export async function writeAlertasConfig(config: AlertasConfig): Promise<void> {
   await gravarEscopo("alertas", [
     ["telegram_chat_id", config.chatId],
     ["telegram_bot_token", config.botToken],
+    ["telegram_webhook_secret", config.webhookSecret ?? ""],
     ["limite_alavancagem_pct", String(config.limiteAlavancagemPct)],
     ["ativo", String(config.ativo)],
     ["darf_ativo", String(config.darfAtivo)],
