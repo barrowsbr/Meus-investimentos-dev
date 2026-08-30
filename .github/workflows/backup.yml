@@ -22,8 +22,9 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    # CRON_SECRET vive como ENVIRONMENT secret (Production) — ver historico.yml.
-    environment: Production
+    # CRON_SECRET vive como ENVIRONMENT secret do ambiente da integração
+    # Vercel — nome exato com en-dash; ver historico.yml.
+    environment: "Production – meus-investimentos-dev"
     steps:
       # Liga/desliga em Configurações → Automações (chave gh_backup). Fail-open.
       - name: Checar liga/desliga no app
