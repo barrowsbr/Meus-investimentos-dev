@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getFlexXmlCached, parseFlexXml } from "@/lib/ibkr-flex";
+import { getFlexXmlCached, parseFlexXml, parseFlexMeta } from "@/lib/ibkr-flex";
 import { getMarketDataStore } from "@/lib/data-store";
 import { lerNavPlanilha, persistirNavIbkr, montarTwrIbkr } from "@/lib/ibkr-nav-store";
 import { anexarFluxos } from "@/lib/ibkr-nav";
+import { montarMarksParaGolden } from "@/lib/ibkr-marks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -65,6 +66,34 @@ export async function GET(request: Request) {
         temEquitySummary: parsed.navDiario.length > 0,
         inicioSerie: inicio,
         retornosAnomalos: anomalos.slice(0, 20),
+        // Auditoria do regime híbrido (dry-run, NÃO grava): como cada mark da
+        // IBKR se compara ao último fechamento da coluna na golden. `fator`
+        // perto de 1 = mesma unidade/moeda/ativo. Só RAZÕES — nenhum preço
+        // absoluto sai daqui (o log do CI é público).
+        marksAuditoria: await (async () => {
+          try {
+            const golden = await getMarketDataStore().read();
+            const marks = montarMarksParaGolden(parsed.positions, parseFlexMeta(xml).toDate, golden.tickers, golden);
+            if (!marks) return { aviso: "sem marks (fim de semana ou extrato sem posições)" };
+            const ultimo = new Map<string, number>();
+            for (let i = golden.dates.length - 1; i >= 0; i--) {
+              const row = golden.prices[golden.dates[i]];
+              if (!row || golden.dates[i] >= marks.date) continue;
+              for (const [c, v] of Object.entries(row)) if (v > 0 && !ultimo.has(c)) ultimo.set(c, v);
+            }
+            return {
+              data: marks.date,
+              aceitos: Object.entries(marks.valores).map(([coluna, v]) => ({
+                coluna,
+                fator: ultimo.has(coluna) ? Math.round((v / ultimo.get(coluna)!) * 1000) / 1000 : null,
+                colunaNova: !golden.tickers.some((t) => t.toUpperCase() === coluna),
+              })),
+              rejeitados: marks.rejeitados,
+            };
+          } catch (e) {
+            return { erro: e instanceof Error ? e.message : "falha" };
+          }
+        })(),
       }, { headers: { "Cache-Control": "no-store" } });
     }
     const planilha = await lerNavPlanilha();

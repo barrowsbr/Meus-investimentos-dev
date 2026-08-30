@@ -93,6 +93,9 @@ export async function runFlexSync(
     if (renames.size > 0) {
       for (const t of trades) t.Símbolo = renames.get(t.Símbolo) ?? t.Símbolo;
       for (const p of proventos) p.ticker = renames.get(p.ticker) ?? p.ticker;
+      // As POSITIONS alimentam a golden (marks): sem o rename, "VOW3" abriria
+      // coluna paralela à "VOW3.DE" e partiria a série do ativo em duas.
+      for (const pos of positions) pos.ticker = renames.get(pos.ticker) ?? pos.ticker;
       for (const [de, para] of renames) tickerAjustes.push({ de, para });
     }
     tickersPendentes = skipped;
@@ -290,14 +293,17 @@ export async function runFlexSync(
         const meta = parseFlexMeta(xml);
         const mktStore = getMarketDataStore();
         const golden = await mktStore.read();
-        const marks = montarMarksParaGolden(positions, meta.toDate, golden.tickers);
+        const marks = montarMarksParaGolden(positions, meta.toDate, golden.tickers, golden);
         if (marks) {
           const { data, preenchidos } = aplicarMarksNaGolden(golden, marks);
+          // rejeitados = marks que divergem do histórico da coluna (unidade/
+          // moeda/coluna errada). Ficam FORA e o Yahoo preenche em T−2.
+          const rejeitados = marks.rejeitados;
           if (preenchidos > 0) {
             const w = await mktStore.write(data);
-            result.golden_ibkr = { data: marks.date, preenchidos, modo: w.mode, motivo: w.reason };
+            result.golden_ibkr = { data: marks.date, preenchidos, modo: w.mode, motivo: w.reason, rejeitados };
           } else {
-            result.golden_ibkr = { data: marks.date, preenchidos: 0, aviso: "células já preenchidas" };
+            result.golden_ibkr = { data: marks.date, preenchidos: 0, aviso: "células já preenchidas", rejeitados };
           }
         }
       } else {
