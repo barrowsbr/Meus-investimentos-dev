@@ -16,6 +16,11 @@ on:
     # Horários em UTC → 10h, 14h e 18h de Brasília (BRT = UTC-3), seg–sex.
     - cron: '0 13,17,21 * * 1-5'
   workflow_dispatch: {}
+  # O GitHub App do assistente não tem permissão de dispatch manual — editar
+  # este arquivo (merge na main) dispara um run de verificação do CRON_SECRET.
+  push:
+    branches: [main]
+    paths: [".github/workflows/historico.yml"]
 
 jobs:
   registrar:
