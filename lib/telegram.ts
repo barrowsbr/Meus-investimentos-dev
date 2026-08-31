@@ -13,21 +13,31 @@ export async function sendTelegramMessage(token: string, chatId: string, text: s
   if (!chatId) return { ok: false, error: "chat_id não configurado" };
 
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "Markdown",
-        disable_web_page_preview: true,
-      }),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) {
-      return { ok: false, error: data?.description ?? `HTTP ${res.status}` };
+    const enviar = async (parseMode?: string) => {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          ...(parseMode ? { parse_mode: parseMode } : {}),
+          disable_web_page_preview: true,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      return { ok: Boolean(res.ok && data?.ok), error: data?.description ?? `HTTP ${res.status}` };
+    };
+    const md = await enviar("Markdown");
+    if (md.ok) return { ok: true };
+    // Markdown desbalanceado (um `*`/`_` solto no texto do LLM) faz o Telegram
+    // recusar com "can't parse entities" — e a mensagem NÃO chega. Texto puro
+    // sempre chega; melhor sem negrito do que o bot mudo.
+    if (/parse|entit/i.test(md.error)) {
+      const puro = await enviar();
+      if (puro.ok) return { ok: true };
+      return { ok: false, error: puro.error };
     }
-    return { ok: true };
+    return { ok: false, error: md.error };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
   }
