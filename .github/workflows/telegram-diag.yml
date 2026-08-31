@@ -1,6 +1,6 @@
 # Diagnóstico do bot do Telegram em PRODUÇÃO ("mandei oi e nada aconteceu").
-# v5 — sonda da cascata de IA (/api/diag/llm): cada modelo com chave testado
-# individualmente + catálogos vivos do Groq E do Gemini (ambos aposentam ids).
+# v6 — cascata final por aliases -latest do Gemini; sonda com budget p/ modelos
+# de raciocínio (gpt-oss dava "resposta vazia" falsa com max_tokens 8).
 # Mesmo padrão do ibkr-diag: os runners do GitHub alcançam a produção (a
 # network policy do dev não), e o GitHub App do assistente não tem permissão
 # de dispatch manual — editar este arquivo (merge na main) dispara o run.
@@ -49,7 +49,7 @@ jobs:
             HTTP=$(curl -sS --max-time 90 -o llm.json -w '%{http_code}' \
               -H "Authorization: Bearer $CRON_SECRET" \
               "$APP_URL/api/diag/llm" || echo 000)
-            [ "$HTTP" = "200" ] && jq -e '.geminiCatalogo' llm.json >/dev/null 2>&1 && break
+            [ "$HTTP" = "200" ] && jq -e '.modelos[0].model == "gemini-pro-latest"' llm.json | grep -q true && break
             echo "aguardando o deploy da sonda (HTTP $HTTP) — tentativa $i/24"; sleep 15
           done
           echo "HTTP $HTTP"

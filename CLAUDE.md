@@ -617,7 +617,10 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   **GitHub Actions** (`GITHUB_TOKEN` opc. — repo é público, então anônimo funciona com
   60 req/h **por IP**; o token só eleva o limite. Alimenta as etiquetas de saúde do card
   Automações via `lib/github-actions-health.ts` → `/api/config/automacoes/saude`)
-- **IA & LLM** (cascata em `lib/llm.ts`): Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`) ·
+- **IA & LLM** (cascata ÚNICA em `lib/llm-models.ts`, usada por `lib/llm.ts` e `/api/chat`;
+  Gemini SEMPRE pelos aliases `-latest` — Google e Groq APOSENTAM ids fixos e um 404 de
+  modelo morto derruba o slot em silêncio; sonda de produção: `/api/diag/llm` via workflow
+  `telegram-diag`, que também imprime os catálogos vivos): Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`) ·
   OpenAI (`OPENAI_API_KEY` opc.) · DeepSeek (`DEEPSEEK_API_KEY` opc.) · Groq (`GROQ_API_KEY` opc.) ·
   xAI/Grok (`XAI_API_KEY`/`GROK_API_KEY` opc.)
 - **Notícias**: Google News RSS (livre) · feeds RSS diretos por tema (livre — fonte
