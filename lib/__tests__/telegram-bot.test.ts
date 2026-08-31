@@ -72,3 +72,25 @@ describe("formatarFio — memória da conversa no prompt", () => {
     expect(formatarFio([])).toBe("");
   });
 });
+
+import { describe as d2, expect as e2, it as i2, vi as v2 } from "vitest";
+
+// __erro__ no fio: registrado na aba para o diag, mas NUNCA no prompt do LLM.
+d2("lerConversa — papéis técnicos fora do prompt", () => {
+  i2("__erro__ não entra no fio e não desloca mensagens reais", async () => {
+    v2.resetModules();
+    v2.doMock("@/lib/data-store", () => ({
+      getDataStore: () => ({
+        fetchTab: async () => [
+          { chat_id: "42", timestamp: "t1", papel: "user", texto: "oi" },
+          { chat_id: "42", timestamp: "t2", papel: "__erro__", texto: "can't parse entities" },
+          { chat_id: "42", timestamp: "t3", papel: "assistant", texto: "olá!" },
+        ],
+      }),
+    }));
+    const { lerConversa } = await import("../telegram-conversas");
+    const fio = await lerConversa("42", 2);
+    e2(fio.map((m) => m.texto)).toEqual(["oi", "olá!"]);
+    v2.doUnmock("@/lib/data-store");
+  });
+});

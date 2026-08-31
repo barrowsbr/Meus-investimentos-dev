@@ -26,6 +26,7 @@ export async function lerConversa(chatId: string, limite = JANELA_PADRAO): Promi
     const corte = doChat.map((r) => String(r["papel"] ?? "")).lastIndexOf("__limpar__");
     const vivos = corte >= 0 ? doChat.slice(corte + 1) : doChat;
     return vivos
+      .filter((r) => !String(r["papel"] ?? "").startsWith("__")) // técnicos (ex.: __erro__) fora do prompt
       .slice(-limite)
       .map((r) => ({
         papel: (String(r["papel"] ?? "user") === "assistant" ? "assistant" : "user") as Papel,
@@ -39,7 +40,7 @@ export async function lerConversa(chatId: string, limite = JANELA_PADRAO): Promi
 }
 
 /** Grava uma mensagem. Best-effort: falha aqui NUNCA impede a resposta ao dono. */
-export async function gravarMensagem(chatId: string, papel: Papel | "__limpar__", texto: string): Promise<void> {
+export async function gravarMensagem(chatId: string, papel: Papel | "__limpar__" | "__erro__", texto: string): Promise<void> {
   await ensureTab(TAB, HEADERS);
   await appendRowsTyped(TAB, [[
     String(chatId),
@@ -47,6 +48,12 @@ export async function gravarMensagem(chatId: string, papel: Papel | "__limpar__"
     papel,
     texto.slice(0, MAX_TEXTO),
   ]]);
+}
+
+/** Erro operacional do bot (LLM quebrado, envio recusado pelo Telegram).
+ *  Fica na aba (o diag lê o papel da última linha) e NUNCA entra no prompt. */
+export async function gravarErro(chatId: string, erro: string): Promise<void> {
+  await gravarMensagem(chatId, "__erro__", erro);
 }
 
 /** Marca o fim do fio — o histórico antigo continua na aba (auditável), mas
