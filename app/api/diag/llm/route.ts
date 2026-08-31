@@ -33,7 +33,9 @@ export async function GET(request: Request) {
       body: JSON.stringify({
         model: entry.model,
         messages: [{ role: "user", content: "responda apenas: ok" }],
-        max_tokens: 8,
+        // Modelos de RACIOCÍNIO (gpt-oss) gastam tokens pensando antes do
+        // content — 8 tokens davam "resposta vazia" falsa na sonda.
+        max_tokens: 256,
       }),
       signal: AbortSignal.timeout(15000),
     });

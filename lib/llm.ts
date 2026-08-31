@@ -67,6 +67,7 @@ export async function llmComplete(
     try {
       const text = await tryModel(entry, apiKey);
       if (text) return { text, model: entry.label };
+      falhas.push(`${entry.label}: resposta vazia`);
     } catch (e) {
       lastError = e;
       falhas.push(`${entry.label}: ${String(e instanceof Error ? e.message : e).slice(0, 180)}`);
