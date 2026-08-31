@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
+import { getDataStore } from "@/lib/data-store";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,21 @@ export async function GET(request: Request) {
     temWebhookSecret: Boolean((cfg.webhookSecret ?? "").trim()),
   };
   if (!token) return NextResponse.json({ ...base, veredito: "SEM TOKEN — configure o token do bot" });
+
+  // A aba telegram_conversas só ganha linhas no fim do processamento (depois
+  // da TENTATIVA de envio — o resultado do envio não condiciona a gravação).
+  // Linhas recentes lá + "nada chegou" no chat = o handler processou e a falha
+  // foi no envio. Só metadados: contagem e horário, sem texto.
+  try {
+    const rows = await getDataStore().fetchTab("telegram_conversas");
+    base.conversas = {
+      linhas: rows.length,
+      ultima: rows.length ? String(rows[rows.length - 1]["timestamp"] ?? "") : "",
+      ultimoPapel: rows.length ? String(rows[rows.length - 1]["papel"] ?? "") : "",
+    };
+  } catch {
+    base.conversas = { linhas: 0, aviso: "aba ainda não existe — nenhuma resposta completou" };
+  }
 
   try {
     const r = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, {

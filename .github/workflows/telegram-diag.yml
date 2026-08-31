@@ -1,4 +1,5 @@
 # Diagnóstico do bot do Telegram em PRODUÇÃO ("mandei oi e nada aconteceu").
+# v2 — inclui metadados da aba telegram_conversas (processou × enviou).
 # Mesmo padrão do ibkr-diag: os runners do GitHub alcançam a produção (a
 # network policy do dev não), e o GitHub App do assistente não tem permissão
 # de dispatch manual — editar este arquivo (merge na main) dispara o run.
