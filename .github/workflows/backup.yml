@@ -86,6 +86,16 @@ jobs:
           git fetch --depth 1 "$REMOTE" backups:backups 2>/dev/null && git checkout -q backups || { echo "branch backups ainda não existe — este é o 1º backup"; git checkout -q -b backups; }
           find . -maxdepth 1 -name '*.csv' -delete; rm -f README.md
           cp ../csvs/* .
+          # BLINDAGEM: a branch de dados NUNCA pode deployar. Sem este arquivo,
+          # cada push de bot dispara um build da Vercel que falha
+          # ("Couldn't find any pages or app directory") — a Vercel lê o
+          # vercel.json do COMMIT que vai deployar, então o da main não vale
+          # aqui. Recriamos se sumir OU se o fallback acima tiver criado a
+          # branch do zero (branch nova nasce sem o arquivo).
+          if [ ! -f vercel.json ]; then
+            printf '%s\n' '{' '  "git": { "deploymentEnabled": false },' '  "github": { "enabled": false }' '}' > vercel.json
+            echo "::notice::vercel.json recriado na branch de dados (protecao anti-deploy)"
+          fi
           git add -A
           git diff --cached --quiet && { echo "sem mudanças desde ontem"; exit 0; }
           git commit -q -m "backup $(date -u +'%Y-%m-%d %H:%M') UTC"

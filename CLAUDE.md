@@ -99,7 +99,14 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
   tem **`vercel.json` PRÓPRIO** com `git.deploymentEnabled:false` — a Vercel lê o
   `vercel.json` do COMMIT que vai deployar, então o `deploymentEnabled` da `main` NÃO
   vale para pushes feitos lá; sem esse arquivo cada push de bot disparava um build que
-  falhava (`Couldn't find any pages or app directory`). Não apagar. Backup dentro da
+  falhava (`Couldn't find any pages or app directory`). Não apagar. Os 3 workflows
+  que publicam lá (`backup`, `curva-juros`, `fred-series`) **recriam esse
+  vercel.json se ele sumir** — inclusive quando o fallback deles cria a branch do
+  zero, que nasceria sem o arquivo e traria os builds falhos de volta.
+  ⚠️ A branch de dados **nunca teve `package.json`** (verificado desde o 1º commit,
+  09/08/2026): um erro de build citando `next`/`pages` NÃO pode vir do conteúdo
+  atual dela — é deploy antigo (anterior à proteção, 13/08) ou de outra branch.
+  Confira a DATA e a BRANCH do deploy antes de investigar. Backup dentro da
   própria planilha NÃO vale como backup (decisão do dono). No card: download de CSV por
   aba, **Restaurar CSV** (upload → sobrescreve a aba, baixando antes o estado atual) e
   **teste de saúde** (`lib/planilha-saude.ts`: datas/números inválidos, células `#REF!`,
