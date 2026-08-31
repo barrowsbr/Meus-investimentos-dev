@@ -24,9 +24,11 @@ export const MODEL_CASCADE: ModelEntry[] = [
   // Tier 1 — melhor qualidade, cota limitada
   { provider: "gemini", model: "gemini-2.5-pro", label: "Gemini 2.5 Pro", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
   { provider: "openai-compat", model: "gpt-4o", label: "GPT-4o", keyEnv: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1" },
-  // xAI é OpenAI-compatível. Fica alto de propósito: hoje o dono tem Gemini e
-  // Grok ativos, então este é o PRIMEIRO fallback real quando o Gemini satura.
-  // ⚠️ Grok (xAI) ≠ Groq (Llama, mais abaixo) — empresas diferentes.
+  // xAI é OpenAI-compatível. Sem XAI_API_KEY a entrada é pulada (custo zero);
+  // está aqui porque /api/hoje/comentario já fala com o xAI e para entrar
+  // sozinha no dia em que a chave existir.
+  // ⚠️ Grok (xAI, api.x.ai) ≠ Groq (Llama, api.groq.com) — empresas com nomes
+  // quase idênticos. O fallback com chave HOJE é o Groq, mais abaixo.
   { provider: "openai-compat", model: process.env.GROK_MODEL || "grok-2-latest", label: "Grok (xAI)", keyEnv: "XAI_API_KEY", fallbackKeyEnv: "GROK_API_KEY", baseUrl: "https://api.x.ai/v1" },
 
   // Tier 2 — boa qualidade, cota generosa

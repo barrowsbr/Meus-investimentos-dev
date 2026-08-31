@@ -21,14 +21,24 @@ describe("cascata de modelos — fonte única", () => {
     for (const m of MODEL_CASCADE) expect(m.keyEnv, m.label).toBeTruthy();
   });
 
-  it("Grok (xAI) está na cascata — o dono tem a chave ativa", () => {
-    const grok = MODEL_CASCADE.find(m => m.baseUrl?.includes("api.x.ai"));
-    expect(grok, "xAI ausente: com só Gemini+Grok ativos, o bot ficaria sem fallback").toBeDefined();
-    expect(grok!.keyEnv).toBe("XAI_API_KEY");
-    expect(grok!.fallbackKeyEnv).toBe("GROK_API_KEY");
+  it("xAI está na cascata (o projeto já o usa no comentário da Home)", () => {
+    // Sem chave, a entrada é PULADA — custo zero. Está aqui para o dia em que
+    // a XAI_API_KEY existir, e porque /api/hoje/comentario já fala com o xAI.
+    const xai = MODEL_CASCADE.find(m => m.baseUrl?.includes("api.x.ai"));
+    expect(xai).toBeDefined();
+    expect(xai!.keyEnv).toBe("XAI_API_KEY");
+    expect(xai!.fallbackKeyEnv).toBe("GROK_API_KEY");
   });
 
-  it("Grok (xAI) e Groq (Llama) são provedores DIFERENTES e coexistem", () => {
+  it("Groq (Llama) está na cascata — é o fallback com chave hoje", () => {
+    const groq = MODEL_CASCADE.filter(m => m.baseUrl?.includes("api.groq.com"));
+    expect(groq.length).toBeGreaterThan(0);
+    expect(groq[0].keyEnv).toBe("GROQ_API_KEY");
+  });
+
+  // Nomes quase idênticos, empresas diferentes — a confusão já aconteceu uma
+  // vez nesta base. Este teste existe para ela não voltar.
+  it("xAI e Groq são provedores DIFERENTES e coexistem", () => {
     const xai = MODEL_CASCADE.filter(m => m.baseUrl?.includes("api.x.ai"));
     const groq = MODEL_CASCADE.filter(m => m.baseUrl?.includes("api.groq.com"));
     expect(xai.length).toBeGreaterThan(0);
@@ -36,7 +46,7 @@ describe("cascata de modelos — fonte única", () => {
     expect(xai[0].keyEnv).not.toBe(groq[0].keyEnv);
   });
 
-  it("o xAI vem ANTES dos tiers baixos — é o 1º fallback real hoje", () => {
+  it("o xAI vem antes dos tiers baixos na ordem de preferência", () => {
     const iXai = MODEL_CASCADE.findIndex(m => m.baseUrl?.includes("api.x.ai"));
     const iGroq = MODEL_CASCADE.findIndex(m => m.baseUrl?.includes("api.groq.com"));
     expect(iXai).toBeLessThan(iGroq);
