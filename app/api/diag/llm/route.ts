@@ -78,5 +78,29 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ modelos, groqCatalogo }, { headers: { "Cache-Control": "no-store" } });
+  // Catálogo vivo do Gemini (nomes públicos) — para escolher substituto de um
+  // id aposentado com dado real. Só modelos de generateContent.
+  let geminiCatalogo: string[] | string = "sem GEMINI_API_KEY";
+  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (gemKey) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${gemKey}`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      const data = await r.json();
+      geminiCatalogo = Array.isArray(data?.models)
+        ? data.models
+            .filter((m: { supportedGenerationMethods?: string[] }) =>
+              m.supportedGenerationMethods?.includes("generateContent"))
+            .map((m: { name?: string }) => String(m.name ?? "").replace(/^models\//, ""))
+            .filter(Boolean)
+            .sort()
+        : `HTTP ${r.status}`;
+    } catch (e) {
+      geminiCatalogo = String(e instanceof Error ? e.message : e).slice(0, 120);
+    }
+  }
+
+  return NextResponse.json({ modelos, groqCatalogo, geminiCatalogo }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -30,7 +30,7 @@ describe("cascata de modelos — fonte única", () => {
     expect(xai!.fallbackKeyEnv).toBe("GROK_API_KEY");
   });
 
-  it("Groq (Llama) está na cascata — é o fallback com chave hoje", () => {
+  it("Groq está na cascata — é o fallback com chave hoje", () => {
     const groq = MODEL_CASCADE.filter(m => m.baseUrl?.includes("api.groq.com"));
     expect(groq.length).toBeGreaterThan(0);
     expect(groq[0].keyEnv).toBe("GROQ_API_KEY");
