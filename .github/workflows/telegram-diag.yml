@@ -1,0 +1,36 @@
+# Diagnóstico do bot do Telegram em PRODUÇÃO ("mandei oi e nada aconteceu").
+# Mesmo padrão do ibkr-diag: os runners do GitHub alcançam a produção (a
+# network policy do dev não), e o GitHub App do assistente não tem permissão
+# de dispatch manual — editar este arquivo (merge na main) dispara o run.
+# ⚠️ Repo público: a rota /api/telegram/diag devolve SÓ booleanos e metadados
+# do getWebhookInfo — nunca token, chat_id ou segredo.
+name: telegram-diag
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/telegram-diag.yml"]
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: "Production – meus-investimentos-dev"
+    steps:
+      - name: Diagnóstico do webhook (espera o deploy se a rota for nova)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET || vars.CRON_SECRET }}
+        run: |
+          APP_URL="${APP_URL:-https://meus-investimentos-dev.vercel.app}"
+          # O push que dispara este run pode ser o MESMO que deploya a rota —
+          # espera até ela existir (404 = deploy ainda no ar), máx ~6 min.
+          for i in $(seq 1 24); do
+            HTTP=$(curl -sS --max-time 30 -o diag.json -w '%{http_code}' \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/telegram/diag" || echo 000)
+            [ "$HTTP" != "404" ] && [ "$HTTP" != "000" ] && break
+            echo "rota ainda não deployada (HTTP $HTTP) — tentativa $i/24"; sleep 15
+          done
+          echo "HTTP $HTTP"
+          [ "$HTTP" = "200" ] || { cat diag.json; exit 1; }
+          jq . diag.json
