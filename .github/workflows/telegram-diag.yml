@@ -1,5 +1,6 @@
 # Diagnóstico do bot do Telegram em PRODUÇÃO ("mandei oi e nada aconteceu").
-# v2 — inclui metadados da aba telegram_conversas (processou × enviou).
+# v3 — o poll espera a VERSÃO nova da rota (campo `conversas` presente), não
+# só a existência: o run dispara junto do deploy e a v1 já respondia 200.
 # Mesmo padrão do ibkr-diag: os runners do GitHub alcançam a produção (a
 # network policy do dev não), e o GitHub App do assistente não tem permissão
 # de dispatch manual — editar este arquivo (merge na main) dispara o run.
@@ -29,8 +30,11 @@ jobs:
             HTTP=$(curl -sS --max-time 30 -o diag.json -w '%{http_code}' \
               -H "Authorization: Bearer $CRON_SECRET" \
               "$APP_URL/api/telegram/diag" || echo 000)
-            [ "$HTTP" != "404" ] && [ "$HTTP" != "000" ] && break
-            echo "rota ainda não deployada (HTTP $HTTP) — tentativa $i/24"; sleep 15
+            # 200 só vale com a versão DESTE commit (campo conversas) — a
+            # versão anterior da rota também respondia 200.
+            [ "$HTTP" = "200" ] && jq -e '.conversas' diag.json >/dev/null 2>&1 && break
+            [ "$HTTP" != "404" ] && [ "$HTTP" != "000" ] && [ "$HTTP" != "200" ] && break
+            echo "aguardando o deploy desta versão (HTTP $HTTP) — tentativa $i/24"; sleep 15
           done
           echo "HTTP $HTTP"
           [ "$HTTP" = "200" ] || { cat diag.json; exit 1; }
