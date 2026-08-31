@@ -11,6 +11,12 @@ const ESTRANHO = "999999";
 const enviadas: Array<{ chatId: string; texto: string }> = [];
 const llmChamado = { vezes: 0, ultimaMensagem: "" };
 
+// O webhook responde 200 na hora e processa via waitUntil — nos testes, a
+// tarefa fica registrada aqui e é AGUARDADA antes das asserções.
+const tarefas: Promise<unknown>[] = [];
+vi.mock("@vercel/functions", () => ({ waitUntil: (p: Promise<unknown>) => { tarefas.push(p); } }));
+async function aguardarProcessamento() { await Promise.all(tarefas.splice(0)); }
+
 vi.mock("@/lib/alertas-store", () => ({
   readAlertasConfig: async () => ({
     chatId: DONO, botToken: "tok", webhookSecret: SEGREDO,
@@ -85,6 +91,7 @@ describe("webhook do Telegram — travas de segurança", () => {
     const { POST } = await import("@/app/api/telegram/webhook/route");
     const res = await POST(req(msg(DONO, "por que a VALE3 caiu?"), SEGREDO));
     expect(res.status).toBe(200);
+    await aguardarProcessamento();
     expect(llmChamado.vezes).toBe(1);
     expect(llmChamado.ultimaMensagem).toContain("CARTEIRA-SECRETA");
     expect(llmChamado.ultimaMensagem).toContain("Contexto de mercado");
@@ -100,6 +107,7 @@ describe("webhook do Telegram — travas de segurança", () => {
     const m = msg(DONO, "e agora?", 4242);
     await POST(req(m, SEGREDO));
     await POST(req(m, SEGREDO));               // mesmo update_id
+    await aguardarProcessamento();
     expect(llmChamado.vezes).toBe(1);
     expect(enviadas).toHaveLength(1);
   });

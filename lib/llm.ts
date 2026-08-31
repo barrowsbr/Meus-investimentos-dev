@@ -30,7 +30,11 @@ const key = chaveDoModelo;
 export async function llmComplete(
   systemPrompt: string,
   message: string,
+  opts?: { esperaCota?: boolean },
 ): Promise<{ text: string; model: string }> {
+  // esperaCota=false: caminho interativo (bot do Telegram) — melhor cair já
+  // para o próximo modelo do que esperar até 36s pelo retryDelay de um 429.
+  const esperaCota = opts?.esperaCota !== false;
   let lastError: unknown = null;
   let retriedOnce = false;
   // Um erro POR MODELO: só o último mascarava os anteriores (o 404 de um Groq
@@ -74,7 +78,7 @@ export async function llmComplete(
       // Limite por minuto: espera o retryDelay sugerido e tenta o mesmo modelo
       // uma única vez em toda a cascata (para caber no maxDuration da função).
       const waitSec = parseRetrySeconds(e);
-      if (waitSec && !retriedOnce) {
+      if (esperaCota && waitSec && !retriedOnce) {
         retriedOnce = true;
         await sleep((waitSec + 1) * 1000);
         try {
