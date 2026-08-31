@@ -4,7 +4,7 @@ import { sendTelegramMessage, sendTelegramChatAction } from "@/lib/telegram";
 import { llmComplete } from "@/lib/llm";
 import { buildAgentContext } from "@/lib/agent-context";
 import { detectarTickers, montarContextoMercado, type AtivoCarteira } from "@/lib/telegram-contexto";
-import { lerConversa, gravarMensagem, limparConversa, formatarFio } from "@/lib/telegram-conversas";
+import { lerConversa, gravarMensagem, gravarErro, limparConversa, formatarFio } from "@/lib/telegram-conversas";
 import { getDataStore } from "@/lib/data-store";
 
 export const dynamic = "force-dynamic";
@@ -139,16 +139,25 @@ export async function POST(request: Request) {
     // qualidade sem precisar abrir log.
     const assinada = `${resposta}\n\n_— ${model}_`;
 
-    await sendTelegramMessage(token, chatId, assinada);
+    const envio = await sendTelegramMessage(token, chatId, assinada);
+    // Se o Telegram recusou o envio, o dono NÃO recebeu nada e não tem como
+    // saber — fica registrado no fio (papel técnico, fora do prompt) para o
+    // diag apontar a causa exata.
+    if (envio && envio.ok === false) {
+      await gravarErro(chatId, envio.error ?? "envio recusado").catch(() => {});
+    }
 
     // Memória (best-effort — nunca impede a resposta, que já saiu)
     gravarMensagem(chatId, "user", pergunta).catch(() => {});
     gravarMensagem(chatId, "assistant", resposta).catch(() => {});
 
-    return NextResponse.json({ ok: true, tickers: citados, model });
+    return NextResponse.json({ ok: true, tickers: citados, model, enviado: envio?.ok !== false });
   } catch (e) {
     const erro = e instanceof Error ? e.message : "erro desconhecido";
-    await sendTelegramMessage(token, chatId, `Não consegui responder agora: ${erro}`).catch(() => {});
+    const aviso = await sendTelegramMessage(token, chatId, `Não consegui responder agora: ${erro}`).catch(() => null);
+    // O erro em si + se o aviso chegou — sem isso, um LLM quebrado com um
+    // aviso que o Telegram recusa é silêncio absoluto para o dono.
+    await gravarErro(chatId, aviso && aviso.ok === false ? `${erro} | aviso não entregue: ${aviso.error}` : erro).catch(() => {});
     return NextResponse.json({ ok: true, erro });
   }
 }
