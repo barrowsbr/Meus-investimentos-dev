@@ -573,6 +573,14 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   reenvia se não receber 200 rápido).
 - **Somente leitura**: o bot não grava na planilha (exceto o próprio fio em
   `telegram_conversas`) nem executa ordens. Não dar poder de escrita a endpoint público.
+- **Responde em 2 tempos**: o handler devolve 200 ao Telegram NA HORA e processa
+  em segundo plano (`waitUntil` — contexto + cascata estouravam os 60s e o dono
+  via silêncio/504). O caminho do chat usa `llmComplete(..., {esperaCota:false})`
+  (não espera retryDelay de 429 — cai para o próximo modelo).
+- **Ativação AUTOMÁTICA e auto-curativa**: `garantirWebhookTelegram()`
+  (`lib/telegram-ativacao.ts`) roda de carona no cron do histórico (3×/dia) e
+  re-registra o webhook sozinho se o registro cair — o botão em Configurações
+  vira kill-switch manual, não pré-requisito.
 - Reusa o MESMO cérebro do Agente IA: `buildAgentContext()` + cascata `llmComplete()`.
   Quando a pergunta cita um ativo da carteira, `lib/telegram-contexto.ts` anexa cotação
   ao vivo + manchetes do papel (caminho leve, RSS direto — não é o motor de notícias).

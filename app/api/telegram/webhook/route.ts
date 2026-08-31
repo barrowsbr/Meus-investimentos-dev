@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { sendTelegramMessage, sendTelegramChatAction } from "@/lib/telegram";
 import { llmComplete } from "@/lib/llm";
@@ -97,18 +98,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  try {
-    // ── Comandos ──
-    if (/^\/(start|ajuda|help)\b/i.test(texto)) {
-      await sendTelegramMessage(token, chatId, AJUDA);
-      return NextResponse.json({ ok: true });
-    }
-    if (/^\/limpar\b/i.test(texto)) {
-      await limparConversa(chatId).catch(() => {});
-      await sendTelegramMessage(token, chatId, "Fio reiniciado. Pode perguntar do zero.");
-      return NextResponse.json({ ok: true });
-    }
+  // ── Comandos rápidos (sem IA) ──
+  if (/^\/(start|ajuda|help)\b/i.test(texto)) {
+    await sendTelegramMessage(token, chatId, AJUDA);
+    return NextResponse.json({ ok: true });
+  }
+  if (/^\/limpar\b/i.test(texto)) {
+    await limparConversa(chatId).catch(() => {});
+    await sendTelegramMessage(token, chatId, "Fio reiniciado. Pode perguntar do zero.");
+    return NextResponse.json({ ok: true });
+  }
 
+  // ── Caminho com IA: responde 200 JÁ e processa em segundo plano ──
+  // Contexto da carteira + cascata levavam mais que os 60s da função e o
+  // Telegram recebia 504 (e reenviava o update) — o dono via SILÊNCIO.
+  // waitUntil mantém a função viva após a resposta; o 200 imediato também
+  // desarma o reenvio do Telegram.
+  waitUntil(processarPergunta(token, chatId, texto));
+  return NextResponse.json({ ok: true, processando: true });
+}
+
+async function processarPergunta(token: string, chatId: string, texto: string): Promise<void> {
+  try {
     await sendTelegramChatAction(token, chatId);
 
     const pergunta = normalizarComando(texto);
@@ -132,7 +143,7 @@ export async function POST(request: Request) {
       pergunta,
     ].filter(Boolean).join("\n\n");
 
-    const { text, model } = await llmComplete(PROMPT, mensagem);
+    const { text, model } = await llmComplete(PROMPT, mensagem, { esperaCota: false });
     const resposta = (text ?? "").trim() || "Não consegui formular uma resposta agora. Tente de novo.";
     // Assina com o modelo que respondeu: a cascata pode cair para outro
     // provedor sem avisar, e saber QUEM respondeu explica variação de
@@ -148,17 +159,14 @@ export async function POST(request: Request) {
     }
 
     // Memória (best-effort — nunca impede a resposta, que já saiu)
-    gravarMensagem(chatId, "user", pergunta).catch(() => {});
-    gravarMensagem(chatId, "assistant", resposta).catch(() => {});
-
-    return NextResponse.json({ ok: true, tickers: citados, model, enviado: envio?.ok !== false });
+    await gravarMensagem(chatId, "user", pergunta).catch(() => {});
+    await gravarMensagem(chatId, "assistant", resposta).catch(() => {});
   } catch (e) {
     const erro = e instanceof Error ? e.message : "erro desconhecido";
     const aviso = await sendTelegramMessage(token, chatId, `Não consegui responder agora: ${erro}`).catch(() => null);
     // O erro em si + se o aviso chegou — sem isso, um LLM quebrado com um
     // aviso que o Telegram recusa é silêncio absoluto para o dono.
     await gravarErro(chatId, aviso && aviso.ok === false ? `${erro} | aviso não entregue: ${aviso.error}` : erro).catch(() => {});
-    return NextResponse.json({ ok: true, erro });
   }
 }
 

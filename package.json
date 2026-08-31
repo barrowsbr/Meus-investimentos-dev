@@ -17,6 +17,7 @@
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@types/three": "^0.170.0",
+    "@vercel/functions": "^3.9.5",
     "googleapis": "^140.0.1",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.400.0",

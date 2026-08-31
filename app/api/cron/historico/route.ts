@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordHistorico } from "@/lib/historico-store";
+import { garantirWebhookTelegram } from "@/lib/telegram-ativacao";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,7 +19,10 @@ export async function GET(request: Request) {
   }
   try {
     const result = await recordHistorico();
-    return NextResponse.json({ ok: true, ranAt: new Date().toISOString(), ...result });
+    // Carona 3×/dia: mantém o webhook do bot do Telegram SEMPRE registrado
+    // (auto-curativo — se o registro cair, re-arma sozinho). Best-effort.
+    const bot = await garantirWebhookTelegram().catch(() => null);
+    return NextResponse.json({ ok: true, ranAt: new Date().toISOString(), ...result, bot });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
   }
