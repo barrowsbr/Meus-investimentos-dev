@@ -5,27 +5,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+// Lista de modelos: FONTE ÚNICA em lib/llm-models.ts (compartilhada com /api/chat).
+import { MODEL_CASCADE as CASCADE, chaveDoModelo, type ModelEntry } from "./llm-models";
 
-interface ModelEntry {
-  provider: "gemini" | "openai-compat";
-  model: string;
-  label: string;
-  keyEnv: string;
-  fallbackKeyEnv?: string;
-  baseUrl?: string;
-}
-
-const CASCADE: ModelEntry[] = [
-  { provider: "gemini", model: "gemini-2.5-pro", label: "Gemini 2.5 Pro", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-  { provider: "openai-compat", model: "gpt-4o", label: "GPT-4o", keyEnv: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1" },
-  { provider: "gemini", model: "gemini-2.5-flash", label: "Gemini 2.5 Flash", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-  { provider: "openai-compat", model: "deepseek-chat", label: "DeepSeek V3", keyEnv: "DEEPSEEK_API_KEY", baseUrl: "https://api.deepseek.com" },
-  // flash-lite: cota free bem mais generosa que pro/flash — para quando o resto esgota
-  { provider: "gemini", model: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-  { provider: "openai-compat", model: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (Groq)", keyEnv: "GROQ_API_KEY", baseUrl: "https://api.groq.com/openai/v1" },
-  { provider: "gemini", model: "gemini-2.0-flash", label: "Gemini 2.0 Flash", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-  { provider: "gemini", model: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-];
 
 // Erros de cota por MINUTO vêm com retryDelay (ex.: "retry in 22s") — vale
 // esperar e tentar o mesmo modelo de novo. Cota por DIA não adianta retry.
@@ -39,9 +21,7 @@ function parseRetrySeconds(err: unknown): number | null {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-function key(e: ModelEntry): string | undefined {
-  return process.env[e.keyEnv] || (e.fallbackKeyEnv ? process.env[e.fallbackKeyEnv] : undefined);
-}
+const key = chaveDoModelo;
 
 /**
  * Executa um completion tentando os modelos em ordem; retorna a primeira

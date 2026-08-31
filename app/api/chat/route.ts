@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { NextRequest } from "next/server";
 import { buildAgentContext } from "@/lib/agent-context";
+// Lista de modelos: FONTE ÚNICA em lib/llm-models.ts (compartilhada com lib/llm).
+import { MODEL_CASCADE, chaveDoModelo, type ModelEntry } from "@/lib/llm-models";
 
 export const maxDuration = 120;
 
@@ -58,40 +60,13 @@ async function getPortfolioContext(): Promise<string> {
 
 // ── Model cascade ──────────────────────────────────────────────────────────────
 
-interface ModelEntry {
-  provider: "gemini" | "openai-compat";
-  model: string;
-  label: string;
-  keyEnv: string;
-  fallbackKeyEnv?: string;
-  baseUrl?: string;
-}
 
-const MODEL_CASCADE: ModelEntry[] = [
-  // Tier 1 — Best quality, limited quotas
-  { provider: "gemini", model: "gemini-2.5-pro", label: "Gemini 2.5 Pro", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-  { provider: "openai-compat", model: "gpt-4o", label: "GPT-4o", keyEnv: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1" },
-
-  // Tier 2 — Good quality, generous quotas
-  { provider: "gemini", model: "gemini-2.5-flash", label: "Gemini 2.5 Flash", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-  { provider: "openai-compat", model: "deepseek-chat", label: "DeepSeek V3", keyEnv: "DEEPSEEK_API_KEY", baseUrl: "https://api.deepseek.com" },
-
-  // Tier 3 — Fast, free tiers
-  { provider: "openai-compat", model: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (Groq)", keyEnv: "GROQ_API_KEY", baseUrl: "https://api.groq.com/openai/v1" },
-  { provider: "gemini", model: "gemini-2.0-flash", label: "Gemini 2.0 Flash", keyEnv: "GEMINI_API_KEY", fallbackKeyEnv: "GOOGLE_API_KEY" },
-
-  // Tier 4 — Ultimate fallbacks
-  { provider: "openai-compat", model: "gpt-4o-mini", label: "GPT-4o Mini", keyEnv: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1" },
-  { provider: "openai-compat", model: "llama-3.1-8b-instant", label: "Llama 3.1 8B (Groq)", keyEnv: "GROQ_API_KEY", baseUrl: "https://api.groq.com/openai/v1" },
-];
 
 // Cooldown: don't retry a model for 60s after a quota error
 const cooldowns = new Map<string, number>();
 const COOLDOWN_MS = 60_000;
 
-function getApiKey(entry: ModelEntry): string | undefined {
-  return process.env[entry.keyEnv] || (entry.fallbackKeyEnv ? process.env[entry.fallbackKeyEnv] : undefined);
-}
+const getApiKey = chaveDoModelo;
 
 function getAvailableModels(): ModelEntry[] {
   const now = Date.now();
