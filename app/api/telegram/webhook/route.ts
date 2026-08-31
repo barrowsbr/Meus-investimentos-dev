@@ -132,16 +132,20 @@ export async function POST(request: Request) {
       pergunta,
     ].filter(Boolean).join("\n\n");
 
-    const { text } = await llmComplete(PROMPT, mensagem);
+    const { text, model } = await llmComplete(PROMPT, mensagem);
     const resposta = (text ?? "").trim() || "Não consegui formular uma resposta agora. Tente de novo.";
+    // Assina com o modelo que respondeu: a cascata pode cair para outro
+    // provedor sem avisar, e saber QUEM respondeu explica variação de
+    // qualidade sem precisar abrir log.
+    const assinada = `${resposta}\n\n_— ${model}_`;
 
-    await sendTelegramMessage(token, chatId, resposta);
+    await sendTelegramMessage(token, chatId, assinada);
 
     // Memória (best-effort — nunca impede a resposta, que já saiu)
     gravarMensagem(chatId, "user", pergunta).catch(() => {});
     gravarMensagem(chatId, "assistant", resposta).catch(() => {});
 
-    return NextResponse.json({ ok: true, tickers: citados });
+    return NextResponse.json({ ok: true, tickers: citados, model });
   } catch (e) {
     const erro = e instanceof Error ? e.message : "erro desconhecido";
     await sendTelegramMessage(token, chatId, `Não consegui responder agora: ${erro}`).catch(() => {});

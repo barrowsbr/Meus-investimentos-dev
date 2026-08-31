@@ -88,7 +88,11 @@ describe("webhook do Telegram — travas de segurança", () => {
     expect(llmChamado.vezes).toBe(1);
     expect(llmChamado.ultimaMensagem).toContain("CARTEIRA-SECRETA");
     expect(llmChamado.ultimaMensagem).toContain("Contexto de mercado");
-    expect(enviadas[0]).toEqual({ chatId: DONO, texto: "Resposta do assistente." });
+    // A resposta vai ASSINADA com o modelo que respondeu (a cascata pode cair
+    // para outro provedor sem avisar).
+    expect(enviadas[0].chatId).toBe(DONO);
+    expect(enviadas[0].texto).toContain("Resposta do assistente.");
+    expect(enviadas[0].texto).toContain("mock");
   });
 
   it("update REENVIADO pelo Telegram não gera resposta duplicada", async () => {
