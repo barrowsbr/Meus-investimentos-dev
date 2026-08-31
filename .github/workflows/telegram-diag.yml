@@ -1,6 +1,6 @@
 # Diagnóstico do bot do Telegram em PRODUÇÃO ("mandei oi e nada aconteceu").
-# v3 — o poll espera a VERSÃO nova da rota (campo `conversas` presente), não
-# só a existência: o run dispara junto do deploy e a v1 já respondia 200.
+# v4 — inclui a sonda da cascata de IA (/api/diag/llm): cada modelo com chave
+# testado individualmente + catálogo vivo do Groq (que aposenta modelos).
 # Mesmo padrão do ibkr-diag: os runners do GitHub alcançam a produção (a
 # network policy do dev não), e o GitHub App do assistente não tem permissão
 # de dispatch manual — editar este arquivo (merge na main) dispara o run.
@@ -39,3 +39,19 @@ jobs:
           echo "HTTP $HTTP"
           [ "$HTTP" = "200" ] || { cat diag.json; exit 1; }
           jq . diag.json
+
+      - name: Sonda da cascata de IA (espera o deploy desta versão)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET || vars.CRON_SECRET }}
+        run: |
+          APP_URL="${APP_URL:-https://meus-investimentos-dev.vercel.app}"
+          for i in $(seq 1 24); do
+            HTTP=$(curl -sS --max-time 90 -o llm.json -w '%{http_code}' \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/diag/llm" || echo 000)
+            [ "$HTTP" = "200" ] && jq -e '.modelos' llm.json >/dev/null 2>&1 && break
+            echo "aguardando o deploy da sonda (HTTP $HTTP) — tentativa $i/24"; sleep 15
+          done
+          echo "HTTP $HTTP"
+          [ "$HTTP" = "200" ] || { cat llm.json; exit 1; }
+          jq . llm.json

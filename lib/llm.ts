@@ -33,6 +33,9 @@ export async function llmComplete(
 ): Promise<{ text: string; model: string }> {
   let lastError: unknown = null;
   let retriedOnce = false;
+  // Um erro POR MODELO: só o último mascarava os anteriores (o 404 de um Groq
+  // aposentado escondia o motivo real do Gemini ter falhado antes).
+  const falhas: string[] = [];
 
   async function tryModel(entry: ModelEntry, apiKey: string): Promise<string | null> {
     if (entry.provider === "gemini") {
@@ -66,6 +69,7 @@ export async function llmComplete(
       if (text) return { text, model: entry.label };
     } catch (e) {
       lastError = e;
+      falhas.push(`${entry.label}: ${String(e instanceof Error ? e.message : e).slice(0, 180)}`);
       // Limite por minuto: espera o retryDelay sugerido e tenta o mesmo modelo
       // uma única vez em toda a cascata (para caber no maxDuration da função).
       const waitSec = parseRetrySeconds(e);
@@ -75,14 +79,18 @@ export async function llmComplete(
         try {
           const text = await tryModel(entry, apiKey);
           if (text) return { text, model: entry.label };
-        } catch (e2) { lastError = e2; }
+        } catch (e2) {
+          lastError = e2;
+          falhas.push(`${entry.label} (retry): ${String(e2 instanceof Error ? e2.message : e2).slice(0, 180)}`);
+        }
       }
       continue;
     }
   }
 
   const raw = lastError instanceof Error ? lastError.message : "";
-  if (/429|quota|rate|exhausted/i.test(raw)) {
+  const todas = falhas.join(" • ");
+  if (/429|quota|rate|exhausted/i.test(todas || raw)) {
     throw new Error(
       "Cota gratuita dos modelos de IA esgotada no momento. Tente novamente em ~1 minuto. " +
       "Para nunca mais ver este erro, configure uma chave extra de fallback na Vercel: " +
@@ -90,8 +98,8 @@ export async function llmComplete(
     );
   }
   throw new Error(
-    raw
-      ? `Nenhum modelo disponível: ${raw}`
+    falhas.length
+      ? `Nenhum modelo disponível — ${falhas.length} falha(s): ${todas.slice(0, 900)}`
       : "Nenhum modelo de IA configurado (GEMINI_API_KEY, OPENAI_API_KEY, GROQ_API_KEY ou DEEPSEEK_API_KEY).",
   );
 }
