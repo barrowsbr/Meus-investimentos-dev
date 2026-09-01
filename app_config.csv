@@ -11,7 +11,7 @@ historico,ativo,true
 alertas,__migrado,1
 alertas,telegram_chat_id,1737564761
 alertas,telegram_bot_token,
-alertas,telegram_webhook_secret,b7deeedc9ca725918eb60ec537666207412b189c593c7302
+alertas,telegram_webhook_secret,88302beebeb0b6a90113816001d1ba9ceefc783859032183
 alertas,limite_alavancagem_pct,30
 alertas,ativo,false
 alertas,darf_ativo,true
