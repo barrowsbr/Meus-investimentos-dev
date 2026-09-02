@@ -48,7 +48,21 @@ jobs:
             -H "Authorization: Bearer $CRON_SECRET" \
             -o resposta.json -w '%{http_code}' \
             "$APP_URL/api/cron/historico") || { echo "::error::curl falhou (rede/timeout)"; exit 1; }
-          cat resposta.json; echo ""
+          # ⚠️ REPO PÚBLICO: a resposta traz `patrimonio_total` (o patrimônio
+          # real do dono). NUNCA fazer `cat resposta.json` aqui — o log do
+          # Actions é público e fica para sempre. Imprime só o que serve para
+          # diagnóstico: ok/written/data/hora e o estado do bot; o valor sai
+          # como "(oculto)".
+          python3 - 2>/dev/null <<'PY' || echo "resposta não-JSON (ver o HTTP abaixo)"
+          import json
+          d = json.load(open("resposta.json"))
+          if "patrimonio_total" in d:
+              d["patrimonio_total"] = "(oculto — repo público)"
+          for k in ("rv", "rf", "bens", "ibkr", "patrimonio", "total"):
+              if k in d:
+                  d[k] = "(oculto)"
+          print(json.dumps(d, ensure_ascii=False))
+          PY
           if [ "$HTTP" != "200" ]; then
             [ "$HTTP" = "401" ] && echo "::error::HTTP 401 — o CRON_SECRET do GitHub não bate com o da Vercel. Atualize o secret com o valor atual da Vercel." || echo "::error::HTTP $HTTP na chamada do histórico."
             exit 1
