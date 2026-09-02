@@ -91,6 +91,16 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
 - **Escrita**: service account (`GOOGLE_SERVICE_ACCOUNT_JSON`), com a planilha compartilhada
   com o e-mail do service account como **Editor**. Toda escrita (`writeTab`) faz **backup
   automático** da aba antes de sobrescrever (`lib/backup.ts`)
+- 🔴 **O REPOSITÓRIO É PÚBLICO** (`visibility: public`, verificado 02/09/2026) — e a
+  branch `backups` guarda os CSVs de TODAS as abas nele: `meus_ativos` (cada
+  transação), `cartao_transacoes` (gastos do cartão), `financas_pessoal`,
+  `historico_patrimonio` (série do patrimônio)… tudo baixável por qualquer um.
+  Idem para o LOG do GitHub Actions, que é público e eterno. **Regra dura: nenhum
+  workflow imprime valor em dinheiro** (o `historico.yml` já oculta o
+  `patrimonio_total` da resposta; o `ibkr-diag` só imprime razões/metadados).
+  A exposição da branch `backups` em si é decisão do dono (tornar o repo privado,
+  mover o backup para repo privado, ou aceitar) — ⚠️ tornar privado QUEBRA o
+  health-check anônimo do card Automações, que passaria a exigir `GITHUB_TOKEN`.
 - **Backup diário (CSVs FORA da planilha) + saúde + editor**: Configurações → card
   "Planilha (gdados)". O workflow `.github/workflows/backup.yml` (diário, 6h30 BRT) chama
   `GET /api/config/planilha/backup?export=all` (Bearer `CRON_SECRET`) e **sobrescreve os
