@@ -239,7 +239,7 @@ export default function Sino() {
                     return (
                       <Link
                         key={e.chave}
-                        href="/bolsas?transmissao=1"
+                        href="/radar?transmissao=1"
                         onClick={() => setAberto(false)}
                         className="block px-3 py-2.5 transition-colors hover:bg-white/[0.05]"
                         style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
@@ -297,7 +297,7 @@ export default function Sino() {
 
             <div className="flex" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
               <Link
-                href="/bolsas?transmissao=1"
+                href="/radar?transmissao=1"
                 onClick={() => setAberto(false)}
                 className="flex flex-1 items-center justify-center gap-1.5 py-2.5 font-mono text-[9.5px] font-semibold uppercase tracking-wide text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-200"
               >
