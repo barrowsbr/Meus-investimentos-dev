@@ -1,7 +1,10 @@
 "use client";
 
 // Marcadores dos últimos pregões — barrinhas verde/vermelho mostrando como
-// foi cada dia (variação de fechamento a fechamento do patrimônio total).
+// foi cada dia. O retorno vem do campo CANÔNICO `variacao_dia_pct` da aba
+// (= snapshot.dayChangeTotalPct, calculado sobre PREÇOS). Já foi derivado de
+// patrimônio_hoje/patrimônio_ontem e isso contava APORTE como lucro — ver a
+// nota em lib/historico-daily.
 // Fica logo abaixo do "Σ Retorno do dia" na Home. Dados: a própria série
 // `historico_patrimonio` (via lib/historico-daily). Discreto, sem valores.
 //
@@ -9,7 +12,7 @@
 // (lib/home-prefs, localStorage) — a Home reage na hora via evento.
 
 import { useEffect, useState } from "react";
-import { toDailySeries, ultimosResultados, type DiaResultado } from "@/lib/historico-daily";
+import { toDailySeries, ultimosResultados, escalaBarras, type DiaResultado } from "@/lib/historico-daily";
 import { getStreakDays, STREAK_DAYS_EVENT, STREAK_DAYS_MAX } from "@/lib/home-prefs";
 
 function fmtData(iso: string): string {
@@ -45,35 +48,39 @@ export default function DayStreak({ className = "" }: { className?: string }) {
   const dias = todos ? todos.slice(-n) : null;
   if (!dias || dias.length < 2) return null;
 
-  // Altura da barra proporcional à magnitude (clampada), com piso p/ ficar visível.
-  const maxAbs = Math.max(0.4, ...dias.map((d) => Math.abs(d.pct)));
-  const pos = dias.filter((d) => d.pct >= 0).length;
+  // Escala pelo PERCENTIL 90, não pelo máximo: um único dia atípico puxava a
+  // referência e achatava todo o resto no piso (92% das barras iguais).
+  const ref = escalaBarras(dias.map((d) => d.pct));
+  const pos = dias.filter((d) => d.pct > 0).length;
+  const neg = dias.filter((d) => d.pct < 0).length;
 
   return (
     <div className={className}>
       <div className="flex items-end" style={{ height: 22, gap: dias.length > 14 ? 2 : 5 }}>
         {dias.map((d, i) => {
-          const up = d.pct >= 0;
-          const h = 6 + Math.round((Math.min(Math.abs(d.pct), maxAbs) / maxAbs) * 14); // 6..20px
+          const intensidade = Math.min(Math.abs(d.pct), ref) / ref; // 0..1 (satura no p90)
+          const h = 6 + Math.round(intensidade * 14); // 6..20px
+          // 0,00% exato é dia SEM movimento — pintar de verde sugeria alta.
+          const cor = d.pct > 0 ? "var(--pos)" : d.pct < 0 ? "var(--neg)" : "var(--faint)";
           return (
             <span
               key={i}
-              title={`${fmtData(d.date)} · ${d.pct >= 0 ? "+" : ""}${d.pct.toFixed(2)}%`}
+              title={`${fmtData(d.date)} · ${d.pct > 0 ? "+" : ""}${d.pct.toFixed(2)}%`}
               className="rounded-[2px]"
               style={{
                 flex: "1 1 0",
                 minWidth: 2,
                 maxWidth: 7,
                 height: h,
-                background: up ? "var(--pos)" : "var(--neg)",
-                opacity: 0.55 + 0.45 * (Math.min(Math.abs(d.pct), maxAbs) / maxAbs),
+                background: cor,
+                opacity: 0.55 + 0.45 * intensidade,
               }}
             />
           );
         })}
       </div>
       <div className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, letterSpacing: ".12em", marginTop: 5 }}>
-        {dias.length} pregões · {pos}↑ {dias.length - pos}↓
+        {dias.length} pregões · {pos}↑ {neg}↓
       </div>
     </div>
   );
