@@ -113,16 +113,17 @@ export default function RendaVariavelPage() {
   const router = useRouter();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [view, setView] = useState<ViewFilter>("carteira");
-  // Rastreia se o card foi aberto via deep-link da Home: nesse caso, ao fechar,
-  // volta pra Home (router.back). Se foi aberto clicando na própria RV, só fecha.
-  const openedFromHome = useRef(false);
-  // Deep-link: /renda-variavel?ticker=XXXX abre o card do ativo direto (vindo da Home).
+  // Card aberto por DEEP-LINK (?ticker=): ao fechar, volta para a página de
+  // origem (router.back) — Home, Performance → Rentabilidade, ou qualquer outra
+  // que linke pra cá. Aberto clicando na própria RV, só fecha o card.
+  const abertoPorDeepLink = useRef(false);
+  // Deep-link: /renda-variavel?ticker=XXXX abre o card do ativo direto.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("ticker");
-    if (t) { setSelectedTicker(t); openedFromHome.current = true; }
+    if (t) { setSelectedTicker(t); abertoPorDeepLink.current = true; }
   }, []);
   const closeAssetModal = () => {
-    if (openedFromHome.current) { openedFromHome.current = false; router.back(); }
+    if (abertoPorDeepLink.current) { abertoPorDeepLink.current = false; router.back(); }
     else setSelectedTicker(null);
   };
   const [notesTicker, setNotesTicker] = useState<string | null>(null);
@@ -450,7 +451,7 @@ export default function RendaVariavelPage() {
               return (
                 <button
                   key={`${p.ticker}-${vendido ? "x" : "o"}`}
-                  onClick={() => { setSelectedTicker(p.ticker); openedFromHome.current = false; }}
+                  onClick={() => { setSelectedTicker(p.ticker); abertoPorDeepLink.current = false; }}
                   className={`group flex flex-col gap-2.5 p-3 rounded-xl text-left transition-all hover:-translate-y-0.5 ${vendido ? "opacity-75" : ""}`}
                   style={{ background: "var(--panel)", border: "1px solid var(--line)" }}
                 >

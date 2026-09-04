@@ -4,12 +4,14 @@
 // tabela P&L detalhada e dispersão Risco x Retorno (dados de /composicao/resumo).
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar, Cell, ReferenceLine, ScatterChart, Scatter, ZAxis,
 } from "recharts";
-import { Target, BarChart3, PieChart as PieIcon } from "lucide-react";
+import { Target, BarChart3, PieChart as PieIcon, ChevronRight } from "lucide-react";
 import { compactBRL } from "@/lib/format";
+import { hrefDoAtivo } from "@/lib/performance-nav";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import type { RentabilidadeItem, RiscoRetornoItem } from "@/components/performance/shared";
 
@@ -28,6 +30,61 @@ const RENT_TOOLTIP_STYLE = {
   color: "var(--text)", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
 };
 
+// ── Resumo do ativo (tooltip clicável) ───────────────────────────────────────
+// Mostra os mesmos números de antes e, quando o ativo TEM card em
+// /renda-variavel, vira um botão que abre esse card. Renda fixa (NTN-B, CDB)
+// continua sendo um resumo passivo — melhor não prometer um clique que levaria
+// a uma tela sem aquele ativo.
+function ResumoAtivo({
+  active, label, itens, abrir,
+}: {
+  active?: boolean;
+  label?: string | number;
+  itens: RentabilidadeItem[];
+  abrir: (item: RentabilidadeItem) => void;
+}) {
+  const item = itens.find(r => r.ticker === String(label ?? ""));
+  if (!active || !item) return null;
+
+  const linkavel = hrefDoAtivo(item) !== null;
+  const linha = (rotulo: string, v: number) => (
+    <p style={{ ...TOOLTIP_ITEM_STYLE, margin: 0 }}>
+      {rotulo}: <span style={{ color: v >= 0 ? "#34d399" : "#f87171", fontWeight: 600 }}>
+        {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+      </span>
+    </p>
+  );
+
+  const conteudo = (
+    <>
+      <p style={{ ...TOOLTIP_LABEL_STYLE, marginBottom: 6 }}>{item.ticker} ({item.moeda})</p>
+      {linha("Não Realizado", item.retorno_nao_realizado_pct)}
+      {linha("Realiz. + Prov.", item.retorno_realizado_proventos_pct)}
+      {linkavel && (
+        <p className="mt-2 flex items-center gap-1 font-mono uppercase"
+           style={{ fontSize: 9, letterSpacing: ".08em", color: "var(--accent)" }}>
+          Ver ativo <ChevronRight size={11} />
+        </p>
+      )}
+    </>
+  );
+
+  if (!linkavel) return <div style={{ ...RENT_TOOLTIP_STYLE, padding: "10px 12px" }}>{conteudo}</div>;
+
+  return (
+    <button
+      type="button"
+      // O tooltip do Recharts vive fora do fluxo normal; o clique só chega aqui
+      // por causa do pointerEvents:auto no wrapper.
+      onClick={() => abrir(item)}
+      className="text-left transition-colors hover:brightness-125"
+      style={{ ...RENT_TOOLTIP_STYLE, padding: "10px 12px", cursor: "pointer", display: "block" }}
+    >
+      {conteudo}
+    </button>
+  );
+}
+
 export default function RentabilidadeTab({
   rentStatusFilter, setRentStatusFilter, filteredRentabilidade, filteredRiscoRetorno,
 }: {
@@ -36,6 +93,14 @@ export default function RentabilidadeTab({
   filteredRentabilidade: RentabilidadeItem[];
   filteredRiscoRetorno: RiscoRetornoItem[];
 }) {
+  const router = useRouter();
+  // Renda FIXA manual (NTN-B, CDB…) não tem card em /renda-variavel — o link
+  // levaria a uma página que não sabe abrir aquele ativo. Só linka o que existe lá.
+  const abrirAtivo = React.useCallback((item: RentabilidadeItem) => {
+    const href = hrefDoAtivo(item);
+    if (href) router.push(href);
+  }, [router]);
+
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Status filter */}
@@ -67,15 +132,15 @@ export default function RentabilidadeTab({
                   tickFormatter={v => `${v.toFixed(0)}%`} />
                 <YAxis type="category" dataKey="ticker" width={70} tick={{ fill: "#a1a1aa", fontSize: 11, fontWeight: 600 }}
                   axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={RENT_TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-                  formatter={(v: number, name: string) => [
-                    `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`,
-                    name === "retorno_nao_realizado_pct" ? "Não Realizado" : "Realiz. + Prov.",
-                  ]}
-                  labelFormatter={(label) => {
-                    const item = activeItems.find(r => r.ticker === label);
-                    return item ? `${label} (${item.moeda})` : label;
-                  }}
+                {/* O resumo é CLICÁVEL: leva ao card do ativo em /renda-variavel,
+                    e o fechar do card lá volta pra cá (router.back → ?tab na URL).
+                    `pointerEvents: auto` é obrigatório — o wrapper do tooltip do
+                    Recharts nasce com pointer-events:none e engoliria o clique. */}
+                <Tooltip
+                  wrapperStyle={{ pointerEvents: "auto", zIndex: 20 }}
+                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  contentStyle={RENT_TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
+                  content={(props) => <ResumoAtivo {...props} itens={activeItems} abrir={abrirAtivo} />}
                 />
                 <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
                 <Bar dataKey="retorno_nao_realizado_pct" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={18} name="retorno_nao_realizado_pct">
