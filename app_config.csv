@@ -13,9 +13,11 @@ alertas,telegram_chat_id,1737564761
 alertas,telegram_bot_token,
 alertas,telegram_webhook_secret,88302beebeb0b6a90113816001d1ba9ceefc783859032183
 alertas,limite_alavancagem_pct,30
-alertas,ativo,false
+alertas,ativo,true
 alertas,darf_ativo,true
 alertas,dirpf_ativo,true
 alertas,alavancagem_ativo,true
 alertas,resumo_ativo,true
 alertas,resumo_horarios,18
+alertas_estado,__migrado,1
+alertas_estado,darf_vencido_2025-12,2026-09-04
