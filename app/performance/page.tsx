@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   BarChart2, Activity, Calendar, DollarSign, RefreshCw, BarChart3,
 } from "lucide-react";
+import { tabDaUrl, urlComTab } from "@/lib/performance-nav";
 import CarteiraNaDataDrawer from "@/components/performance/CarteiraNaDataDrawer";
 import PerfHero from "@/components/performance/PerfHero";
 import { RetornoChart, NavChart } from "@/components/performance/OverviewCharts";
@@ -125,7 +126,21 @@ export default function PerformancePage() {
       return [prev[1], full];                        // já tem 2 → desliza a janela
     });
   };
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  // A aba vive na URL (?tab=rentabilidade). Motivo: ao abrir o card de um ativo
+  // em /renda-variavel a partir daqui, o fechar do card faz router.back() — sem
+  // a aba na URL, o dono voltava para a Performance na aba PADRÃO, não na que
+  // estava. Também dá deep-link direto para uma aba.
+  const [activeTab, setActiveTabState] = useState<Tab>("overview");
+  useEffect(() => {
+    const t = tabDaUrl(window.location.search);
+    if (t) setActiveTabState(t);
+  }, []);
+  const setActiveTab = React.useCallback((tab: Tab) => {
+    setActiveTabState(tab);
+    // replaceState em vez de push: trocar de aba não deve encher o histórico
+    // (senão o "voltar" do celular percorreria aba por aba).
+    window.history.replaceState(null, "", urlComTab(window.location.href, tab));
+  }, []);
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
   // "Settled" = a busca do ganho canônico (/api/composicao/resumo) já resolveu
