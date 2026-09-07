@@ -1,6 +1,6 @@
 # Backup da planilha gdados
 
-Gerado em **2026-09-06T12:59:09.131Z** pelo workflow backup.yml (sobrescrito diariamente).
+Gerado em **2026-09-07T15:07:21.926Z** pelo workflow backup.yml (sobrescrito diariamente).
 
 - `cambio.csv` — 16 linhas
 - `meus_ativos.csv` — 89 linhas
@@ -16,7 +16,7 @@ Gerado em **2026-09-06T12:59:09.131Z** pelo workflow backup.yml (sobrescrito dia
 - `financas_parcelamentos.csv` — 25 linhas
 - `email_config.csv` — 27 linhas
 - `historico_patrimonio.csv` — 362 linhas
-- `db_cotacoes.csv` — 1896 linhas
+- `db_cotacoes.csv` — 1898 linhas
 - `simulacoes.csv` — 5 linhas
 - `alavancagem.csv` — 0 linhas
 - `twr_mensal.csv` — 59 linhas
@@ -29,8 +29,8 @@ Gerado em **2026-09-06T12:59:09.131Z** pelo workflow backup.yml (sobrescrito dia
 - `fipe_historico.csv` — 8 linhas
 - `cartao_transacoes.csv` — 71 linhas
 - `bens_fotos.csv` — 41 linhas
-- `etf_mundo_map.csv` — 1129 linhas
+- `etf_mundo_map.csv` — 1131 linhas
 - `financas_meses.csv` — 1 linhas
 - `numista_match.csv` — 247 linhas
 - `ibkr_nav.csv` — 269 linhas
-- `telegram_conversas.csv` — 17 linhas
+- `telegram_conversas.csv` — 19 linhas
