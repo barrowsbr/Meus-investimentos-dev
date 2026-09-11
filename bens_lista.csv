@@ -1,0 +1,4 @@
+id,nome,detalhe,cor,codigo_fipe,marca_busca,modelo_busca,ano_modelo,ativo,specs
+bicicleta,Bicicleta,2005,,,,,2005,1,
+cachorro,Cachorro,2025,,,,,2025,1,
+cachorro,,,,,,,,0,
