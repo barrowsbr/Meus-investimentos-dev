@@ -58,8 +58,35 @@ export async function GET(request: Request) {
       const anomalos = pontosDbg
         .map((_, i) => linha(i))
         .filter((l) => l.retornoPct != null && Math.abs(l.retornoPct) > 5);
+      // Inventário de CAMPOS por seção — só os NOMES dos atributos (nunca
+      // valores). Responde "que informação a Flex já nos manda e não usamos?"
+      // sem precisar adivinhar o schema da IBKR. Para CashTransaction, também
+      // os TIPOS distintos (o parser hoje só aproveita dividendo/imposto/
+      // depósito e descarta o resto).
+      const camposPorSecao = (() => {
+        const out: Record<string, { n: number; campos: string[] }> = {};
+        const re = /<([A-Za-z][\w]*)\b([^>]*)>/g;
+        const tiposCash = new Set<string>();
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(xml)) !== null) {
+          const tag = m[1];
+          if (["FlexQueryResponse", "FlexStatements", "FlexStatement"].includes(tag)) continue;
+          const nomes = [...m[2].matchAll(/([A-Za-z_][\w]*)\s*=\s*"/g)].map((x) => x[1]);
+          if (!out[tag]) out[tag] = { n: 0, campos: [] };
+          out[tag].n++;
+          for (const nome of nomes) if (!out[tag].campos.includes(nome)) out[tag].campos.push(nome);
+          if (tag === "CashTransaction") {
+            const t = /\btype\s*=\s*"([^"]*)"/.exec(m[2]);
+            if (t) tiposCash.add(t[1]);
+          }
+        }
+        for (const k of Object.keys(out)) out[k].campos.sort();
+        return { secoes: out, tiposDeCashTransaction: [...tiposCash].sort() };
+      })();
+
       return NextResponse.json({
         secoes: listarSecoes(xml),
+        camposPorSecao,
         navDiario: parsed.navDiario.length,
         fluxosExternos: parsed.fluxosExternos.length,
         changeInNav: parsed.changeInNav,
