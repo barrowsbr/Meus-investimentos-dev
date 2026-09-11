@@ -54,7 +54,48 @@ export interface FlexParsed {
   fluxosExternos: { date: string; valor: number }[];
   /** Seção "Change in NAV" (resumo do período), com o TWR oficial quando o
    *  campo Time Weighted Rate of Return está habilitado na query. */
-  changeInNav: { startingValue: number; endingValue: number; depositsWithdrawals: number; twr: number | null } | null;
+  changeInNav: ChangeInNav | null;
+  /** Cobranças da corretora no período (CashTransaction que NÃO é dividendo,
+   *  imposto nem depósito): juros de margem pagos e taxas avulsas. Antes eram
+   *  lidos e descartados — é o que responde "quanto a corretora me cobrou". */
+  custosCorretora: { date: string; tipo: string; descricao: string; valor: number; moeda: string; valorBase: number }[];
+  /** Composição do NAV dia a dia, em moeda base. A seção de NAV diário traz
+   *  ~100 atributos por linha e o motor só usava `total`; aqui vêm as partes
+   *  que dizem COMO o patrimônio estava alocado e o que havia a receber. */
+  navComposicao: {
+    date: string; total: number; caixa: number; acoes: number; fundos: number;
+    dividendosAReceber: number; jurosAReceber: number; taxasAPagar: number;
+  }[];
+}
+
+/** Decomposição do resultado do período direto do extrato — a "ponte" entre o
+ *  NAV inicial e o final. A IBKR entrega ~56 campos aqui; estes são os que
+ *  explicam o resultado de quem investe (o resto é para conta de assessor,
+ *  cripto na Paxos, SLB etc. e fica de fora de propósito). */
+export interface ChangeInNav {
+  startingValue: number;
+  endingValue: number;
+  depositsWithdrawals: number;
+  twr: number | null;
+  /** Marcação a mercado das posições abertas (o ganho que ainda é "de papel"). */
+  mtm: number;
+  /** Resultado realizado nas vendas do período. */
+  realized: number;
+  /** Variação do não-realizado — complementa o mtm na leitura do período. */
+  changeInUnrealized: number;
+  dividendos: number;
+  impostoRetido: number;
+  juros: number;
+  comissoes: number;
+  outrasTaxas: number;
+  /** Efeito de converter posições em outras moedas para a moeda base. É a
+   *  linha que explica "o ativo subiu e mesmo assim rendi menos". */
+  fxTranslation: number;
+  /** Variação dos valores só PROVISIONADOS (ainda não pagos) no período. */
+  variacaoDividendosAReceber: number;
+  variacaoJurosAReceber: number;
+  fromDate: string;
+  toDate: string;
 }
 
 // ── XML helpers (formato Flex é plano: elementos auto-fechados com atributos) ──
@@ -276,6 +317,8 @@ export function parseFlexXml(xml: string): FlexParsed {
   // (fluxos externos p/ o TWR). Juros/taxas seguem ignorados.
   const fluxosExternos: { date: string; valor: number }[] = [];
   const seenFluxo = new Set<string>();
+  const custosCorretora: FlexParsed["custosCorretora"] = [];
+  const seenCusto = new Set<string>();
   for (const a of extractElements(xml, "CashTransaction")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
     if (lod === "SUMMARY") continue;
@@ -299,10 +342,29 @@ export function parseFlexXml(xml: string): FlexParsed {
       continue;
     }
 
-    if (!symbol) continue;
     const isImposto = type.includes("withholding") || type.includes("tax");
     const isDividend = type.includes("dividend") || type.includes("lieu");
-    if (!isImposto && !isDividend) continue;
+
+    // O que NÃO é provento nem depósito é cobrança da corretora — juros de
+    // margem ("Broker Interest Paid") e taxas ("Other Fees"). Antes isto caía
+    // num `continue` e a informação se perdia; é justamente a resposta para
+    // "quanto a corretora me cobrou no período".
+    if (!isImposto && !isDividend) {
+      const date = normalizeDate(a.reportDate ?? a.dateTime ?? a.settleDate ?? "");
+      if (!date) continue;
+      const moeda = (a.currency ?? "USD").toUpperCase();
+      const fxBase = parseValor(a.fxRateToBase ?? "1") || 1;
+      const k = `${date}|${amount}|${moeda}|${a.type ?? ""}`;
+      if (seenCusto.has(k)) continue; // a seção pode emitir o lançamento 2×
+      seenCusto.add(k);
+      custosCorretora.push({
+        date, tipo: a.type ?? "", descricao: a.description ?? "",
+        valor: amount, moeda, valorBase: amount * fxBase,
+      });
+      continue;
+    }
+
+    if (!symbol) continue;
 
     noteExchange(symbol, a);
     proventos.push(makeProvento(
@@ -400,6 +462,29 @@ export function parseFlexXml(xml: string): FlexParsed {
     }
     if (navPorData.size > 0) break; // uma variante basta — não mistura seções
   }
+  // Composição do dia: a MESMA linha do NAV já traz caixa, ações, fundos e os
+  // valores provisionados (declarados e ainda não pagos). Só o `total` era lido.
+  const compPorData = new Map<string, FlexParsed["navComposicao"][number]>();
+  for (const tag of ["EquitySummaryByReportDateInBase", "NetAssetValueInBase", "EquitySummaryInBase"]) {
+    for (const a of extractElements(xml, tag)) {
+      const date = normalizeDate(a.reportDate ?? a.date ?? "");
+      const total = parseValor(a.total ?? "0");
+      if (!date || total === 0) continue;
+      const n = (k: string) => parseValor(a[k] ?? "0");
+      compPorData.set(date, {
+        date, total,
+        caixa: n("cash"),
+        acoes: n("stock"),
+        fundos: n("funds"),
+        dividendosAReceber: n("dividendAccruals"),
+        jurosAReceber: n("interestAccruals"),
+        taxasAPagar: n("brokerFeesAccrualsComponent"),
+      });
+    }
+    if (compPorData.size > 0) break;
+  }
+  const navComposicao = [...compPorData.values()].sort((a, b) => a.date.localeCompare(b.date));
+
   const navDiario = [...navPorData.entries()]
     .map(([date, nav]) => ({ date, nav }))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -409,11 +494,27 @@ export function parseFlexXml(xml: string): FlexParsed {
   const cin = extractElements(xml, "ChangeInNAV")[0];
   if (cin) {
     const twrRaw = cin.twr ?? cin.timeWeightedRateOfReturn ?? "";
+    const n = (k: string) => parseValor(cin[k] ?? "0");
     changeInNav = {
-      startingValue: parseValor(cin.startingValue ?? "0"),
-      endingValue: parseValor(cin.endingValue ?? "0"),
-      depositsWithdrawals: parseValor(cin.depositsWithdrawals ?? "0"),
+      startingValue: n("startingValue"),
+      endingValue: n("endingValue"),
+      depositsWithdrawals: n("depositsWithdrawals"),
       twr: twrRaw !== "" ? parseValor(twrRaw) : null,
+      mtm: n("mtm"),
+      realized: n("realized"),
+      changeInUnrealized: n("changeInUnrealized"),
+      dividendos: n("dividends"),
+      // A IBKR emite o imposto retido como valor NEGATIVO (saída). Guardamos
+      // como veio, para a soma da ponte fechar sem inverter sinal na leitura.
+      impostoRetido: n("withholdingTax"),
+      juros: n("interest"),
+      comissoes: n("commissions"),
+      outrasTaxas: n("otherFees") + n("brokerFees") + n("clientFees"),
+      fxTranslation: n("fxTranslation"),
+      variacaoDividendosAReceber: n("changeInDividendAccruals"),
+      variacaoJurosAReceber: n("changeInInterestAccruals"),
+      fromDate: normalizeDate(cin.fromDate ?? ""),
+      toDate: normalizeDate(cin.toDate ?? ""),
     };
   }
 
@@ -430,5 +531,5 @@ export function parseFlexXml(xml: string): FlexParsed {
     proventosUnique.push(p);
   }
 
-  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved, exchangeBySymbol, navDiario, fluxosExternos, changeInNav };
+  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved, exchangeBySymbol, navDiario, navComposicao, fluxosExternos, changeInNav, custosCorretora };
 }

@@ -417,6 +417,137 @@ function DesempenhoTwr() {
 
 // ── Margem & risco ────────────────────────────────────────────────────────────
 
+// ── Ponte do resultado + o que a corretora cobrou ──────────────────────────────
+// Tudo vem do extrato (seção Change in NAV e os lançamentos de caixa que o
+// parser antes descartava). Fica na MOEDA BASE da conta, sem converter: é um
+// demonstrativo da corretora, e converter criaria divergência com o app dela.
+
+function PonteResultado({ data }: { data: IbkrOverview }) {
+  const p = data.ponteResultado;
+  if (!p) return null;
+
+  // Escala comum para as barras: a maior parcela em módulo define 100%.
+  const maxAbs = Math.max(1, ...p.partes.map((x) => Math.abs(x.valor)));
+  const fmt = (v: number) => (v >= 0 ? "+" : "−") + "US$ " + nf(Math.abs(v), 0);
+
+  return (
+    <Section
+      title="De onde veio o resultado"
+      action={
+        <span className="font-mono text-[9px]" style={{ color: "var(--faint)" }}>
+          {fmtDate(p.de)} → {fmtDate(p.ate)}
+        </span>
+      }
+    >
+      <div className="px-4 py-3">
+        <div className="flex items-baseline gap-2 mb-3">
+          <span className="font-mono text-[20px] font-bold" style={{ color: cor(p.resultado) }}>
+            {fmt(p.resultado)}
+          </span>
+          <span className="font-mono text-[9.5px] uppercase tracking-wide" style={{ color: "var(--faint)" }}>
+            resultado do período · sem contar os {"US$ " + nf(Math.abs(p.aportes), 0)} aportados
+          </span>
+        </div>
+
+        <div className="space-y-1.5">
+          {p.partes.map((parte) => (
+            <div key={parte.chave} className="flex items-center gap-2">
+              <span className="font-mono text-[10px] shrink-0" style={{ width: 128, color: "var(--muted)" }}>
+                {parte.rotulo}
+              </span>
+              <div className="flex-1 h-[10px] rounded-sm overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                <div
+                  style={{
+                    width: `${Math.max(2, (Math.abs(parte.valor) / maxAbs) * 100)}%`,
+                    height: "100%",
+                    background: cor(parte.valor),
+                    opacity: 0.75,
+                  }}
+                />
+              </div>
+              <span className="font-mono text-[10.5px] font-semibold shrink-0 text-right" style={{ width: 84, color: cor(parte.valor) }}>
+                {fmt(parte.valor)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: "1px solid var(--line)" }}>
+          <span className="font-mono text-[9px] uppercase tracking-wide" style={{ color: "var(--faint)" }}>
+            {/* A IBKR tem mais linhas do que as que trazemos; mostrar a sobra é
+                mais honesto do que embutir num "outros" que esconde o tamanho. */}
+            não explicado {Math.abs(p.residuo) / Math.max(1, Math.abs(p.resultado)) < 0.02 ? "(desprezível)" : "— confira o extrato"}
+          </span>
+          <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{fmt(p.residuo)}</span>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function CustosCorretora({ data }: { data: IbkrOverview }) {
+  const c = data.custosCorretora;
+  const r = data.aReceber;
+  const temCusto = c.porTipo.length > 0;
+  const temReceber = r != null && (r.dividendos !== 0 || r.juros !== 0);
+  if (!temCusto && !temReceber) return null;
+
+  const ROTULO: Record<string, string> = {
+    "Broker Interest Paid": "Juros de margem",
+    "Broker Interest Received": "Juros recebidos",
+    "Other Fees": "Taxas avulsas",
+  };
+
+  return (
+    <div className="grid gap-3" style={{ gridTemplateColumns: temCusto && temReceber ? "1fr 1fr" : "1fr" }}>
+      {temCusto && (
+        <Section title="O que a corretora cobrou">
+          <div className="px-4 py-3">
+            <p className="font-mono text-[20px] font-bold mb-2.5" style={{ color: "var(--neg)" }}>
+              US$ {nf(Math.abs(c.totalBase), 2)}
+            </p>
+            {c.porTipo.map((t) => (
+              <div key={t.tipo} className="flex items-center justify-between py-1" style={{ borderTop: "1px solid var(--line)" }}>
+                <span className="font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>
+                  {ROTULO[t.tipo] ?? t.tipo} <span style={{ color: "var(--faint)" }}>· {t.n}×</span>
+                </span>
+                <span className="font-mono text-[10.5px] font-semibold" style={{ color: cor(t.valorBase) }}>
+                  US$ {nf(Math.abs(t.valorBase), 2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {temReceber && (
+        <Section
+          title="A receber"
+          action={<span className="font-mono text-[9px]" style={{ color: "var(--faint)" }}>{fmtDate(r!.data)}</span>}
+        >
+          <div className="px-4 py-3">
+            <p className="font-mono text-[20px] font-bold mb-2.5" style={{ color: "var(--pos)" }}>
+              US$ {nf(r!.dividendos + r!.juros, 2)}
+            </p>
+            {/* Declarado pelo emissor e ainda não creditado — dinheiro que já é
+                seu e não aparece no caixa. */}
+            <div className="flex items-center justify-between py-1" style={{ borderTop: "1px solid var(--line)" }}>
+              <span className="font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>Dividendos anunciados</span>
+              <span className="font-mono text-[10.5px] font-semibold" style={{ color: "var(--text)" }}>US$ {nf(r!.dividendos, 2)}</span>
+            </div>
+            {r!.juros !== 0 && (
+              <div className="flex items-center justify-between py-1" style={{ borderTop: "1px solid var(--line)" }}>
+                <span className="font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>Juros acruados</span>
+                <span className="font-mono text-[10.5px] font-semibold" style={{ color: "var(--text)" }}>US$ {nf(r!.juros, 2)}</span>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+    </div>
+  );
+}
+
 function MargemRisco({ data }: { data: IbkrOverview }) {
   const k = data.kpis;
   if (data.marginByCurrency.length === 0 || k.margemBRL <= 0) return null;
@@ -555,6 +686,12 @@ function Dashboard({ data }: { data: IbkrOverview }) {
 
       {/* Margem & risco (só aparece quando há dívida de margem) */}
       <div className="mb-5"><MargemRisco data={data} /></div>
+
+      {/* Ponte do resultado — decomposição do período pelo próprio extrato */}
+      <div className="mb-5"><PonteResultado data={data} /></div>
+
+      {/* Custos da corretora + o que está declarado e ainda não caiu */}
+      <div className="mb-5"><CustosCorretora data={data} /></div>
 
       {/* Alocação */}
       <div className="mb-5">
