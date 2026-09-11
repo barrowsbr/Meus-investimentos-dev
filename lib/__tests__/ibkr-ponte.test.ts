@@ -8,17 +8,17 @@ import { parseFlexXml } from "../ibkr-flex";
 
 const XML = `<FlexQueryResponse><FlexStatements><FlexStatement accountId="U1" fromDate="20250910" toDate="20260910">
 <ChangeInNAV startingValue="15809.68" endingValue="29325.68" depositsWithdrawals="7852.15"
-  twr="29.603929084" mtm="5200.50" realized="820.10" changeInUnrealized="4900.00"
+  twr="29.603929084" mtm="4997.44" realized="820.10" changeInUnrealized="4900.00"
   dividends="412.33" withholdingTax="-61.85" interest="-18.40" commissions="-45.20"
-  otherFees="-3.10" brokerFees="0" clientFees="0" fxTranslation="-698.42"
+  otherFees="200.00" brokerFees="0" clientFees="0" fxTranslation="-698.42"
   changeInDividendAccruals="12.05" changeInInterestAccruals="-1.20"
   fromDate="20250910" toDate="20260910" currency="USD" />
 <CashTransaction type="Broker Interest Paid" amount="-18.40" currency="USD" fxRateToBase="1"
   reportDate="20260731" description="USD DEBIT INT FOR JUL-2026" levelOfDetail="DETAIL" />
-<CashTransaction type="Other Fees" amount="-3.10" currency="USD" fxRateToBase="1"
-  reportDate="20260805" description="ADR Fee" levelOfDetail="DETAIL" />
-<CashTransaction type="Other Fees" amount="-3.10" currency="USD" fxRateToBase="1"
-  reportDate="20260805" description="ADR Fee" levelOfDetail="DETAIL" />
+<CashTransaction type="Other Fees" amount="200.00" currency="USD" fxRateToBase="1"
+  reportDate="20260518" description="Fee Rebate" levelOfDetail="DETAIL" />
+<CashTransaction type="Other Fees" amount="200.00" currency="USD" fxRateToBase="1"
+  reportDate="20260518" description="Fee Rebate" levelOfDetail="DETAIL" />
 <CashTransaction type="Dividends" amount="100.00" currency="USD" symbol="KO"
   reportDate="20260801" levelOfDetail="DETAIL" />
 <CashTransaction type="Withholding Tax" amount="-15.00" currency="USD" symbol="KO"
@@ -36,7 +36,7 @@ describe("ChangeInNAV — a ponte do resultado", () => {
 
   it("lê as parcelas que explicam o resultado, não só os 4 campos antigos", () => {
     expect(c).not.toBeNull();
-    expect(c!.mtm).toBe(5200.5);
+    expect(c!.mtm).toBe(4997.44);
     expect(c!.realized).toBe(820.1);
     expect(c!.dividendos).toBe(412.33);
     expect(c!.juros).toBe(-18.4);
@@ -44,15 +44,18 @@ describe("ChangeInNAV — a ponte do resultado", () => {
     expect(c!.fxTranslation).toBe(-698.42);
   });
 
-  it("preserva o SINAL da IBKR: saída é negativa", () => {
-    // Inverter aqui faria a ponte fechar errado por 2× o valor.
+  it("preserva o SINAL da IBKR em vez de assumir que tudo é saída", () => {
+    // ⚠️ Regressão real (extrato de 11/09/2026): "Other Fees" veio +200 — um
+    // ESTORNO. A versão anterior deste teste afirmava que taxa é sempre
+    // negativa, e o card somava tudo em módulo: pintava 200 de crédito como
+    // se fosse despesa. Inverter ou modular sinal aqui corrompe a ponte.
     expect(c!.impostoRetido).toBeLessThan(0);
     expect(c!.comissoes).toBeLessThan(0);
-    expect(c!.outrasTaxas).toBeLessThan(0);
+    expect(c!.outrasTaxas).toBeGreaterThan(0); // crédito, e tem que continuar +
   });
 
-  it("agrega as taxas de corretora/cliente em 'outras taxas'", () => {
-    expect(c!.outrasTaxas).toBe(-3.1); // otherFees + brokerFees + clientFees
+  it("agrega as taxas de corretora/cliente em 'outras taxas', com sinal", () => {
+    expect(c!.outrasTaxas).toBe(200); // otherFees + brokerFees + clientFees
   });
 
   it("o TWR oficial continua vindo junto", () => {
@@ -81,12 +84,12 @@ describe("ChangeInNAV — a ponte do resultado", () => {
     expect(residuo).not.toBe(0); // e ele NÃO é escondido: a UI mostra
   });
 
-  it("sem as linhas de custo, a ponte acusaria resultado MAIOR do que o real", () => {
-    // Contraprova de por que as parcelas negativas entram: ignorá-las inflaria
-    // o resultado explicado em ~128 (imposto + juros + comissão + taxas).
+  it("ignorar as linhas de custo/crédito distorce a ponte nos DOIS sentidos", () => {
     const semCustos = c!.mtm + c!.realized + c!.dividendos + c!.fxTranslation
       + c!.variacaoDividendosAReceber + c!.variacaoJurosAReceber;
-    expect(semCustos - soma(c!)).toBeCloseTo(128.55, 2);
+    // Aqui o crédito de +200 supera as saídas: omitir tudo SUBESTIMARIA o
+    // resultado. É a prova de que não dá para tratar essas linhas como "custo".
+    expect(semCustos - soma(c!)).toBeCloseTo(-74.55, 2);
   });
 });
 
@@ -105,6 +108,24 @@ describe("custosCorretora — o que antes era descartado", () => {
 
   it("deduplica o lançamento repetido (a Flex emite em dobro)", () => {
     expect(custosCorretora.filter((c) => c.tipo === "Other Fees")).toHaveLength(1);
+  });
+
+  it("o MESMO tipo aparece como cobrança E como crédito", () => {
+    const porTipo = new Map(custosCorretora.map((c) => [c.tipo, c.valorBase]));
+    expect(porTipo.get("Broker Interest Paid")).toBeLessThan(0);
+    expect(porTipo.get("Other Fees")).toBeGreaterThan(0);
+  });
+
+  it("separar cobrança de crédito muda o resultado (o bug que o dono achou)", () => {
+    const liquido = custosCorretora.reduce((a, c) => a + c.valorBase, 0);
+    const cobrancas = custosCorretora.reduce((a, c) => a + Math.min(0, c.valorBase), 0);
+    const creditos = custosCorretora.reduce((a, c) => a + Math.max(0, c.valorBase), 0);
+    expect(liquido).toBeCloseTo(181.6, 2);   // POSITIVO: entrou mais do que saiu
+    expect(cobrancas).toBeCloseTo(-18.4, 2);
+    expect(creditos).toBeCloseTo(200, 2);
+    expect(cobrancas + creditos).toBeCloseTo(liquido, 2);
+    // Contraprova do defeito: o módulo da soma dizia "cobrou 181,60".
+    expect(Math.abs(liquido)).not.toBeCloseTo(Math.abs(cobrancas), 2);
   });
 
   it("converte para a moeda base pelo fxRateToBase", () => {

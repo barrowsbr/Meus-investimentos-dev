@@ -69,9 +69,18 @@ export interface IbkrOverview {
     residuo: number;
     twrOficial: number | null;
   } | null;
-  /** O que a corretora cobrou no período, por tipo (juros de margem, taxas). */
+  /** Taxas e juros da corretora no período. ⚠️ NÃO é só cobrança: a IBKR lança
+   *  crédito/estorno com o MESMO tipo e sinal POSITIVO (no extrato real havia
+   *  "Other Fees" de +200). Por isso os dois lados vêm separados e o líquido
+   *  vem COM SINAL — somar tudo e mostrar em módulo pintava um crédito de
+   *  US$ 200 como se fosse despesa. */
   custosCorretora: {
-    totalBase: number;
+    /** Soma com sinal: negativo = saiu dinheiro, positivo = entrou. */
+    liquidoBase: number;
+    /** Só os lançamentos de saída (≤ 0). */
+    cobrancasBase: number;
+    /** Só os de entrada (≥ 0) — estornos, créditos promocionais. */
+    creditosBase: number;
     porTipo: Array<{ tipo: string; valorBase: number; n: number }>;
     ultimos: Array<{ data: string; tipo: string; valor: number; moeda: string }>;
   };
@@ -227,7 +236,9 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
     porTipoMap.set(c.tipo, { valorBase: cur.valorBase + c.valorBase, n: cur.n + 1 });
   }
   const custosCorretora = {
-    totalBase: custosCru.reduce((acc, c) => acc + c.valorBase, 0),
+    liquidoBase: custosCru.reduce((acc, c) => acc + c.valorBase, 0),
+    cobrancasBase: custosCru.reduce((acc, c) => acc + Math.min(0, c.valorBase), 0),
+    creditosBase: custosCru.reduce((acc, c) => acc + Math.max(0, c.valorBase), 0),
     porTipo: [...porTipoMap.entries()]
       .map(([tipo, v]) => ({ tipo, ...v }))
       .sort((a, b) => a.valorBase - b.valorBase), // mais negativo (mais caro) primeiro

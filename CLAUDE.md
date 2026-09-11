@@ -534,7 +534,11 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   RESÍDUO à mostra (as demais linhas da IBKR não são mapeadas de propósito;
   esconder a sobra num "outros" mentiria sobre o tamanho dela). `CashTransaction`
   que não é dividendo/imposto/depósito (tipos reais: `Broker Interest Paid`,
-  `Other Fees`) virava `continue` e agora alimenta "O que a corretora cobrou".
+  `Other Fees`) virava `continue` e agora alimenta "Taxas e juros da corretora".
+  ⚠️ Esses lançamentos **NÃO são só cobrança**: a IBKR usa o MESMO tipo para
+  estorno/crédito com sinal POSITIVO (no extrato real, `Other Fees` = **+200**).
+  Nunca somar em módulo nem assumir sinal — o card separa cobranças de créditos
+  e mostra o líquido COM sinal.
   A linha diária de NAV traz ~100 colunas e usava-se só `total`; agora também
   `cash`/`stock`/`funds` e os provisionados → card "A receber".
   ⚠️ Tudo isso fica na MOEDA BASE da conta, sem converter — é demonstrativo do
