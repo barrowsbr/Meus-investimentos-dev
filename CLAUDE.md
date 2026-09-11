@@ -526,6 +526,22 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   e `IBM 14/07/2026`. **Não "corrigir", não filtrar, não reprocessar** — o preço
   gravado é o que de fato aconteceu no pregão. Reauditar só se o dono pedir.
 - Auditoria: `GET /api/debug/auditoria?lookback=DIAS` mede bloqueios anti-outlier e decompõe preço × dividendos.
+- **O que aproveitamos do extrato Flex** (inventário medido em 11/09/2026 via
+  `/api/ibkr/twr?debug=1`, que lista os NOMES de campo por seção): `ChangeInNAV`
+  entrega ~56 atributos e o parser lê as 10 que explicam o resultado (mtm,
+  realized, dividends, withholdingTax, interest, commissions, otherFees,
+  **fxTranslation**, changeIn*Accruals) → card "De onde veio o resultado", com
+  RESÍDUO à mostra (as demais linhas da IBKR não são mapeadas de propósito;
+  esconder a sobra num "outros" mentiria sobre o tamanho dela). `CashTransaction`
+  que não é dividendo/imposto/depósito (tipos reais: `Broker Interest Paid`,
+  `Other Fees`) virava `continue` e agora alimenta "O que a corretora cobrou".
+  A linha diária de NAV traz ~100 colunas e usava-se só `total`; agora também
+  `cash`/`stock`/`funds` e os provisionados → card "A receber".
+  ⚠️ Tudo isso fica na MOEDA BASE da conta, sem converter — é demonstrativo do
+  extrato, converter divergiria do app da corretora.
+  Ainda NÃO aproveitados (chegam e não são lidos): `SymbolSummary` (17) e
+  `AssetSummary` (2). Exigem expandir a query: MarginReport, Open Dividend
+  Accruals e Corporate Actions.
 - Diagnóstico rápido em produção: workflow `ibkr-diag` (dispara ao editar o
   próprio arquivo) — seções do Flex, saúde da golden (dias/tickers/cobertura/
   anomalias) e a auditoria dos marks IBKR (fator mark ÷ fechamento por ativo).

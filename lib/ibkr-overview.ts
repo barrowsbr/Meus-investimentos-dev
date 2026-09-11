@@ -54,6 +54,31 @@ export interface IbkrOverview {
   proventos: Array<{ ticker: string; data: string; tipo: "Dividendo" | "Imposto"; valor: string; moeda: string }>;
   trades: Array<{ data: string; tipo: string; ticker: string; quantidade: string; preco: string; valor: string; moeda: string }>;
   cambio: Array<{ data: string; de: string; para: string; valorOrigem: string; valorDestino: string; taxa: string }>;
+  /** Ponte do resultado do período, direto do extrato (seção Change in NAV):
+   *  de onde veio o ganho e quanto a corretora levou. Null se a seção não
+   *  estiver habilitada na Flex query. */
+  ponteResultado: {
+    de: string; ate: string;
+    navInicial: number; navFinal: number; aportes: number;
+    /** As parcelas que somam o resultado (já em moeda BASE da conta). */
+    partes: Array<{ chave: string; rotulo: string; valor: number }>;
+    /** navFinal − navInicial − aportes: o resultado que as parcelas explicam. */
+    resultado: number;
+    /** Sobra entre o resultado e a soma das parcelas (linhas da IBKR que não
+     *  trazemos). Perto de zero = a ponte fecha. */
+    residuo: number;
+    twrOficial: number | null;
+  } | null;
+  /** O que a corretora cobrou no período, por tipo (juros de margem, taxas). */
+  custosCorretora: {
+    totalBase: number;
+    porTipo: Array<{ tipo: string; valorBase: number; n: number }>;
+    ultimos: Array<{ data: string; tipo: string; valor: number; moeda: string }>;
+  };
+  /** A receber: declarado pelo emissor e ainda não creditado (última foto). */
+  aReceber: { dividendos: number; juros: number; taxasAPagar: number; data: string } | null;
+  /** Composição do NAV no tempo (caixa × ações × fundos) — para o gráfico. */
+  composicao: Array<{ date: string; caixa: number; acoes: number; fundos: number; total: number }>;
 }
 
 export async function buildIbkrOverview(): Promise<IbkrOverview> {
@@ -62,7 +87,8 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   if (!token || !queryId) throw new Error("IBKR_FLEX_TOKEN e/ou IBKR_FLEX_QUERY_ID não configurados");
 
   const xml = await getFlexXmlCached(token, queryId);
-  const { proventos, trades, cambio, positions, cashBalances, marginBalances } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, cashBalances, marginBalances,
+          changeInNav, custosCorretora: custosCru, navComposicao } = parseFlexXml(xml);
   const meta = parseFlexMeta(xml);
 
   // FX + cotações ao vivo (preço atual e variação do dia) numa só chamada.
@@ -167,8 +193,60 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
     .map((d) => ({ ...d, liquido: d.dividendos - d.impostos }))
     .sort((a, b) => b.dividendos - a.dividendos);
 
+  // ── Ponte do resultado: o que a IBKR diz sobre a origem do ganho ──────────
+  // Em moeda BASE da conta (a mesma do Change in NAV), não convertida: é um
+  // demonstrativo do extrato, e converter aqui só criaria divergência com o
+  // que aparece no app da corretora.
+  const ponteResultado = (() => {
+    if (!changeInNav) return null;
+    const c = changeInNav;
+    const partes = [
+      { chave: "mtm", rotulo: "Marcação a mercado", valor: c.mtm },
+      { chave: "realizado", rotulo: "Resultado realizado", valor: c.realized },
+      { chave: "dividendos", rotulo: "Dividendos", valor: c.dividendos },
+      { chave: "imposto", rotulo: "Imposto retido", valor: c.impostoRetido },
+      { chave: "juros", rotulo: "Juros", valor: c.juros },
+      { chave: "comissoes", rotulo: "Comissões", valor: c.comissoes },
+      { chave: "taxas", rotulo: "Outras taxas", valor: c.outrasTaxas },
+      { chave: "fx", rotulo: "Conversão de moeda", valor: c.fxTranslation },
+      { chave: "provisoes", rotulo: "Provisões (a receber)", valor: c.variacaoDividendosAReceber + c.variacaoJurosAReceber },
+    ].filter((p) => p.valor !== 0);
+    const resultado = c.endingValue - c.startingValue - c.depositsWithdrawals;
+    const soma = partes.reduce((acc, p) => acc + p.valor, 0);
+    return {
+      de: c.fromDate || meta.fromDate, ate: c.toDate || meta.toDate,
+      navInicial: c.startingValue, navFinal: c.endingValue, aportes: c.depositsWithdrawals,
+      partes, resultado, residuo: resultado - soma, twrOficial: c.twr,
+    };
+  })();
+
+  // ── O que a corretora cobrou (era descartado no parser) ───────────────────
+  const porTipoMap = new Map<string, { valorBase: number; n: number }>();
+  for (const c of custosCru) {
+    const cur = porTipoMap.get(c.tipo) ?? { valorBase: 0, n: 0 };
+    porTipoMap.set(c.tipo, { valorBase: cur.valorBase + c.valorBase, n: cur.n + 1 });
+  }
+  const custosCorretora = {
+    totalBase: custosCru.reduce((acc, c) => acc + c.valorBase, 0),
+    porTipo: [...porTipoMap.entries()]
+      .map(([tipo, v]) => ({ tipo, ...v }))
+      .sort((a, b) => a.valorBase - b.valorBase), // mais negativo (mais caro) primeiro
+    ultimos: [...custosCru]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 12)
+      .map((c) => ({ data: c.date, tipo: c.tipo, valor: c.valor, moeda: c.moeda })),
+  };
+
+  // ── A receber (última foto) + composição no tempo ─────────────────────────
+  const ultimaComp = navComposicao.length ? navComposicao[navComposicao.length - 1] : null;
+  const aReceber = ultimaComp
+    ? { dividendos: ultimaComp.dividendosAReceber, juros: ultimaComp.jurosAReceber, taxasAPagar: ultimaComp.taxasAPagar, data: ultimaComp.date }
+    : null;
+  const composicao = navComposicao.map((c) => ({ date: c.date, caixa: c.caixa, acoes: c.acoes, fundos: c.fundos, total: c.total }));
+
   return {
     meta: { accountId: meta.accountId, fromDate: meta.fromDate, toDate: meta.toDate, fxSource, brlOk: fx !== null, usdbrl },
+    ponteResultado, custosCorretora, aReceber, composicao,
     kpis: {
       patrimonioBRL, patrimonioUSD: brlToUsd(patrimonioBRL),
       caixaBRL, caixaUSD: brlToUsd(caixaBRL),
