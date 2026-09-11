@@ -497,25 +497,39 @@ function CustosCorretora({ data }: { data: IbkrOverview }) {
     "Broker Interest Received": "Juros recebidos",
     "Other Fees": "Taxas avulsas",
   };
+  // O mesmo tipo aparece nos dois sentidos: "Other Fees" pode ser cobrança OU
+  // estorno. O rótulo segue o SINAL do lançamento, não o nome da linha.
+  const rotular = (tipo: string, valor: number) =>
+    (ROTULO[tipo] ?? tipo) + (valor > 0 ? " (crédito)" : "");
+  const cifra = (v: number) => (v < 0 ? "−" : "+") + "US$ " + nf(Math.abs(v), 2);
 
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: temCusto && temReceber ? "1fr 1fr" : "1fr" }}>
       {temCusto && (
-        <Section title="O que a corretora cobrou">
+        <Section title="Taxas e juros da corretora">
           <div className="px-4 py-3">
-            <p className="font-mono text-[20px] font-bold mb-2.5" style={{ color: "var(--neg)" }}>
-              US$ {nf(Math.abs(c.totalBase), 2)}
+            <p className="font-mono text-[20px] font-bold" style={{ color: cor(c.liquidoBase) }}>
+              {cifra(c.liquidoBase)}
             </p>
-            {c.porTipo.map((t) => (
-              <div key={t.tipo} className="flex items-center justify-between py-1" style={{ borderTop: "1px solid var(--line)" }}>
-                <span className="font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>
-                  {ROTULO[t.tipo] ?? t.tipo} <span style={{ color: "var(--faint)" }}>· {t.n}×</span>
-                </span>
-                <span className="font-mono text-[10.5px] font-semibold" style={{ color: cor(t.valorBase) }}>
-                  US$ {nf(Math.abs(t.valorBase), 2)}
-                </span>
-              </div>
-            ))}
+            {/* Quando há os dois sentidos, o líquido sozinho esconde o tamanho
+                de cada lado — mostra a composição. */}
+            {c.cobrancasBase !== 0 && c.creditosBase !== 0 && (
+              <p className="font-mono text-[9.5px] mb-2 uppercase tracking-wide" style={{ color: "var(--faint)" }}>
+                {cifra(c.cobrancasBase)} cobrado · {cifra(c.creditosBase)} creditado
+              </p>
+            )}
+            <div className={c.cobrancasBase !== 0 && c.creditosBase !== 0 ? "" : "mt-2.5"}>
+              {c.porTipo.map((t) => (
+                <div key={t.tipo} className="flex items-center justify-between py-1" style={{ borderTop: "1px solid var(--line)" }}>
+                  <span className="font-mono text-[10.5px]" style={{ color: "var(--muted)" }}>
+                    {rotular(t.tipo, t.valorBase)} <span style={{ color: "var(--faint)" }}>· {t.n}×</span>
+                  </span>
+                  <span className="font-mono text-[10.5px] font-semibold" style={{ color: cor(t.valorBase) }}>
+                    {cifra(t.valorBase)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </Section>
       )}
