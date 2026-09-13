@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
+import { readAlertasConfig, resolveBotToken , destinatarios } from "@/lib/alertas-store";
 import { buildDigest, buildDigestCaption, resolveAppUrl } from "@/lib/digest";
 import { renderDigestImage } from "@/lib/digest-image";
 import { sendTelegramPhoto } from "@/lib/telegram";
@@ -50,15 +50,27 @@ export async function GET(request: Request) {
     const data = await buildDigest();
     const png = await renderDigestImage(data).arrayBuffer();
     const appUrl = resolveAppUrl();
-    const res = await sendTelegramPhoto(resolveBotToken(config), config.chatId, png, buildDigestCaption(data), {
-      parseMode: "HTML",
-      buttons: appUrl ? [[
-        { text: "📊 Dashboard", url: appUrl },
-        { text: "📈 Performance", url: `${appUrl}/performance` },
-      ]] : undefined,
+    // Dono + convidados. A imagem é renderizada UMA vez e reenviada — render
+    // por destinatário estouraria o tempo da função à toa.
+    const token = resolveBotToken(config);
+    const envios = [];
+    for (const destino of destinatarios(config)) {
+      const r = await sendTelegramPhoto(token, destino, png, buildDigestCaption(data), {
+        parseMode: "HTML",
+        buttons: appUrl ? [[
+          { text: "📊 Dashboard", url: appUrl },
+          { text: "📈 Performance", url: `${appUrl}/performance` },
+        ]] : undefined,
+      });
+      envios.push({ ok: r.ok, error: r.error });
+    }
+    // Falha de UM convidado (bloqueou o bot, apagou a conversa) não pode
+    // derrubar o resumo dos outros nem marcar o cron como quebrado.
+    const enviados = envios.filter((e) => e.ok).length;
+    return NextResponse.json({
+      ok: enviados > 0, ranAt: new Date().toISOString(), enviados, de: envios.length,
+      error: enviados === envios.length ? undefined : envios.find((e) => !e.ok)?.error,
     });
-
-    return NextResponse.json({ ok: res.ok, ranAt: new Date().toISOString(), error: res.ok ? undefined : res.error });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Erro desconhecido" }, { status: 500 });
   }
