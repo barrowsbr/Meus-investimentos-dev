@@ -124,7 +124,14 @@ export default function AlertasSection() {
     try {
       const res = await fetch(`${API_URL}/api/alertas/test`, { method: "POST" });
       const data = await res.json();
-      if (data.ok) setTestMsg({ ok: true, text: "Mensagem de teste enviada — confira o Telegram" });
+      // Mostra o PARCIAL: com convidados, "enviado" pode querer dizer "só para
+      // alguns" — e quem não recebeu é invisível para quem clicou o botão.
+      if (data.ok) setTestMsg({
+        ok: data.enviados === data.de,
+        text: data.de > 1
+          ? `Teste ${data.resumo}${data.erro ? ` · ${data.erro}` : ""}`
+          : "Mensagem de teste enviada — confira o Telegram",
+      });
       else setTestMsg({ ok: false, text: data.error || "Erro ao enviar" });
     } catch {
       setTestMsg({ ok: false, text: "Erro de conexão" });
@@ -139,7 +146,12 @@ export default function AlertasSection() {
     try {
       const res = await fetch(`${API_URL}/api/digest/send`, { method: "POST" });
       const data = await res.json();
-      if (data.ok) setDigestMsg({ ok: true, text: "Resumo enviado — confira o Telegram" });
+      if (data.ok) setDigestMsg({
+        ok: data.enviados === data.de,
+        text: data.de > 1
+          ? `Resumo ${data.resumo}${data.erro ? ` · ${data.erro}` : ""}`
+          : "Resumo enviado — confira o Telegram",
+      });
       else setDigestMsg({ ok: false, text: data.error || "Erro ao enviar" });
     } catch {
       setDigestMsg({ ok: false, text: "Erro de conexão" });

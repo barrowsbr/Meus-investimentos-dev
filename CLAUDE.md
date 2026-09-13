@@ -609,6 +609,12 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   lista, senão alguém recebe sem poder perguntar — ou é atendido sem constar.
   `normalizarChatId` só aceita id numérico (grupos são negativos); lista vazia =
   ninguém é atendido (fail-closed). Gerenciado em Configurações → Alertas.
+  ⚠️ **Todo envio para a LISTA passa por `paraTodos()` (`lib/telegram-broadcast.ts`)** —
+  crons, botão "Testar" e "Enviar resumo agora". Um teste estrutural quebra se
+  uma rota nova em `app/api` chamar `sendTelegram*` sem o helper (exceção: o
+  webhook, que responde 1-para-1 a quem perguntou — mandar para a lista ali
+  vazaria conversa). O modo de falha é traiçoeiro: chega no dono e só quem
+  ficou de fora percebe; por isso a UI mostra "enviado para 2 de 3".
   O `GET /api/alertas/config` **não** devolve `webhookSecret` ao cliente (só o
   booleano `botRespostasAtivo`) — mesma regra do token.
 - **Somente leitura**: o bot não grava na planilha (exceto o próprio fio em

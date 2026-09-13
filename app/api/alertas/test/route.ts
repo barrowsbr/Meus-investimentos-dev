@@ -3,6 +3,7 @@ import { requireOwner } from "@/lib/auth-server";
 import { isDemoRequest } from "@/lib/demo";
 import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { paraTodos, resumoEnvio } from "@/lib/telegram-broadcast";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +21,16 @@ export async function POST() {
     if (!config.chatId) {
       return NextResponse.json({ error: "Configure e salve o chat_id primeiro" }, { status: 400 });
     }
-    const res = await sendTelegramMessage(
-      resolveBotToken(config),
-      config.chatId,
+    // Testa a lista INTEIRA (dono + convidados). O teste serve justamente para
+    // confirmar que cada destino recebe — testar só o dono esconderia um
+    // convidado com id errado, que é o erro mais provável ao adicionar alguém.
+    const token = resolveBotToken(config);
+    const r = await paraTodos(config, (destino) => sendTelegramMessage(
+      token, destino,
       "✅ *Meus Investimentos* — alertas conectados! Você vai receber avisos de DARF, DIRPF e alavancagem por aqui.",
-    );
-    if (!res.ok) return NextResponse.json({ error: res.error ?? "Falha ao enviar" }, { status: 500 });
-    return NextResponse.json({ ok: true });
+    ));
+    if (r.enviados === 0) return NextResponse.json({ error: r.erro ?? "Falha ao enviar" }, { status: 500 });
+    return NextResponse.json({ ok: true, ...r, resumo: resumoEnvio(r) });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
   }
