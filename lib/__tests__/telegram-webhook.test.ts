@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const SEGREDO = "segredo-do-webhook";
 const DONO = "111111";
+const CONVIDADO = "555000555"; // acesso igual ao do dono
 const ESTRANHO = "999999";
 
 const enviadas: Array<{ chatId: string; texto: string }> = [];
@@ -17,9 +18,13 @@ const tarefas: Promise<unknown>[] = [];
 vi.mock("@vercel/functions", () => ({ waitUntil: (p: Promise<unknown>) => { tarefas.push(p); } }));
 async function aguardarProcessamento() { await Promise.all(tarefas.splice(0)); }
 
-vi.mock("@/lib/alertas-store", () => ({
+// A config é dublê, mas `podeUsarBot` é a implementação REAL: é ela que decide
+// quem o bot atende, então o teste tem que exercitar a de verdade — um dublê
+// aqui aprovaria qualquer um e o teste de vazamento passaria por engano.
+vi.mock("@/lib/alertas-store", async (orig) => ({
+  ...(await orig<typeof import("@/lib/alertas-store")>()),
   readAlertasConfig: async () => ({
-    chatId: DONO, botToken: "tok", webhookSecret: SEGREDO,
+    chatId: DONO, botToken: "tok", webhookSecret: SEGREDO, convidados: [CONVIDADO],
     limiteAlavancagemPct: 30, ativo: true, darfAtivo: true, dirpfAtivo: true,
     alavancagemAtivo: true, resumoAtivo: true, resumoHorarios: [18],
   }),
@@ -100,6 +105,40 @@ describe("webhook do Telegram — travas de segurança", () => {
     expect(enviadas[0].chatId).toBe(DONO);
     expect(enviadas[0].texto).toContain("Resposta do assistente.");
     expect(enviadas[0].texto).toContain("mock");
+  });
+
+  it("CONVIDADO é atendido igual ao dono (acesso concedido pelo dono)", async () => {
+    const { POST } = await import("@/app/api/telegram/webhook/route");
+    const res = await POST(req(msg(CONVIDADO, "como está a carteira?", 9001), SEGREDO));
+    expect(res.status).toBe(200);
+    await aguardarProcessamento();
+    // Mesmo tratamento do dono: contexto real vai ao LLM e a resposta volta.
+    expect(llmChamado.ultimaMensagem).toContain("CARTEIRA-SECRETA");
+    expect(enviadas[0].chatId).toBe(CONVIDADO);
+    expect(enviadas[0].texto).not.toMatch(/privado|autorizou/i);
+  });
+
+  it("tirar o convidado da lista FECHA a porta dele", async () => {
+    // Contraprova: a allowlist é o que separa convidado de estranho — não há
+    // nenhum outro caminho que atenda um chat fora da lista.
+    vi.resetModules();
+    vi.doMock("@/lib/alertas-store", async (orig) => ({
+      ...(await orig<typeof import("@/lib/alertas-store")>()),
+      readAlertasConfig: async () => ({
+        chatId: DONO, botToken: "tok", webhookSecret: SEGREDO, convidados: [], // lista vazia
+        limiteAlavancagemPct: 30, ativo: true, darfAtivo: true, dirpfAtivo: true,
+        alavancagemAtivo: true, resumoAtivo: true, resumoHorarios: [18],
+      }),
+      resolveBotToken: () => "tok",
+    }));
+    const { POST } = await import("@/app/api/telegram/webhook/route");
+    const antes = llmChamado.vezes;
+    await POST(req(msg(CONVIDADO, "e agora?", 9002), SEGREDO));
+    await aguardarProcessamento();
+    expect(llmChamado.vezes).toBe(antes);                       // LLM nem foi chamado
+    expect(enviadas.at(-1)!.texto).toMatch(/privado|autorizou/i);
+    expect(enviadas.at(-1)!.texto).not.toMatch(/VALE3|CARTEIRA-SECRETA/);
+    vi.doUnmock("@/lib/alertas-store");
   });
 
   it("update REENVIADO pelo Telegram não gera resposta duplicada", async () => {

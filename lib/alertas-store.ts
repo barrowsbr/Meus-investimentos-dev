@@ -18,7 +18,14 @@ const DEFAULT_LIMITE_ALAVANCAGEM_PCT = 30;
 const DEFAULT_RESUMO_HORARIOS = [18];
 
 export interface AlertasConfig {
+  /** Chat do DONO. É ele que autoriza a ativação do webhook e é o primeiro
+   *  destinatário de tudo. Nunca vira convidado. */
   chatId: string;
+  /** Convidados: chats com o MESMO acesso do dono (decisão dele, 13/09/2026) —
+   *  recebem o resumo/alertas e o bot responde a eles com os dados reais da
+   *  carteira. Guardado como lista separada do `chatId` para o dono nunca
+   *  poder se remover sem querer e para a ativação continuar exigindo o dono. */
+  convidados: string[];
   botToken: string;          // token do bot salvo na planilha (opcional; env var tem prioridade)
   /** Segredo do webhook do bot (X-Telegram-Bot-Api-Secret-Token). Gerado pelo
    *  botão "Ativar respostas" em Configurações; vazio = bot não responde. */
@@ -57,6 +64,7 @@ export async function readAlertasConfig(): Promise<AlertasConfig> {
   const on = (chave: string) => map.get(chave) !== "false";
   return {
     chatId: map.get("telegram_chat_id") ?? "",
+    convidados: parseConvidados(map.get("telegram_convidados")),
     botToken: map.get("telegram_bot_token") ?? "",
     webhookSecret: map.get("telegram_webhook_secret") ?? "",
     limiteAlavancagemPct: Number.isFinite(limite) && limite > 0 ? limite : DEFAULT_LIMITE_ALAVANCAGEM_PCT,
@@ -72,6 +80,7 @@ export async function readAlertasConfig(): Promise<AlertasConfig> {
 export async function writeAlertasConfig(config: AlertasConfig): Promise<void> {
   await gravarEscopo("alertas", [
     ["telegram_chat_id", config.chatId],
+    ["telegram_convidados", (config.convidados ?? []).join(",")],
     ["telegram_bot_token", config.botToken],
     ["telegram_webhook_secret", config.webhookSecret ?? ""],
     ["limite_alavancagem_pct", String(config.limiteAlavancagemPct)],
@@ -94,4 +103,46 @@ export async function readAlertasEstado(): Promise<AlertasEstado> {
 
 export async function writeAlertasEstado(estado: AlertasEstado): Promise<void> {
   await gravarEscopo("alertas_estado", Object.entries(estado));
+}
+
+
+// ── Destinatários ────────────────────────────────────────────────────────────
+// Dono + convidados, numa lista só. Centralizado aqui de propósito: quem ENVIA
+// (digest, alertas) e quem o bot ATENDE (allowlist do webhook) têm que sair da
+// MESMA função — se divergirem, ou alguém recebe e não pode perguntar, ou pior,
+// alguém é atendido sem estar na lista de quem você quis incluir.
+
+/** Normaliza um chat_id: só dígitos e o sinal (grupos do Telegram são negativos). */
+export function normalizarChatId(v: unknown): string {
+  const s = String(v ?? "").trim();
+  const m = s.match(/^-?\d+$/);
+  return m ? s : "";
+}
+
+/** Lê a lista salva (texto separado por vírgula) → ids válidos, sem repetição. */
+export function parseConvidados(bruto: unknown): string[] {
+  return [...new Set(
+    String(bruto ?? "")
+      .split(/[,;\s]+/)
+      .map(normalizarChatId)
+      .filter(Boolean),
+  )];
+}
+
+/** Todos que recebem envio E são atendidos pelo bot. Dono primeiro; o dono
+ *  nunca aparece duplicado, mesmo que alguém o adicione como convidado. */
+export function destinatarios(cfg: Pick<AlertasConfig, "chatId" | "convidados">): string[] {
+  const dono = normalizarChatId(cfg.chatId);
+  const out = dono ? [dono] : [];
+  for (const c of cfg.convidados ?? []) {
+    const id = normalizarChatId(c);
+    if (id && id !== dono && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/** O bot atende este chat? Mesma fonte da lista de envio. */
+export function podeUsarBot(cfg: Pick<AlertasConfig, "chatId" | "convidados">, chatId: string): boolean {
+  const id = normalizarChatId(chatId);
+  return id !== "" && destinatarios(cfg).includes(id);
 }

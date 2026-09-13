@@ -601,6 +601,16 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   (2) **allowlist**: só o `chatId` salvo é atendido — outro chat leva recusa e ZERO dado
   da carteira; (3) só texto, teto de 1000 caracteres. Dedup por `update_id` (o Telegram
   reenvia se não receber 200 rápido).
+- **CONVIDADOS** (decisão do dono, 13/09/2026): além do `chatId` do dono existe
+  `convidados` (lista em `app_config` → `telegram_convidados`) com **acesso IGUAL
+  ao dele** — recebem resumo/alertas e o bot responde a eles com os valores reais
+  da carteira. ⚠️ `destinatarios()` e `podeUsarBot()` (`lib/alertas-store.ts`) são
+  a MESMA fonte para quem recebe e quem o bot atende: nunca criar uma segunda
+  lista, senão alguém recebe sem poder perguntar — ou é atendido sem constar.
+  `normalizarChatId` só aceita id numérico (grupos são negativos); lista vazia =
+  ninguém é atendido (fail-closed). Gerenciado em Configurações → Alertas.
+  O `GET /api/alertas/config` **não** devolve `webhookSecret` ao cliente (só o
+  booleano `botRespostasAtivo`) — mesma regra do token.
 - **Somente leitura**: o bot não grava na planilha (exceto o próprio fio em
   `telegram_conversas`) nem executa ordens. Não dar poder de escrita a endpoint público.
 - **Responde em 2 tempos**: o handler devolve 200 ao Telegram NA HORA e processa

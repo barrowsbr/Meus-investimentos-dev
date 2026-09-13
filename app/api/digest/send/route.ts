@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOwner } from "@/lib/auth-server";
 import { isDemoRequest } from "@/lib/demo";
-import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
+import { readAlertasConfig, resolveBotToken , destinatarios } from "@/lib/alertas-store";
 import { buildDigest, buildDigestCaption, resolveAppUrl } from "@/lib/digest";
 import { renderDigestImage } from "@/lib/digest-image";
 import { sendTelegramPhoto } from "@/lib/telegram";
@@ -25,7 +25,7 @@ export async function POST() {
     const data = await buildDigest();
     const png = await renderDigestImage(data).arrayBuffer();
     const appUrl = resolveAppUrl();
-    const res = await sendTelegramPhoto(resolveBotToken(config), config.chatId, png, buildDigestCaption(data), {
+    const res = await sendTelegramPhoto(resolveBotToken(config), destinatarios(config)[0] ?? config.chatId, png, buildDigestCaption(data), {
       parseMode: "HTML",
       buttons: appUrl ? [[
         { text: "📊 Dashboard", url: appUrl },

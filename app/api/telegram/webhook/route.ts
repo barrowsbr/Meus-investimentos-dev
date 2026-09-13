@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
+import { readAlertasConfig, resolveBotToken, podeUsarBot } from "@/lib/alertas-store";
 import { sendTelegramMessage, sendTelegramChatAction } from "@/lib/telegram";
 import { llmComplete } from "@/lib/llm";
 import { buildAgentContext } from "@/lib/agent-context";
@@ -86,9 +86,13 @@ export async function POST(request: Request) {
   const token = resolveBotToken(cfg);
   if (!token) return NextResponse.json({ ok: true });
 
-  // ── Trava 2: allowlist do dono ──
-  if (!cfg.chatId || chatId !== String(cfg.chatId).trim()) {
-    await sendTelegramMessage(token, chatId, "Este assistente é privado e responde apenas ao dono da conta.");
+  // ── Trava 2: allowlist (dono + convidados) ──
+  // `podeUsarBot` é a MESMA função que monta a lista de envio do resumo — se
+  // fossem duas listas, alguém poderia receber e não poder perguntar, ou ser
+  // atendido sem constar em lugar nenhum. Quem não está na lista leva recusa
+  // e ZERO dado da carteira (o LLM nem é chamado).
+  if (!podeUsarBot(cfg, chatId)) {
+    await sendTelegramMessage(token, chatId, "Este assistente é privado e responde apenas a quem o dono autorizou.");
     return NextResponse.json({ ok: true, recusado: true });
   }
 

@@ -7,7 +7,7 @@ import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cam
 import { MARGIN_TAB, computeMarginResumo, aplicarAlavancagem, loadMarginEntriesCanonicas } from "@/lib/margin";
 import { buildApuracao } from "@/lib/tax/apuracao-service";
 import { computeAlertas, shouldSend } from "@/lib/alertas";
-import { readAlertasConfig, readAlertasEstado, writeAlertasEstado, resolveBotToken } from "@/lib/alertas-store";
+import { readAlertasConfig, readAlertasEstado, writeAlertasEstado, resolveBotToken , destinatarios } from "@/lib/alertas-store";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +64,13 @@ export async function GET(request: Request) {
     const enviados: string[] = [];
     const falhas: string[] = [];
     for (const t of toSend) {
-      const res = await sendTelegramMessage(token, config.chatId, t.texto);
+      // Mesmo alerta para dono + convidados; um destino com erro não
+      // interrompe os demais nem o loop de alertas.
+      let res = { ok: false, error: "sem destinatário" } as { ok: boolean; error?: string };
+      for (const destino of destinatarios(config)) {
+        const r = await sendTelegramMessage(token, destino, t.texto);
+        if (r.ok) res = r; else if (!res.ok) res = r;
+      }
       if (res.ok) { enviados.push(t.chave); estado[t.chave] = hoje; }
       else falhas.push(`${t.chave}: ${res.error}`);
     }

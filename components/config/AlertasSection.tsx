@@ -14,6 +14,7 @@ import { API_URL, ToggleRow } from "@/components/config/shared";
 
 interface AlertasConfigResp {
   chatId: string;
+  convidados?: string[];
   limiteAlavancagemPct: number;
   ativo: boolean;
   darfAtivo: boolean;
@@ -28,6 +29,9 @@ interface AlertasConfigResp {
 export default function AlertasSection() {
   const [loading, setLoading] = useState(true);
   const [chatId, setChatId] = useState("");
+  // Convidados editados como TEXTO (um por linha / vírgula) — a lista só é
+  // normalizada no servidor, que é quem manda na fronteira de acesso.
+  const [convidados, setConvidados] = useState("");
   const [limite, setLimite] = useState(30);
   const [ativo, setAtivo] = useState(true);
   const [darfAtivo, setDarfAtivo] = useState(true);
@@ -78,6 +82,7 @@ export default function AlertasSection() {
       .then(r => r.json())
       .then((d: AlertasConfigResp) => {
         setChatId(d.chatId ?? "");
+        setConvidados((d.convidados ?? []).join(", "));
         setLimite(d.limiteAlavancagemPct ?? 30);
         setAtivo(d.ativo ?? true);
         setDarfAtivo(d.darfAtivo ?? true);
@@ -99,7 +104,7 @@ export default function AlertasSection() {
       const res = await fetch(`${API_URL}/api/alertas/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, botToken, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo, resumoHorarios }),
+        body: JSON.stringify({ chatId, convidados: convidados.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean), botToken, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo, resumoHorarios }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -179,6 +184,25 @@ export default function AlertasSection() {
           />
           <p className="text-[10px] text-zinc-600 mt-1">
             É o SEU id de usuário (não o do bot). Pegue em <code className="bg-zinc-800 px-1 rounded">/getUpdates</code> depois de mandar uma mensagem pro bot.
+          </p>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">
+            Convidados <span className="text-amber-400/80 normal-case">· acesso igual ao seu</span>
+          </label>
+          <textarea
+            value={convidados} onChange={e => setConvidados(e.target.value)}
+            placeholder="ex: 987654321, -1001234567890 (um por linha ou separados por vírgula)"
+            rows={2} className={inputCls}
+          />
+          {/* Frase curta, mas a semântica aqui NÃO é óbvia: a pessoa passa a
+              receber o resumo E a poder perguntar qualquer coisa ao bot, com
+              os números reais. Sem o aviso, dá para adicionar alguém achando
+              que é só o resumo diário. */}
+          <p className="text-[10px] mt-1" style={{ color: "#e0a33e" }}>
+            Quem entrar aqui recebe o resumo diário <strong>e</strong> pode perguntar ao bot — com os valores
+            reais da carteira (patrimônio, posições, preço médio). Remover da lista corta o acesso na hora.
           </p>
         </div>
         <div>

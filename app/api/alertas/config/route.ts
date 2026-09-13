@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOwner } from "@/lib/auth-server";
-import { readAlertasConfig, writeAlertasConfig } from "@/lib/alertas-store";
+import { readAlertasConfig, writeAlertasConfig , parseConvidados } from "@/lib/alertas-store";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +12,16 @@ export async function GET() {
     const config = await readAlertasConfig();
     const envToken = !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_TOKEN.trim());
     const savedToken = !!(config.botToken && config.botToken.trim());
-    const { botToken: _omit, ...safe } = config; void _omit;
+    // Fora do payload do cliente: o token do bot E o segredo do webhook. O
+    // segredo é o que autentica as chamadas do Telegram — a UI não precisa
+    // dele para nada (usa só o booleano de "bot ativo"), e mandá-lo ao
+    // navegador é exposição sem contrapartida. Mesma regra do token.
+    const { botToken: _t, webhookSecret: _w, ...safe } = config; void _t; void _w;
     return NextResponse.json({
       ...safe,
       tokenConfigured: envToken || savedToken,
       tokenSource: envToken ? "env" : savedToken ? "config" : "none",
+      botRespostasAtivo: !!(config.webhookSecret && config.webhookSecret.trim()),
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
@@ -52,6 +57,9 @@ export async function POST(req: Request) {
       // PRESERVA o segredo do webhook: salvar ajustes de alerta pela UI não
       // pode desligar as respostas do bot em silêncio.
       webhookSecret: existing.webhookSecret,
+      // Convidados: só troca quando o payload traz a lista (a UI manda um
+      // array). Ausente = mantém — mesmo cuidado do webhookSecret.
+      convidados: Array.isArray(body?.convidados) ? parseConvidados(body.convidados.join(",")) : existing.convidados,
       limiteAlavancagemPct: Number.isFinite(limiteRaw) && limiteRaw > 0 ? limiteRaw : 30,
       ativo: flag(body?.ativo),
       darfAtivo: flag(body?.darfAtivo),
