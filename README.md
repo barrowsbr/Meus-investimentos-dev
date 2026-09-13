@@ -1,6 +1,6 @@
 # Backup da planilha gdados
 
-Gerado em **2026-09-12T12:57:26.114Z** pelo workflow backup.yml (sobrescrito diariamente).
+Gerado em **2026-09-13T13:50:37.933Z** pelo workflow backup.yml (sobrescrito diariamente).
 
 - `cambio.csv` — 16 linhas
 - `meus_ativos.csv` — 89 linhas
