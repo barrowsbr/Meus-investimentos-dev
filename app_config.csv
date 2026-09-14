@@ -12,6 +12,7 @@ alertas_estado,__migrado,1
 alertas_estado,darf_vencido_2025-12,2026-09-11
 alertas,__migrado,1
 alertas,telegram_chat_id,1737564761
+alertas,telegram_convidados,8828208703
 alertas,telegram_bot_token,
 alertas,telegram_webhook_secret,88302beebeb0b6a90113816001d1ba9ceefc783859032183
 alertas,limite_alavancagem_pct,30
