@@ -139,7 +139,7 @@ export function RetornoChart({
             {BENCHES.filter(b => benchAtivos.includes(b.key)).map(b => (
               <Area key={b.key} type="monotone" dataKey={b.key} name={b.key}
                 stroke={benchColor(b, isLight)} fill="none"
-                strokeWidth={1.4} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
+                strokeWidth={b.mwrOnly ? 1.6 : 1.4} strokeDasharray={b.dash ?? "5 3"} dot={false} connectNulls isAnimationActive={false} />
             ))}
             {/* Decomposição câmbio: ativo (do TWR) + efeito cambial (comum) */}
             {showFxDecomp && showTwr && (

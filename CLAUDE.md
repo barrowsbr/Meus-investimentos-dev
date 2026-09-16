@@ -495,6 +495,18 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   de arquivo Next.js vence o rewrite, então o Python fica "morto mas divergente").
 - **Câmbio de custo (P0)** = pmDólar real das remessas (`buildPmFxRates` → `fxCusto`),
   não PTAX da data de compra. Vale para Resumo, Câmbio e DRE. Ver `CALCULOS.md §20`.
+- **MWR × benchmark — régua casada por FLUXO (`lib/mwr.ts`)**: a linha MWR embute o
+  tamanho e o momento de cada aporte; o acumulado de um índice (CDI/IBOV/S&P) é
+  medida **TWR** (buy-and-hold), que expurga exatamente isso. Comparar as duas dava
+  crédito (ou culpa) ao investidor por um timing que o próprio índice teria
+  capturado. A comparação válida é `mwrBenchmarkDiario` — a TIR que o índice teria
+  produzido recebendo os MESMOS fluxos nas MESMAS datas (compra de cotas do índice
+  a cada aporte, mesmo solver XIRR da carteira). No gráfico são as chaves
+  `cdi_mwr`/`ibov_mwr`/`sp500_mwr` (grupo "Seus fluxos"), **travadas no picker
+  enquanto a série MWR estiver desligada**. `calcularMWRDiario` mora em `lib/mwr.ts`
+  — a rota `performance/advanced` NÃO tem cópia do solver. Propriedade útil de
+  sanidade: com taxa constante (CDI) a TIR casada ≈ o acumulado do índice; a
+  diferença aparece nos índices voláteis, que é onde o erro doía.
 - **Rentabilidade**: mostrar SEMPRE duas medidas separadas — **Valorização %**
   (só preço/câmbio, sem proventos) e **Retorno Total %** (valorização + proventos
   líquidos / investido). Nunca misturar uma só métrica que ora inclui, ora não.
