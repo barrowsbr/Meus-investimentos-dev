@@ -116,8 +116,17 @@ export function navSimuladoBenchmark(
     return n > 0 ? n : anterior;
   };
 
-  let nivel = nivelDe(points[0].date, null);
+  // Primeiro nível conhecido DENTRO da janela: se o dia-âncora cair num feriado
+  // do índice (ou o índice começar a publicar um pregão depois), as datas
+  // iniciais entram por ele em vez de derrubarem a série inteira em silêncio —
+  // o modo de falha seria um "—" no lugar da régua, sem explicação.
+  let nivel: number | null = null;
+  for (const p of points) {
+    const n = nivelDe(p.date, null);
+    if (n != null) { nivel = n; break; }
+  }
   if (nivel == null) return null;
+  nivel = nivelDe(points[0].date, nivel)!;
 
   const nav0 = Math.max(0, points[0].nav);
   let cotas = nav0 / nivel;

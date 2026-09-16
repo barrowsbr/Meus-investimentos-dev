@@ -136,3 +136,21 @@ describe("mwrBenchmarkDiario — a régua certa para o MWR", () => {
     expect([...viaHelper.entries()]).toEqual([...viaSolver.entries()]);
   });
 });
+
+describe("buracos no começo da janela", () => {
+  const datas = dias(10);
+
+  it("feriado do índice no dia-âncora não derruba a régua inteira", () => {
+    // Modo de falha silencioso que isto guarda: sem nível no 1º dia a série
+    // vinha vazia e a UI mostrava "—" sem dizer por quê.
+    const bench = benchConstante(datas, 0.001);
+    bench.delete(datas[0]);
+    bench.delete(datas[1]);
+    const pts: PontoFluxo[] = datas.map((date, i) => ({ date, nav: i === 0 ? 1000 : 0, flow: 0, income: 0 }));
+    const sim = navSimuladoBenchmark(pts, bench);
+    expect(sim).not.toBeNull();
+    // Entrou no nível do 1º pregão disponível (dia 2) e rendeu dali em diante.
+    expect(sim![0].nav).toBeCloseTo(1000, 6);
+    expect(sim![9].nav).toBeCloseTo(1000 * Math.pow(1.001, 7), 6);
+  });
+});
