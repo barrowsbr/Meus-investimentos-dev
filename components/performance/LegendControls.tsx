@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { BENCHES, benchColor, type BenchKey } from "@/components/performance/shared";
+import { BENCHES, benchColor, type BenchKey, type BenchMeta } from "@/components/performance/shared";
 
 // ── Chart series legend-filter ────────────────────────────────────────────────
 // O toggle É a legenda: cada botão mostra o traço na cor exata da sua linha no
@@ -54,7 +54,7 @@ export function SeriesToggle({ active, color, label, dashed, onClick, icon: Icon
 // Um botão só ("Benchmarks" + pontinhos das cores ativas) abrindo um popover
 // com os grupos Brasil/Mundo — a linha de botões não cresce com o catálogo.
 // Cada linha mostra o traço na cor da série, a nota e o acumulado do período.
-export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimmed }: {
+export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimmed, mwrAtivo }: {
   ativos: BenchKey[];
   onToggle: (key: BenchKey) => void;
   isLight: boolean;
@@ -62,6 +62,8 @@ export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimm
   totais: Partial<Record<BenchKey, number>>;
   /** Modo câmbio ativo: seleção guardada mas oculta no gráfico. */
   dimmed?: boolean;
+  /** Série MWR ligada — libera as réguas casadas por fluxo. */
+  mwrAtivo?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -91,8 +93,11 @@ export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimm
   }, [open]);
 
   const visiveis = BENCHES.filter(b => !(isUsd && b.brlOnly));
-  const ativosVisiveis = visiveis.filter(b => ativos.includes(b.key));
-  const grupos: Array<"Brasil" | "Mundo" | "Regiões"> = ["Brasil", "Mundo", "Regiões"];
+  // Régua casada por fluxo só compara com a série MWR: sem ela ligada a linha
+  // fica travada (e some dos pontinhos) em vez de desenhar a comparação errada.
+  const travado = (b: BenchMeta) => !!b.mwrOnly && !mwrAtivo;
+  const ativosVisiveis = visiveis.filter(b => ativos.includes(b.key) && !travado(b));
+  const grupos: BenchMeta["grupo"][] = ["Brasil", "Mundo", "Regiões", "Seus fluxos"];
 
   return (
     <div ref={rootRef} className="relative">
@@ -154,20 +159,27 @@ export function BenchmarkPicker({ ativos, onToggle, isLight, isUsd, totais, dimm
               <div key={grupo} className="mb-1.5 last:mb-0">
                 <p className="font-mono select-none px-1.5 pb-1" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--muted)" }}>
                   {grupo}
+                  {grupo === "Seus fluxos" && (
+                    <span className="normal-case tracking-normal" style={{ fontWeight: 500, color: mwrAtivo ? "var(--faint)" : "var(--neg)" }}>
+                      {mwrAtivo ? " · TIR do índice com os seus aportes" : " · ligue a série MWR"}
+                    </span>
+                  )}
                 </p>
                 {doGrupo.map(b => {
-                  const on = ativos.includes(b.key);
+                  const bloqueado = travado(b);
+                  const on = ativos.includes(b.key) && !bloqueado;
                   const cor = benchColor(b, isLight);
                   const total = totais[b.key];
                   return (
                     <button
                       key={b.key}
-                      onClick={() => onToggle(b.key)}
-                      title={b.nota}
+                      onClick={() => { if (!bloqueado) onToggle(b.key); }}
+                      disabled={bloqueado}
+                      title={bloqueado ? "Ligue a série MWR para comparar com esta régua" : b.nota}
                       className="w-full flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors"
-                      style={{ background: on ? `${cor}14` : "transparent" }}
+                      style={{ background: on ? `${cor}14` : "transparent", opacity: bloqueado ? 0.45 : 1, cursor: bloqueado ? "not-allowed" : "pointer" }}
                     >
-                      <span aria-hidden style={{ width: 18, flexShrink: 0, borderTop: `2px dashed ${on ? cor : "var(--line-strong)"}` }} />
+                      <span aria-hidden style={{ width: 18, flexShrink: 0, borderTop: `2px ${b.dash ? "dotted" : "dashed"} ${on ? cor : "var(--line-strong)"}` }} />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5" style={{ fontSize: 11.5, fontWeight: 600, color: on ? "var(--text)" : "var(--muted)" }}>
                           {b.label}

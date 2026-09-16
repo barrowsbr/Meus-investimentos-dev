@@ -54,7 +54,7 @@ export interface Summary {
   troughTwr?: number;
 }
 
-export interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; ndx_twr?: number | null; acwi_twr?: number | null; ouro_twr?: number | null; btc_twr?: number | null; europa_twr?: number | null; dax_twr?: number | null; japao_twr?: number | null; asia_twr?: number | null; emergentes_twr?: number | null; dolar_twr?: number | null; ipca_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
+export interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; cdi_mwr?: number | null; ibov_mwr?: number | null; sp500_mwr?: number | null; sp500_twr?: number | null; ndx_twr?: number | null; acwi_twr?: number | null; ouro_twr?: number | null; btc_twr?: number | null; europa_twr?: number | null; dax_twr?: number | null; japao_twr?: number | null; asia_twr?: number | null; emergentes_twr?: number | null; dolar_twr?: number | null; ipca_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
 export interface DrawdownPoint { date: string; drawdown: number; nav: number }
 export interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 export interface MonthlyReturn { month: string; return_pct: number }
@@ -125,21 +125,27 @@ export interface RiscoRetornoItem { ticker: string; setor: string; macro: string
 // ── Tipos derivados na página (compartilhados com os componentes) ────────────
 
 // Linha do gráfico principal (chartData — chart mapeado em % na página)
-export interface ChartRow { date: string; fullDate: string; portfolio: number; mwr: number | null; cdi: number | null; ibov: number | null; sp500: number | null; ndx: number | null; acwi: number | null; ouro: number | null; btc: number | null; europa: number | null; dax: number | null; japao: number | null; asia: number | null; emergentes: number | null; dolar: number | null; ipca: number | null; nav: number; ret: number | null; fx: number | null; ativo: number | null; ativoMwr: number | null }
+export interface ChartRow { date: string; fullDate: string; portfolio: number; mwr: number | null; cdi: number | null; ibov: number | null; sp500: number | null; cdi_mwr: number | null; ibov_mwr: number | null; sp500_mwr: number | null; ndx: number | null; acwi: number | null; ouro: number | null; btc: number | null; europa: number | null; dax: number | null; japao: number | null; asia: number | null; emergentes: number | null; dolar: number | null; ipca: number | null; nav: number; ret: number | null; fx: number | null; ativo: number | null; ativoMwr: number | null }
 
 // ── Catálogo de benchmarks do gráfico (fonte única da legenda/picker) ────────
 // Todos exibidos SEMPRE na moeda da visão (BRL: índices USD × câmbio do dia;
 // USD: série nativa, e CDI/IBOV/IPCA convertidos dia a dia) — nunca o índice
 // cru. `brlOnly` some na visão USD (dólar vs dólar é zero por definição).
-export type BenchKey = "cdi" | "ibov" | "dolar" | "ipca" | "sp500" | "ndx" | "acwi" | "ouro" | "btc" | "europa" | "dax" | "japao" | "asia" | "emergentes";
+export type BenchKey = "cdi" | "ibov" | "dolar" | "ipca" | "sp500" | "ndx" | "acwi" | "ouro" | "btc" | "europa" | "dax" | "japao" | "asia" | "emergentes"
+  // Réguas casadas por FLUXO — só fazem sentido contra a série MWR.
+  | "cdi_mwr" | "ibov_mwr" | "sp500_mwr";
 export interface BenchMeta {
   key: BenchKey;
   label: string;
-  grupo: "Brasil" | "Mundo" | "Regiões";
+  grupo: "Brasil" | "Mundo" | "Regiões" | "Seus fluxos";
   dark: string;   // cor da linha nos temas escuros
   light: string;  // cor no tema creme
   nota: string;   // explicação curta (tooltip/linha do picker)
   brlOnly?: boolean;
+  /** Só comparável à série MWR — o picker trava a seleção sem ela ligada. */
+  mwrOnly?: boolean;
+  /** Tracejado da linha (default "5 3"). */
+  dash?: string;
 }
 export const BENCHES: BenchMeta[] = [
   { key: "cdi",   label: "CDI",        grupo: "Brasil", dark: "#6366f1", light: "#1E40AF", nota: "Taxa livre de risco acumulada (bruta de IR, como o TWR)" },
@@ -157,7 +163,16 @@ export const BENCHES: BenchMeta[] = [
   { key: "japao",      label: "Japão",         grupo: "Regiões", dark: "#fb7185", light: "#BE123C", nota: "Japão (ETF EWJ — só preço)" },
   { key: "asia",       label: "Ásia ex-Japão", grupo: "Regiões", dark: "#4ade80", light: "#15803D", nota: "Ásia sem Japão (ETF AAXJ: China, Índia, Coreia, Taiwan…)" },
   { key: "emergentes", label: "Emergentes",    grupo: "Regiões", dark: "#fb923c", light: "#C2410C", nota: "Mercados emergentes (ETF EEM — só preço)" },
+  // ── Réguas do MWR ───────────────────────────────────────────────────────────
+  // A TIR que o índice teria produzido recebendo os SEUS aportes, nas SUAS
+  // datas. É a única comparação honesta para a linha MWR: o acumulado
+  // buy-and-hold acima expurga o timing que o MWR justamente mede.
+  { key: "cdi_mwr",   label: "CDI · seus fluxos",     grupo: "Seus fluxos", dark: "#818cf8", light: "#1E40AF", mwrOnly: true, dash: "1 3", nota: "TIR do CDI com os seus aportes nas suas datas" },
+  { key: "ibov_mwr",  label: "IBOV · seus fluxos",    grupo: "Seus fluxos", dark: "#fbbf24", light: "#9A3412", mwrOnly: true, dash: "1 3", nota: "TIR do Ibovespa com os seus aportes nas suas datas" },
+  { key: "sp500_mwr", label: "S&P 500 · seus fluxos", grupo: "Seus fluxos", dark: "#f472b6", light: "#9D174D", mwrOnly: true, dash: "1 3", nota: "TIR do S&P 500 com os seus aportes nas suas datas" },
 ];
+/** Réguas que só comparam com a série MWR (ficam fora do gráfico sem ela). */
+export const ehBenchMwr = (key: BenchKey): boolean => BENCHES.some(b => b.key === key && b.mwrOnly);
 export const benchColor = (b: BenchMeta, isLight: boolean): string => (isLight ? b.light : b.dark);
 
 // Paleta canônica das linhas do gráfico — hex sólido (necessário p/ os

@@ -4,6 +4,7 @@
 // (headline TWR/MWR/MTM + benchmarks), incluindo os helpers do layout claro.
 
 import React from "react";
+import { HelpCircle } from "lucide-react";
 import { pct } from "@/lib/format";
 import { formatDate, formatDuracao, type Summary, type GeInfo } from "@/components/performance/shared";
 
@@ -50,11 +51,16 @@ function EditorialBar({ label, value, maxAbs }: { label: string; value: number; 
   );
 }
 
+// Títulos dos blocos clicáveis — o clique abre a metodologia (fórmulas e
+// quando cada métrica vale).
+const TITLE_TWR = "Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices. Clique para ver a metodologia.";
+const TITLE_MWR = "Money-Weighted Return (TIR/XIRR): retorno ponderado pelo dinheiro investido. MWR > TWR = aportes bem-timed; MWR < TWR = o contrário. Clique para ver a metodologia.";
+
 // ── Hero Performance Command Center ──
 
 export default function PerfHero({
   s, isLight, isUsd, twrPct, mwrPct, trendColor, compactCurr, geInfo, patrimonioCanon,
-  lookback, customMode, classe, setores, tickerFilter, corretoraFilter,
+  lookback, customMode, classe, setores, tickerFilter, corretoraFilter, onExplicar,
 }: {
   s: Summary;
   isLight: boolean;
@@ -71,6 +77,8 @@ export default function PerfHero({
   setores: string[];
   tickerFilter: string;
   corretoraFilter: string;
+  /** Clique no bloco TWR/MWR — abre a metodologia (fórmulas e quando usar cada um). */
+  onExplicar?: () => void;
 }) {
   const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
   const navAtual = s.patrimonio?.total ?? s.navFinal;
@@ -115,20 +123,20 @@ export default function PerfHero({
         <section>
           <Kicker>Retorno Acumulado</Kicker>
           <div className="flex items-baseline flex-wrap gap-x-6 gap-y-1 mt-1">
-            <div>
-              <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--muted)" }}>TWR</span>
+            <button type="button" onClick={onExplicar} title={TITLE_TWR} className="text-left">
+              <span className="font-mono inline-flex items-center gap-1" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--muted)" }}>TWR <HelpCircle size={10} /></span>
               <div className="font-mono tnum" style={{ fontSize: "clamp(2.2rem, 10vw, 3.8rem)", fontWeight: 800, lineHeight: 1, letterSpacing: "-.02em", color: twrColor }}>
                 {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
               </div>
-              <span className="font-mono" style={{ fontSize: 11, color: "var(--muted)" }}>CAGR {pct(s.twrAnualizado * 100)}</span>
-            </div>
-            <div>
-              <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--muted)" }}>MWR</span>
+              <span className="font-mono block" style={{ fontSize: 11, color: "var(--muted)" }}>CAGR {pct(s.twrAnualizado * 100)}</span>
+            </button>
+            <button type="button" onClick={onExplicar} title={TITLE_MWR} className="text-left">
+              <span className="font-mono inline-flex items-center gap-1" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--muted)" }}>MWR <HelpCircle size={10} /></span>
               <div className="font-mono tnum" style={{ fontSize: "clamp(1.4rem, 6vw, 2rem)", fontWeight: 800, lineHeight: 1.1, color: mwrColor }}>
                 {mwrTotal >= 0 ? "+" : ""}{mwrTotal.toFixed(2)}%
               </div>
-              <span className="font-mono" style={{ fontSize: 11, color: "var(--muted)" }}>TIR {pct(mwrPct)}</span>
-            </div>
+              <span className="font-mono block" style={{ fontSize: 11, color: "var(--muted)" }}>TIR {pct(mwrPct)}</span>
+            </button>
             <div>
               <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--muted)" }}>MTM</span>
               <div className="font-mono tnum" style={{ fontSize: "clamp(1.4rem, 6vw, 2rem)", fontWeight: 800, lineHeight: 1.1, color: geColor }}>
@@ -187,20 +195,20 @@ export default function PerfHero({
           {/* ── Primary Metrics ── */}
           <div className="flex items-center justify-center gap-0 mb-4">
             {/* MWR — left wing */}
-            <div className="flex-1 text-right pr-4 sm:pr-6" title="Money-Weighted Return (XIRR): retorno ponderado pelo dinheiro investido. MWR > TWR = aportes bem-timed; MWR < TWR = o contrário">
-              <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-purple-400/60 mb-1">MWR</p>
+            <button type="button" onClick={onExplicar} className="flex-1 text-right pr-4 sm:pr-6" title={TITLE_MWR}>
+              <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-purple-400/60 mb-1 inline-flex items-center gap-1">MWR <HelpCircle size={9} /></p>
               <p className={`text-lg sm:text-2xl font-extrabold tracking-tight leading-none ${mwrTotal >= 0 ? "text-purple-300" : "text-red-400"}`}>
                 {mwrTotal >= 0 ? "+" : ""}{mwrTotal.toFixed(2)}%
               </p>
               <p className="text-[9px] text-zinc-600 mt-0.5">TIR {pct(mwrPct)}</p>
-            </div>
+            </button>
 
             {/* TWR — hero centerpiece */}
-            <div className="flex-shrink-0 text-center px-4 sm:px-8 relative" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices">
+            <button type="button" onClick={onExplicar} className="flex-shrink-0 text-center px-4 sm:px-8 relative" title={TITLE_TWR}>
               <div className="absolute inset-0 rounded-2xl" style={{
                 background: `radial-gradient(circle at 50% 60%, ${trendColor}06, transparent 70%)`
               }} />
-              <p className="relative text-[8px] sm:text-[9px] uppercase tracking-[0.3em] font-bold mb-1.5" style={{ color: `${trendColor}80` }}>TWR</p>
+              <p className="relative text-[8px] sm:text-[9px] uppercase tracking-[0.3em] font-bold mb-1.5 inline-flex items-center gap-1" style={{ color: `${trendColor}80` }}>TWR <HelpCircle size={9} /></p>
               <p className="relative text-4xl sm:text-5xl font-black tracking-tighter leading-none" style={{
                 background: `linear-gradient(180deg, #ffffff 20%, ${trendColor}cc 100%)`,
                 WebkitBackgroundClip: 'text',
@@ -210,7 +218,7 @@ export default function PerfHero({
                 {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
               </p>
               <p className="relative text-[10px] text-zinc-500 mt-1.5 font-medium tracking-wide">CAGR {pct(s.twrAnualizado * 100)}</p>
-            </div>
+            </button>
 
             {/* MTM — right wing */}
             <div className="flex-1 pl-4 sm:pl-6" title="MTM (mark-to-market): variação de preço + proventos">

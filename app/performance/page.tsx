@@ -19,7 +19,7 @@ import AlocacaoNoTempo from "@/components/performance/AlocacaoNoTempo";
 import { PRED_API, PRED_METHODS, type PredResult } from "@/components/performance/PredicaoCharts";
 import {
   formatDate, formatDateShort, formatDuracao,
-  BENCHES, benchColor, type BenchKey,
+  BENCHES, ehBenchMwr, type BenchKey,
   type PerformanceResponse, type DecomposicaoResponse,
   type RentabilidadeItem, type RiscoRetornoItem,
 } from "@/components/performance/shared";
@@ -281,6 +281,9 @@ export default function PerformancePage() {
       cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
       ibov: p.ibov_twr != null ? +(p.ibov_twr * 100).toFixed(2) : null,
       sp500: p.sp500_twr != null ? +(p.sp500_twr * 100).toFixed(2) : null,
+      cdi_mwr: p.cdi_mwr != null ? +(p.cdi_mwr * 100).toFixed(2) : null,
+      ibov_mwr: p.ibov_mwr != null ? +(p.ibov_mwr * 100).toFixed(2) : null,
+      sp500_mwr: p.sp500_mwr != null ? +(p.sp500_mwr * 100).toFixed(2) : null,
       ndx: p.ndx_twr != null ? +(p.ndx_twr * 100).toFixed(2) : null,
       acwi: p.acwi_twr != null ? +(p.acwi_twr * 100).toFixed(2) : null,
       ouro: p.ouro_twr != null ? +(p.ouro_twr * 100).toFixed(2) : null,
@@ -680,7 +683,22 @@ export default function PerformancePage() {
         setores={setores}
         tickerFilter={tickerFilter}
         corretoraFilter={corretoraFilter}
+        onExplicar={() => setPerfPopup("twrmwr")}
       />
+
+      {/* Metodologia TWR × MWR — abre pelo clique no hero (qualquer aba) */}
+      {perfPopup === "twrmwr" && (
+        <TwrMwrPopup
+          data={data}
+          s={s}
+          isUsd={isUsd}
+          currSymbol={currSymbol}
+          twrPct={twrPct}
+          mwrPct={mwrPct}
+          totaisBench={totaisBench}
+          onClose={() => setPerfPopup(null)}
+        />
+      )}
 
       {/* ── Sub-tabs + chart toggles ── */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -729,6 +747,7 @@ export default function PerformancePage() {
                   isLight={isLight}
                   isUsd={isUsd}
                   totais={totaisBench}
+                  mwrAtivo={showMwr}
                   dimmed={showFxDecomp}
                 />
               </div>
@@ -762,7 +781,7 @@ export default function PerformancePage() {
             C={C}
             showTwr={showTwr}
             showMwr={showMwr}
-            benchAtivos={showFxDecomp ? [] : benchAtivos}
+            benchAtivos={showFxDecomp ? [] : benchAtivos.filter(k => showMwr || !ehBenchMwr(k))}
             showFxDecomp={showFxDecomp}
             carteiraMode={carteiraMode}
             setCarteiraMode={setCarteiraMode}
@@ -813,7 +832,7 @@ export default function PerformancePage() {
               <Activity size={18} className="shrink-0" style={{ color: "#a78bfa" }} />
               <div className="min-w-0">
                 <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>TWR vs MWR</p>
-                <p className="truncate text-[11px]" style={{ color: "var(--faint)" }}>Comparação + decomposição ativo × câmbio</p>
+                <p className="truncate text-[11px]" style={{ color: "var(--faint)" }}>Metodologia, fórmulas e o benchmark certo</p>
               </div>
             </button>
             {!isUsd && decomp && decomp.buckets.length > 1 && (
@@ -826,19 +845,6 @@ export default function PerformancePage() {
               </button>
             )}
           </div>
-
-          {/* TWR vs MWR + FX Decomposition (popup) */}
-          {perfPopup === "twrmwr" && (
-            <TwrMwrPopup
-              data={data}
-              s={s}
-              isUsd={isUsd}
-              currSymbol={currSymbol}
-              twrPct={twrPct}
-              mwrPct={mwrPct}
-              onClose={() => setPerfPopup(null)}
-            />
-          )}
 
           {/* Currency decomposition (BRL only) — popup */}
           {perfPopup === "moeda" && !isUsd && decomp && decomp.buckets.length > 1 && (
