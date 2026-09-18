@@ -3,8 +3,6 @@ cartao,__migrado,1
 cartao,fechamento_dia,27
 historico,__migrado,1
 historico,ativo,true
-alertas_estado,__migrado,1
-alertas_estado,darf_vencido_2025-12,2026-09-11
 alertas,__migrado,1
 alertas,telegram_chat_id,1737564761
 alertas,telegram_convidados,8828208703
@@ -22,3 +20,5 @@ bens,fundo,/midias/home-bg.jpeg
 bens,exigir_login,0
 bens,ajuste_tcross,-10
 bens,ajuste_onix,-8
+alertas_estado,__migrado,1
+alertas_estado,darf_vencido_2025-12,2026-09-18

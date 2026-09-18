@@ -1,6 +1,6 @@
 # Backup da planilha gdados
 
-Gerado em **2026-09-17T14:21:21.701Z** pelo workflow backup.yml (sobrescrito diariamente).
+Gerado em **2026-09-18T13:41:43.949Z** pelo workflow backup.yml (sobrescrito diariamente).
 
 - `cambio.csv` — 16 linhas
 - `meus_ativos.csv` — 89 linhas
@@ -9,13 +9,13 @@ Gerado em **2026-09-17T14:21:21.701Z** pelo workflow backup.yml (sobrescrito dia
 - `meus_proventos.csv` — 351 linhas
 - `ativos_notas.csv` — 16 linhas
 - `composicao.csv` — 100 linhas
-- `p_tax.csv` — 10626 linhas
+- `p_tax.csv` — 10630 linhas
 - `lb_historic.csv` — 12 linhas
 - `financas_pessoal.csv` — 19 linhas
 - `financas_assinaturas.csv` — 0 linhas
 - `financas_parcelamentos.csv` — 25 linhas
 - `email_config.csv` — 27 linhas
-- `historico_patrimonio.csv` — 382 linhas
+- `historico_patrimonio.csv` — 384 linhas
 - `db_cotacoes.csv` — 1909 linhas
 - `simulacoes.csv` — 5 linhas
 - `alavancagem.csv` — 0 linhas
@@ -26,12 +26,12 @@ Gerado em **2026-09-17T14:21:21.701Z** pelo workflow backup.yml (sobrescrito dia
 - `automacoes_config.csv` — 3 linhas
 - `moedas_colecao.csv` — 84 linhas
 - `app_config.csv` — 23 linhas
-- `fipe_historico.csv` — 8 linhas
+- `fipe_historico.csv` — 17 linhas
 - `cartao_transacoes.csv` — 71 linhas
 - `bens_fotos.csv` — 41 linhas
-- `etf_mundo_map.csv` — 1152 linhas
-- `financas_meses.csv` — 1 linhas
+- `etf_mundo_map.csv` — 1155 linhas
+- `financas_meses.csv` — 0 linhas
 - `numista_match.csv` — 247 linhas
-- `ibkr_nav.csv` — 277 linhas
+- `ibkr_nav.csv` — 278 linhas
 - `telegram_conversas.csv` — 27 linhas
-- `bens_lista.csv` — 4 linhas
+- `bens_lista.csv` — 16 linhas
