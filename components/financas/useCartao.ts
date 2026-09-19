@@ -1,7 +1,7 @@
 "use client";
 
 // Hook compartilhado dos dados do cartão (/api/financas/cartao) — usado pelas
-// abas Gastos e Custos. Cache de MÓDULO (60s) para as duas abas não baterem na
+// abas Gastos e Conta Rápida. Cache de MÓDULO (60s) para as duas abas não baterem na
 // API em dobro ao alternar; `recarregar` fura o cache.
 
 import { useEffect, useState, useCallback } from "react";
