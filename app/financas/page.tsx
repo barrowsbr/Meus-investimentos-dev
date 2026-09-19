@@ -18,7 +18,7 @@ import { Wallet, CreditCard, CalendarDays, AlertCircle, Scale } from "lucide-rea
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import GastosTab from "@/components/financas/GastosTab";
-import CustosTab from "@/components/financas/CustosTab";
+import ContaRapidaTab from "@/components/financas/ContaRapidaTab";
 import MesesTab from "@/components/financas/MesesTab";
 import AcertoTab from "@/components/financas/AcertoTab";
 import { useCartao } from "@/components/financas/useCartao";
@@ -38,11 +38,11 @@ export default function FinancasPage() {
   const [meses, setMeses] = useState<MesRegistro[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"acerto" | "gastos" | "custos" | "meses">("acerto");
+  const [activeTab, setActiveTab] = useState<"acerto" | "gastos" | "conta" | "meses">("acerto");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const { cartao } = useCartao(); // aba Acerto (cache de módulo — Gastos reusa)
 
-  // Faixa-ponte: os 3 números do modelo, vivos em TODAS as abas (editar Custos
+  // Faixa-ponte: os 3 números do modelo, vivos em TODAS as abas (editar a Conta Rápida
   // muda a sobra na hora; importar OFX muda a fatura). Mesma conta do Acerto.
   const ponte = (() => {
     const hojeISO = new Date().toISOString().slice(0, 10);
@@ -126,7 +126,7 @@ export default function FinancasPage() {
   const tabs = [
     { id: "acerto", label: "Acerto", icon: <Scale size={14} /> },
     { id: "gastos", label: "Gastos", icon: <CreditCard size={14} /> },
-    { id: "custos", label: "Custos", icon: <Wallet size={14} /> },
+    { id: "conta", label: "Conta Rápida", icon: <Wallet size={14} /> },
     { id: "meses", label: "Meses", icon: <CalendarDays size={14} /> },
   ] as const;
 
@@ -205,13 +205,8 @@ export default function FinancasPage() {
             setParcelamentos={setParcelamentos}
           />
         )}
-        {activeTab === "custos" && (
-          <CustosTab
-            rows={mensalRows}
-            setRows={setMensalRows}
-            assinaturas={assinaturas}
-            parcelamentos={parcelamentos}
-          />
+        {activeTab === "conta" && (
+          <ContaRapidaTab rows={mensalRows} setRows={setMensalRows} />
         )}
         {activeTab === "meses" && (
           <MesesTab

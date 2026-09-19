@@ -5,7 +5,7 @@
 // planejar o próximo (teto de cartão, meta de aporte, intenções). 1 registro
 // por mês na aba financas_meses; os números do cartão vêm sozinhos de
 // cartao_transacoes (useCartao), e o snapshot de entradas/fixas/compromissos
-// congela os valores da aba Custos no momento do fechamento.
+// congela os valores da aba Conta Rápida no momento do fechamento.
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CheckCircle2, PencilLine, Target, Star, CalendarDays } from "lucide-react";
@@ -54,8 +54,9 @@ export default function MesesTab({
     return { tot, porCat };
   }, [cartao]);
 
-  // Valores CORRENTES da aba Custos — a estimativa do mês em andamento e o
-  // que vira snapshot no fechamento.
+  // Valores CORRENTES — entradas/fixas vêm da aba Conta Rápida e os
+  // compromissos da aba Gastos: a estimativa do mês em andamento e o que vira
+  // snapshot no fechamento.
   const atuais = useMemo(() => {
     const entradas = mensalRows.filter(r => r.categoria === "entrada").reduce((s, r) => s + r.valor, 0);
     const fixas = mensalRows.filter(r => r.categoria === "saida").reduce((s, r) => s + r.valor, 0);
